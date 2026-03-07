@@ -274,7 +274,9 @@ function cmdStateUpdateProgress(cwd, raw) {
   const statePath = path.join(cwd, '.planning', 'STATE.md');
   if (!fs.existsSync(statePath)) { output({ error: 'STATE.md not found' }, raw); return; }
 
-  let content = fs.readFileSync(statePath, 'utf-8');
+  const fullContent = fs.readFileSync(statePath, 'utf-8');
+  // Strip frontmatter before applying regex so we don't match YAML "progress:" key
+  let content = stripFrontmatter(fullContent);
 
   // Count summaries across all phases
   const phasesDir = path.join(cwd, '.planning', 'phases');
@@ -297,7 +299,8 @@ function cmdStateUpdateProgress(cwd, raw) {
   const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(barWidth - filled);
   const progressStr = `[${bar}] ${percent}%`;
 
-  // Try **Progress:** bold format first, then plain Progress: format
+  // Try **Progress:** bold format first, then plain Progress: format.
+  // Operate on the stripped body (no frontmatter) so we don't match the YAML "progress:" key.
   const boldProgressPattern = /(\*\*Progress:\*\*\s*).*/i;
   const plainProgressPattern = /^(Progress:\s*).*/im;
   if (boldProgressPattern.test(content)) {
@@ -612,8 +615,13 @@ function buildStateFrontmatter(bodyContent, cwd) {
     } catch {}
   }
 
+  // Calculate percent from disk-based counts (completedPlans / totalPlans).
+  // Do NOT extract from progressRaw — the markdown body may be stale.
   let progressPercent = null;
-  if (progressRaw) {
+  if (completedPlans !== null && totalPlans !== null && totalPlans > 0) {
+    progressPercent = Math.min(100, Math.round(completedPlans / totalPlans * 100));
+  } else if (progressRaw) {
+    // Fallback: parse from markdown if no disk counts available
     const pctMatch = progressRaw.match(/(\d+)%/);
     if (pctMatch) progressPercent = parseInt(pctMatch[1], 10);
   }

@@ -871,6 +871,56 @@ function cmdPhaseComplete(cwd, phaseNum, raw) {
       `$1Phase ${phaseNum} complete${nextPhaseNum ? `, transitioned to Phase ${nextPhaseNum}` : ''}`
     );
 
+    // Count total plans and summaries across all phases (for progress bar + velocity)
+    let allTotalPlans = 0;
+    let allCompletedPlans = 0;
+    try {
+      const entries = fs.readdirSync(phasesDir, { withFileTypes: true });
+      const allDirs = entries.filter(e => e.isDirectory()).map(e => e.name);
+      for (const dir of allDirs) {
+        const files = fs.readdirSync(path.join(phasesDir, dir));
+        allTotalPlans += files.filter(f => f.match(/-PLAN\.md$/i)).length;
+        allCompletedPlans += files.filter(f => f.match(/-SUMMARY\.md$/i)).length;
+      }
+    } catch {}
+
+    // Update "Phase: X of Y" line in markdown body
+    // Matches: "Phase: 1 of 6" or "Phase: 1 of 6 (Name)" — advance to next phase
+    const nextPhaseLabel = nextPhaseNum || phaseNum;
+    const phaseLinePattern = /^(Phase:\s*)\d+[^\n]*/m;
+    if (phaseLinePattern.test(stateContent)) {
+      const totalPhasesMatch = stateContent.match(/\bof\s+(\d+)/);
+      const totalPhases = totalPhasesMatch ? totalPhasesMatch[1] : '?';
+      const nextNameFormatted = nextPhaseName ? ` (${nextPhaseName.replace(/-/g, ' ')})` : '';
+      stateContent = stateContent.replace(
+        phaseLinePattern,
+        `$1${nextPhaseLabel} of ${totalPhases}${nextNameFormatted}`
+      );
+    }
+
+    // Update "Progress: [bar] %" line in markdown body
+    const pct = allTotalPlans > 0 ? Math.min(100, Math.round(allCompletedPlans / allTotalPlans * 100)) : 0;
+    const barWidth = 10;
+    const filled = Math.round(pct / 100 * barWidth);
+    const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(barWidth - filled);
+    const progressStr = `[${bar}] ${pct}%`;
+    const progressLinePattern = /^(Progress:\s*)\[[\u2588\u2591░█]+\]\s*\d+%/m;
+    if (progressLinePattern.test(stateContent)) {
+      stateContent = stateContent.replace(progressLinePattern, `$1${progressStr}`);
+    } else {
+      // Also handle bold **Progress:** format
+      stateContent = stateContent.replace(
+        /(\*\*Progress:\*\*\s*).*/,
+        `$1${progressStr}`
+      );
+    }
+
+    // Update "Total plans completed: N" in Performance Metrics velocity section
+    stateContent = stateContent.replace(
+      /^(- Total plans completed:\s*)\d+/m,
+      `$1${allCompletedPlans}`
+    );
+
     writeStateMd(statePath, stateContent, cwd);
   }
 
