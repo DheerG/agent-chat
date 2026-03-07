@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 3 of 6 complete — Data layer, REST API, and MCP server with hook ingestion are built. WebSocket delivery, web UI, and documents are upcoming.
+> **Status:** Phase 4 of 6 complete — Data layer, REST API, MCP server, and real-time WebSocket delivery are built. Human web UI and documents are upcoming.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ The server starts on `http://localhost:3000`. The SQLite database is created aut
 ```
 agent-chat/
 ├── packages/
-│   ├── server/          HTTP API, database, services (@agent-chat/server)
+│   ├── server/          HTTP API, database, services, WebSocket hub (@agent-chat/server)
 │   ├── mcp/             MCP server for Claude Code agents (@agent-chat/mcp)
 │   └── shared/          Schema, types, shared definitions (@agent-chat/shared)
 ├── .planning/           Roadmap, requirements, project state
@@ -38,6 +38,7 @@ agent-chat/
 | ORM | Drizzle ORM 0.45 |
 | Validation | Zod 4.3 |
 | MCP Server | Model Context Protocol SDK 1.12 |
+| WebSocket | ws 8.19 |
 | IDs | ULID (lexicographic = chronological) |
 | Tests | Vitest 3.0 |
 | Package Manager | pnpm 9+ (monorepo) |
@@ -127,7 +128,7 @@ List all channels available in your tenant
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (72 passing)
+pnpm test          # Run all tests (88 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -145,7 +146,7 @@ pnpm typecheck     # Type checking only
 - [x] **Phase 1:** Data Layer Foundation — SQLite schema, WAL mode, write serialization, tenant isolation
 - [x] **Phase 2:** Domain Services and HTTP API — Service layer, Hono REST server, Zod validation
 - [x] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
-- [ ] **Phase 4:** Real-Time WebSocket Delivery — Sub-second push to browsers with reconnect catch-up
+- [x] **Phase 4:** Real-Time WebSocket Delivery — WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
 - [ ] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
 - [ ] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
 
