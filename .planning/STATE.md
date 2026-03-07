@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-07T17:12:06.224Z"
-last_activity: 2026-03-07 — Phase 11 complete, team inbox watcher built
+stopped_at: Phase 12 complete — all phases done
+last_updated: "2026-03-07T20:16:00.000Z"
+last_activity: 2026-03-07 — Phase 12 complete, setup scripts and README updated
 progress:
   total_phases: 12
-  completed_phases: 9
-  total_plans: 26
-  completed_plans: 22
-  percent: 85
+  completed_phases: 12
+  total_plans: 27
+  completed_plans: 27
+  percent: 100
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** v1.0 milestone + Phase 11 COMPLETE
+**Current focus:** v1.0 milestone COMPLETE
 
 ## Current Position
 
-Phase: 11 of 12 (Team Inbox Ingestion) - COMPLETE
-Plan: 2 of 2 in current phase
+Phase: 12 of 12 (Setup Script Updates) - COMPLETE
+Plan: 1 of 1 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 11 complete, team inbox watcher built
+Last activity: 2026-03-07 — Phase 12 complete, setup scripts and README updated
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
+- Total plans completed: 27
 - Average duration: ---
 - Total execution time: ---
 
@@ -107,6 +107,8 @@ Recent decisions affecting current work:
 - [Phase 11]: Structured messages (idle_notification, shutdown_request) detected via JSON parse + type field → messageType 'event'
 - [Phase 11]: TEAMS_DIR env var overrides default ~/.claude/teams/ path
 - [Phase 11]: Watcher stops FIRST in SIGTERM shutdown sequence (before WebSocket, HTTP, DB)
+- [Phase 12]: setup.sh summary updated with team watching info and TEAMS_DIR override
+- [Phase 12]: README.md updated with TEAMS_DIR env var, team watching architecture, Phases 9-12, corrected port
 
 ### Roadmap Evolution
 
@@ -121,6 +123,7 @@ Recent decisions affecting current work:
 - Phase 11 added: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
 - Phase 11 completed: All 2 plans executed and verified
 - Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
+- Phase 12 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -128,14 +131,14 @@ None.
 
 ### Blockers/Concerns
 
-None — 11 phases complete:
+None — all 12 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 143 server tests pass (115 existing + 28 new watcher tests)
+- 200 tests pass (143 server + 57 client)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T17:12:06.221Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-setup-script-updates-auto-configure-team-inbox-watcher-and-update-teardown-to-remove-it/12-CONTEXT.md
+Last session: 2026-03-07T20:16:00.000Z
+Stopped at: Phase 12 complete — all phases done
+Resume file: .planning/phases/12-setup-script-updates-auto-configure-team-inbox-watcher-and-update-teardown-to-remove-it/12-01-SUMMARY.md

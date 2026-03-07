@@ -23,6 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: UI Polish** - CSS design tokens, WCAG AA contrast fixes, accessible archive buttons, ConfirmDialog, dead code fix, ARIA landmarks (completed 2026-03-07)
 - [x] **Phase 10: Fix Dogfood Bugs** - Block writes to archived channels, fix tenant name upsert, verify Sidebar tests (completed 2026-03-07)
 - [x] **Phase 11: Team Inbox Ingestion** - File watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time (completed 2026-03-07)
+- [x] **Phase 12: Setup Script Updates** - Documentation and setup output for team inbox watching (completed 2026-03-07)
 
 ## Phase Details
 
@@ -127,6 +128,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 9. UI Polish | 2/2 | Complete    | 2026-03-07 |
 | 10. Fix Dogfood Bugs | 1/1 | Complete    | 2026-03-07 |
 | 11. Team Inbox Ingestion | 2/2 | Complete    | 2026-03-07 |
+| 12. Setup Script Updates | 1/1 | Complete    | 2026-03-07 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -202,10 +204,16 @@ Plans:
 
 ### Phase 12: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Update setup.sh, teardown.sh, and README.md to document the team inbox watcher feature from Phase 11
+**Requirements**: N/A (documentation/DX phase)
 **Depends on:** Phase 11
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. setup.sh summary mentions team inbox watching and TEAMS_DIR env var
+  2. README.md documents TEAMS_DIR in environment variables table
+  3. README.md includes team inbox watching in architecture section
+  4. README.md roadmap section includes Phases 9-12
+  5. All existing tests pass with zero regressions
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 12 to break down)
+- [x] 12-01-PLAN.md — Setup script summary and README documentation updates (completed 2026-03-07)
