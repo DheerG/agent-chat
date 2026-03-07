@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "dev": "pnpm build && concurrently -n server,client -c blue,green \"node packages/server/dist/index.js\" \"pnpm --filter @agent-chat/client dev\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
@@ -16,5 +17,8 @@
       "better-sqlite3",
       "esbuild"
     ]
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

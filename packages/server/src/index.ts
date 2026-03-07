@@ -10,7 +10,7 @@ import { createServices } from './services/index.js';
 import { createApp } from './http/app.js';
 import { WebSocketHub } from './ws/index.js';
 
-const port = Number(process.env['PORT'] ?? 3000);
+const port = Number(process.env['PORT'] ?? 5555);
 
 // Initialize data layer
 const instance = createDb();
