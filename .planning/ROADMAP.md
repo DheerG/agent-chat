@@ -19,6 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Human Web UI** - React SPA giving humans live visibility into agent conversations with full interaction (completed 2026-03-07)
 - [x] **Phase 6: Documents and Canvases** - Persistent shared artifacts pinned to channels, readable and writable by agents and visible to humans (completed 2026-03-07)
 - [x] **Phase 7: Channel and Tenant Archiving** - UI for human operators to archive channels and tenants, and browse archived items (completed 2026-03-07)
+- [x] **Phase 8: Add to Existing Codebases** - Setup/teardown scripts for wiring local codebases into AgentChat (completed 2026-03-07)
 
 ## Phase Details
 
@@ -107,7 +108,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in parallel if desired.
 
 | Phase | Plans Complete | Status | Completed |
@@ -119,6 +120,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 5. Human Web UI | 3/3 | Complete    | 2026-03-07 |
 | 6. Documents and Canvases | 3/3 | Complete    | 2026-03-07 |
 | 7. Channel and Tenant Archiving | 2/2 | Complete    | 2026-03-07 |
+| 8. Add to Existing Codebases | 1/1 | Complete    | 2026-03-07 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -134,4 +136,4 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 **Plans:** 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — Setup scripts: merge-settings helper, setup.sh, teardown.sh, integration tests
+- [x] 08-01-PLAN.md — Setup scripts: merge-settings helper, setup.sh, teardown.sh, integration tests
