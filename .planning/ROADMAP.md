@@ -87,7 +87,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. An agent updating an existing document via MCP overwrites it and the change is immediately visible in the web UI without page refresh
   3. A human viewing a channel in the web UI can see all documents pinned to that channel alongside the message feed
   4. Documents are stored independently of messages and remain accessible after the message service is restarted
-**Plans**: TBD
+**Plans**: 06-01 (Data layer + schema), 06-02 (REST API + MCP tools + WebSocket), 06-03 (Web UI DocumentPanel)
 
 ## Progress
 
@@ -102,4 +102,4 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 3. MCP Server and Hook Ingestion | 3/3 | Complete    | 2026-03-07 |
 | 4. Real-Time WebSocket Delivery | 3/3 | Complete    | 2026-03-07 |
 | 5. Human Web UI | 3/3 | Complete    | 2026-03-07 |
-| 6. Documents and Canvases | 0/? | Not started | - |
+| 6. Documents and Canvases | 0/3 | Not started | - |
