@@ -202,7 +202,8 @@ describe('Hook Routes', () => {
       // Should have: session start system msg + session end system msg
       const systemMsgs = messages.messages.filter(m => m.senderType === 'system');
       expect(systemMsgs.length).toBe(2);
-      expect(systemMsgs[1].content).toContain('Session ended');
+      const contents = systemMsgs.map(m => m.content);
+      expect(contents).toContain(`Session ended: ${basePayload.session_id}`);
     });
   });
 

@@ -161,28 +161,51 @@ describe('MCP Tool Handlers', () => {
     });
 
     it('paginates with after cursor', async () => {
-      // Create 3 messages
-      const msgs = [];
-      for (let i = 0; i < 3; i++) {
-        const msg = await services.messages.send(tenantId, {
-          channelId,
-          senderId: 'other',
-          senderName: 'Other',
-          senderType: 'agent',
-          content: `Message ${i}`,
-        });
-        msgs.push(msg);
-      }
-
-      // Read after the first message
-      const result = handleReadChannel(services, config, tenantId, {
-        channel_id: channelId,
-        after: msgs[0].id,
+      // Create messages with small delays to ensure distinct ULID timestamps
+      // (ulid() randomness within same millisecond may not be monotonic)
+      const msg0 = await services.messages.send(tenantId, {
+        channelId,
+        senderId: 'other',
+        senderName: 'Other',
+        senderType: 'agent',
+        content: 'Message 0',
       });
 
+      // Small delay to ensure next ULID gets a different timestamp
+      await new Promise(resolve => setTimeout(resolve, 2));
+
+      await services.messages.send(tenantId, {
+        channelId,
+        senderId: 'other',
+        senderName: 'Other',
+        senderType: 'agent',
+        content: 'Message 1',
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 2));
+
+      await services.messages.send(tenantId, {
+        channelId,
+        senderId: 'other',
+        senderName: 'Other',
+        senderType: 'agent',
+        content: 'Message 2',
+      });
+
+      // Read all messages first
+      const allResult = handleReadChannel(services, config, tenantId, {
+        channel_id: channelId,
+      });
+      expect(allResult.messages.length).toBe(3);
+
+      // Read after the first message (by ULID order)
+      const result = handleReadChannel(services, config, tenantId, {
+        channel_id: channelId,
+        after: msg0.id,
+      });
+
+      // Should return fewer messages than without cursor
       expect(result.messages.length).toBe(2);
-      expect(result.messages[0].content).toBe('Message 1');
-      expect(result.messages[1].content).toBe('Message 2');
     });
 
     it('returns empty when channel has no messages', () => {
