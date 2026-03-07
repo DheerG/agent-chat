@@ -1,6 +1,6 @@
 .document-panel {
-  border-top: 1px solid #e0e0e3;
-  background: #fafafa;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-doc);
   max-height: 300px;
   overflow-y: auto;
 }
@@ -14,16 +14,16 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
-  border-bottom: 1px solid #e0e0e3;
-  background: #f5f5f7;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-doc-header);
   position: sticky;
   top: 0;
 }
 
 .document-panel__count {
-  background: #e0e0e3;
-  color: #555;
+  background: var(--color-border);
+  color: var(--color-text-muted);
   font-size: 0.65rem;
   padding: 1px 6px;
   border-radius: 8px;
@@ -38,16 +38,16 @@
 .document-panel__empty {
   padding: 16px;
   text-align: center;
-  color: #888;
+  color: var(--color-text-placeholder);
   font-size: 0.85rem;
 }
 
 .document-panel__error {
-  color: #d32f2f;
+  color: var(--color-error);
 }
 
 .document-item {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .document-item:last-child {
@@ -64,17 +64,17 @@
   border: none;
   cursor: pointer;
   font-size: 0.85rem;
-  color: #1a1a2e;
+  color: var(--color-text-primary);
   text-align: left;
 }
 
 .document-item__header:hover {
-  background: #f0f0f2;
+  background: var(--color-bg-app);
 }
 
 .document-item__icon {
   font-size: 0.65rem;
-  color: #888;
+  color: var(--color-text-placeholder);
   width: 12px;
   flex-shrink: 0;
 }
@@ -116,19 +116,19 @@
   gap: 4px;
   padding: 0 16px 4px 36px;
   font-size: 0.7rem;
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .document-item__content {
   padding: 8px 16px 12px 36px;
-  border-top: 1px solid #eee;
-  background: #fff;
+  border-top: 1px solid var(--color-border-light);
+  background: var(--color-bg-primary);
 }
 
 .document-item__body {
   margin: 0;
   padding: 8px 12px;
-  background: #f8f8fa;
+  background: var(--color-bg-code);
   border-radius: 4px;
   font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
   font-size: 0.8rem;
@@ -137,5 +137,5 @@
   word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
-  color: #333;
+  color: var(--color-text-body);
 }

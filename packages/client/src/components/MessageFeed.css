@@ -3,7 +3,8 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background: #fff;
+  background: var(--color-bg-primary);
+  position: relative;
 }
 
 .message-list {
@@ -19,12 +20,12 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #a0aec0;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
 .message-feed-error {
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .new-message-indicator {
@@ -33,7 +34,7 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 16px;
-  background: #667eea;
+  background: var(--color-accent);
   color: #fff;
   border: none;
   border-radius: 20px;
@@ -46,5 +47,5 @@
 }
 
 .new-message-indicator:hover {
-  background: #5a6fd6;
+  background: var(--color-accent-hover);
 }

@@ -6,7 +6,7 @@
 }
 
 .message-item:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--color-hover-light);
 }
 
 /* System messages */
@@ -17,7 +17,7 @@
 
 .message-system-text {
   font-size: 0.8rem;
-  color: #a0aec0;
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
@@ -28,7 +28,7 @@
 
 /* Human messages */
 .message-item--human .message-content {
-  background: #eef2ff;
+  background: var(--color-bg-human-bubble);
   border-radius: 8px;
   padding: 8px 12px;
 }
@@ -65,7 +65,7 @@
 .message-sender-name {
   font-weight: 600;
   font-size: 0.9rem;
-  color: #1a1a2e;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -73,13 +73,13 @@
 
 .message-timestamp {
   font-size: 0.75rem;
-  color: #a0aec0;
+  color: var(--color-text-timestamp);
 }
 
 .message-text {
   font-size: 0.9rem;
   line-height: 1.5;
-  color: #2d3748;
+  color: var(--color-text-body);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -91,7 +91,7 @@
   padding: 2px 0;
   background: none;
   border: none;
-  color: #667eea;
+  color: var(--color-accent);
   font-size: 0.8rem;
   cursor: pointer;
   font-weight: 500;
@@ -110,9 +110,9 @@
 }
 
 .presence-dot--active {
-  background: #22c55e;
+  background: var(--color-presence-active);
 }
 
 .presence-dot--idle {
-  background: #9ca3af;
+  background: var(--color-presence-idle);
 }

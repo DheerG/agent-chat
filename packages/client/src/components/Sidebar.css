@@ -1,8 +1,8 @@
 .sidebar {
   width: 260px;
   min-width: 260px;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: var(--color-bg-sidebar);
+  color: var(--color-text-sidebar);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -10,7 +10,7 @@
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--color-border-sidebar);
 }
 
 .sidebar-title {
@@ -33,11 +33,11 @@
 .sidebar-empty {
   padding: 16px;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--color-text-sidebar-muted);
 }
 
 .sidebar-error {
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 /* Tenant group */
@@ -85,7 +85,7 @@
 
 .tenant-channel-count {
   font-size: 0.7rem;
-  color: #666;
+  color: var(--color-text-sidebar-muted);
   margin-left: 4px;
 }
 
@@ -94,9 +94,11 @@
 .channel-archive-btn {
   opacity: 0;
   font-size: 0.7rem;
-  color: #666;
+  color: var(--color-text-sidebar-muted);
   cursor: pointer;
   padding: 0 2px;
+  background: none;
+  border: none;
   transition: opacity 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
   line-height: 1;
@@ -109,7 +111,15 @@
 
 .tenant-archive-btn:hover,
 .channel-archive-btn:hover {
-  color: #ef4444;
+  color: var(--color-error);
+}
+
+/* Touch devices — make archive buttons always visible */
+@media (hover: none) {
+  .tenant-archive-btn,
+  .channel-archive-btn {
+    opacity: 0.7;
+  }
 }
 
 /* Channel items */
@@ -133,18 +143,18 @@
 }
 
 .channel-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-hover-sidebar);
   color: #fff;
 }
 
 .channel-item--active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-active-sidebar);
   color: #fff;
   font-weight: 500;
 }
 
 .channel-hash {
-  color: #666;
+  color: var(--color-text-sidebar-muted);
   font-weight: 400;
   margin-right: 2px;
 }
@@ -160,13 +170,13 @@
 .channel-empty {
   padding: 4px 28px;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--color-text-sidebar-muted);
 }
 
 /* Archived section */
 .archived-section {
   margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--color-border-sidebar-dim);
 }
 
 .archived-header {
@@ -176,7 +186,7 @@
   padding: 8px 16px;
   background: none;
   border: none;
-  color: #777;
+  color: var(--color-text-sidebar-muted);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -207,7 +217,7 @@
 
 .archived-tenant-name {
   font-size: 0.75rem;
-  color: #666;
+  color: var(--color-text-sidebar-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -226,15 +236,15 @@
   display: flex;
   align-items: center;
   padding: 3px 16px 3px 28px;
-  color: #666;
+  color: var(--color-text-sidebar-muted);
   font-size: 0.85rem;
   gap: 4px;
 }
 
 .restore-btn {
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #777;
+  border: 1px solid var(--color-border-sidebar);
+  color: var(--color-text-sidebar-muted);
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 3px;
@@ -252,5 +262,5 @@
 .archived-empty {
   padding: 8px 28px;
   font-size: 0.8rem;
-  color: #555;
+  color: var(--color-text-sidebar-muted);
 }
