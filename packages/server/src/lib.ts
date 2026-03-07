@@ -15,3 +15,11 @@ export type { PaginatedMessages, SendMessageData } from './services/MessageServi
 export { createApp } from './http/app.js';
 export { dispatchHookEvent } from './hooks/handlers.js';
 export type { HookPayload, HookResult } from './hooks/handlers.js';
+export { WebSocketHub } from './ws/index.js';
+export type {
+  WsClientMessage,
+  WsServerMessage,
+  WsSubscribeMessage,
+  WsUnsubscribeMessage,
+  WsPingMessage,
+} from './ws/index.js';
