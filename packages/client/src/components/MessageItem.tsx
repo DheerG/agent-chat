@@ -1,5 +1,6 @@
 import type { Message } from '@agent-chat/shared';
 import { EventCard } from './EventCard';
+import { MessageContent } from './MessageContent';
 import './MessageItem.css';
 
 interface MessageItemProps {
@@ -83,7 +84,7 @@ export function MessageItem({ message, presenceStatus, threadReplyCount, onThrea
           </span>
           <span className="message-timestamp">{formatRelativeTime(message.createdAt)}</span>
         </div>
-        <div className="message-text">{message.content}</div>
+        <div className="message-text"><MessageContent content={message.content} /></div>
         {threadReplyCount !== undefined && threadReplyCount > 0 && (
           <button
             className="message-thread-link"

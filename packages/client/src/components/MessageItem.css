@@ -80,7 +80,6 @@
   font-size: 0.9rem;
   line-height: 1.5;
   color: var(--color-text-body);
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
