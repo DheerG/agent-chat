@@ -143,9 +143,10 @@ None — all 12 phases complete:
 |---|-------------|------|--------|-----------|
 | 1 | Improve rendering of messages in the UI. Target common patterns like Markdown to html. | 2026-03-07 | 3234608 | [1-improve-rendering](./quick/1-improve-rendering-of-messages-in-the-ui-/) |
 | 2 | Filter out idle_notification noise from team inbox messages | 2026-03-07 | 58b5705 | [2-remove-unknown-tool](./quick/2-remove-unnecessary-unknown-tool-renderin/) |
+| 3 | Render team event messages (task_assignment, shutdown_request, shutdown_approved) as compact cards | 2026-03-07 | 99eb336 | [3-render-team-event](./quick/3-render-team-event-messages-task-assignme/) |
 
 ## Session Continuity
 
-Last session: 2026-03-07T18:45:34.445Z
-Stopped at: Completed quick task 2: filter idle_notification from team inbox
+Last session: 2026-03-07T18:58:34Z
+Stopped at: Completed quick task 3: render team event messages as compact TeamEventCards
 Resume file: None
