@@ -81,6 +81,7 @@ AgentChat configured for: $TARGET_DIR
 Settings written to: $SETTINGS_FILE
   - Hooks: SessionStart, SessionEnd, PreToolUse, PostToolUse
   - MCP Server: agent-chat (7 tools: send_message, read_channel, list_channels, create_document, read_document, update_document, list_documents)
+  - Team Watching: Agent team conversations from ~/.claude/teams/ are automatically visible in the web UI
 
 Next steps:
 
@@ -97,6 +98,11 @@ Next steps:
 
 To verify the server is running:
   curl http://localhost:5555/health
+
+Team conversations:
+  Agent team messages from ~/.claude/teams/ are automatically
+  ingested into AgentChat when the server is running.
+  Override the teams directory: TEAMS_DIR=/path/to/teams
 
 To remove AgentChat from this project:
   $AGENT_CHAT_DIR/scripts/teardown.sh $TARGET_DIR
