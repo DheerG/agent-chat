@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 10 complete — all dogfood bugs fixed
-last_updated: "2026-03-07T17:08:41.980Z"
-last_activity: 2026-03-07 — Phase 10 complete, dogfood bugs fixed
+status: in_progress
+stopped_at: Phase 11 complete — team inbox ingestion
+last_updated: "2026-03-07T20:10:00.000Z"
+last_activity: 2026-03-07 — Phase 11 complete, team inbox watcher built
 progress:
   total_phases: 12
-  completed_phases: 9
-  total_plans: 26
-  completed_plans: 22
-  percent: 85
+  completed_phases: 11
+  total_plans: 27
+  completed_plans: 26
+  percent: 92
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** v1.0 milestone + Phase 10 COMPLETE
+**Current focus:** v1.0 milestone + Phase 11 COMPLETE
 
 ## Current Position
 
-Phase: 12 of 12 (setup script updates auto configure team inbox watcher and update teardown to remove it)
-Plan: 1 of 1 in current phase
+Phase: 11 of 12 (Team Inbox Ingestion) - COMPLETE
+Plan: 2 of 2 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 10 complete, dogfood bugs fixed
+Last activity: 2026-03-07 — Phase 11 complete, team inbox watcher built
 
-Progress: [█████████░] 85%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -100,6 +100,13 @@ Recent decisions affecting current work:
 - [Phase 10]: GET operations on archived channels still allowed for historical access
 - [Phase 10]: Tenant upsert updates name when codebasePath matches but name differs
 - [Phase 10]: updateTenantName uses Drizzle ORM set() for consistency with other queries
+- [Phase 11]: TeamInboxWatcher watches ~/.claude/teams/ with fs.watch (recursive) + 100ms debounce
+- [Phase 11]: Team → Tenant mapping via upsertByCodebasePath(teamName, teamPath)
+- [Phase 11]: Single channel per team (manual type), all messages in one group chat view
+- [Phase 11]: Dedup key: from|timestamp|sha256(text).slice(0,16) — handles broadcast duplicates across inboxes
+- [Phase 11]: Structured messages (idle_notification, shutdown_request) detected via JSON parse + type field → messageType 'event'
+- [Phase 11]: TEAMS_DIR env var overrides default ~/.claude/teams/ path
+- [Phase 11]: Watcher stops FIRST in SIGTERM shutdown sequence (before WebSocket, HTTP, DB)
 
 ### Roadmap Evolution
 
@@ -112,6 +119,7 @@ Recent decisions affecting current work:
 - Phase 10 added: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
 - Phase 10 completed: All 1 plan executed and verified
 - Phase 11 added: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
+- Phase 11 completed: All 2 plans executed and verified
 - Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 
 ### Pending Todos
@@ -120,14 +128,14 @@ None.
 
 ### Blockers/Concerns
 
-None — 10 phases complete:
+None — 11 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 196 total tests pass (115 server + 24 MCP + 57 client)
+- 143 server tests pass (115 existing + 28 new watcher tests)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T19:55:00.000Z
-Stopped at: Phase 10 complete — all dogfood bugs fixed
-Resume file: .planning/phases/10-fix-dogfood-bugs-archived-channel-writes-failing-client-tests-tenant-upsert-name/10-01-SUMMARY.md
+Last session: 2026-03-07T20:10:00.000Z
+Stopped at: Phase 11 complete — team inbox ingestion
+Resume file: .planning/phases/11-team-inbox-ingestion-file-watcher-that-syncs-claude-teams-messages-into-agentchat-channels-in-real-time/11-02-SUMMARY.md

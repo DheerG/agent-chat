@@ -22,6 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Add to Existing Codebases** - Setup/teardown scripts for wiring local codebases into AgentChat (completed 2026-03-07)
 - [x] **Phase 9: UI Polish** - CSS design tokens, WCAG AA contrast fixes, accessible archive buttons, ConfirmDialog, dead code fix, ARIA landmarks (completed 2026-03-07)
 - [x] **Phase 10: Fix Dogfood Bugs** - Block writes to archived channels, fix tenant name upsert, verify Sidebar tests (completed 2026-03-07)
+- [x] **Phase 11: Team Inbox Ingestion** - File watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time (completed 2026-03-07)
 
 ## Phase Details
 
@@ -125,6 +126,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 8. Add to Existing Codebases | 1/1 | Complete    | 2026-03-07 |
 | 9. UI Polish | 2/2 | Complete    | 2026-03-07 |
 | 10. Fix Dogfood Bugs | 1/1 | Complete    | 2026-03-07 |
+| 11. Team Inbox Ingestion | 2/2 | Complete    | 2026-03-07 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -181,13 +183,22 @@ Plans:
 
 ### Phase 11: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** File watcher service that monitors ~/.claude/teams/ directories, reads agent inbox JSON files, deduplicates broadcast messages, and syncs all messages into AgentChat channels for real-time human observability
+**Requirements**: N/A (team integration phase)
 **Depends on:** Phase 10
+**Success Criteria** (what must be TRUE):
+  1. File watcher detects new team directories and creates tenant + channel
+  2. File watcher reads inbox JSON files and extracts messages
+  3. Duplicate messages from broadcast are deduplicated
+  4. Every message type is captured: text, idle_notification, shutdown, task_completed, broadcast
+  5. New messages are sent to MessageService which emits for WebSocket delivery
+  6. Invalid JSON in inbox files does not crash the watcher
+  7. Watcher can be started and stopped cleanly
 **Plans:** 2/2 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 11 to break down) (completed 2026-03-07)
+- [x] 11-01-PLAN.md — TeamInboxWatcher service: file watching, message extraction, dedup, tests (completed 2026-03-07)
+- [x] 11-02-PLAN.md — Server integration: startup, shutdown, lib.ts exports (completed 2026-03-07)
 
 ### Phase 12: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 
