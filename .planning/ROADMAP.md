@@ -119,3 +119,19 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 5. Human Web UI | 3/3 | Complete    | 2026-03-07 |
 | 6. Documents and Canvases | 3/3 | Complete    | 2026-03-07 |
 | 7. Channel and Tenant Archiving | 2/2 | Complete    | 2026-03-07 |
+
+### Phase 8: Add process and ability to add this to existing local codebases to test this.
+
+**Goal:** Create setup and teardown scripts that wire any local codebase into a running AgentChat instance, so Claude Code agents in that project can communicate through AgentChat via hooks and MCP tools
+**Requirements**: N/A (developer experience phase)
+**Depends on:** Phase 7
+**Success Criteria** (what must be TRUE):
+  1. Running setup.sh against a target project creates .claude/settings.json with correct hooks and MCP server entries
+  2. Setup is idempotent — running twice produces the same result without duplicates
+  3. Setup merges with existing .claude/settings.json without destroying existing hooks or MCP servers
+  4. Teardown removes only AgentChat entries, preserving everything else
+  5. All integration tests pass
+**Plans:** 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — Setup scripts: merge-settings helper, setup.sh, teardown.sh, integration tests
