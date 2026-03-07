@@ -1,3 +1,4 @@
+import type { EventEmitter } from 'events';
 import type { DbInstance } from '../db/index.js';
 import type { WriteQueue } from '../db/queue.js';
 import { createTenantQueries } from '../db/queries/tenants.js';
@@ -22,7 +23,11 @@ export interface Services {
   presence: PresenceService;
 }
 
-export function createServices(instance: DbInstance, queue: WriteQueue): Services {
+export function createServices(
+  instance: DbInstance,
+  queue: WriteQueue,
+  emitter?: EventEmitter,
+): Services {
   const tenantQ = createTenantQueries(instance, queue);
   const channelQ = createChannelQueries(instance, queue);
   const messageQ = createMessageQueries(instance, queue);
@@ -30,7 +35,7 @@ export function createServices(instance: DbInstance, queue: WriteQueue): Service
   return {
     tenants: new TenantService(tenantQ),
     channels: new ChannelService(channelQ),
-    messages: new MessageService(messageQ),
+    messages: new MessageService(messageQ, emitter),
     presence: new PresenceService(presenceQ),
   };
 }

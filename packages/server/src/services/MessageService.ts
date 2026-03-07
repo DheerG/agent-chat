@@ -1,5 +1,6 @@
 import type { Message } from '@agent-chat/shared';
 import type { createMessageQueries } from '../db/queries/messages.js';
+import type { EventEmitter } from 'events';
 
 type MessageQueries = ReturnType<typeof createMessageQueries>;
 
@@ -24,10 +25,18 @@ export interface SendMessageData {
 }
 
 export class MessageService {
-  constructor(private q: MessageQueries) {}
+  constructor(
+    private q: MessageQueries,
+    private emitter?: EventEmitter,
+  ) {}
 
   async send(tenantId: string, data: SendMessageData): Promise<Message> {
-    return this.q.insertMessage(tenantId, data);
+    const message = await this.q.insertMessage(tenantId, data);
+    // Emit event for WebSocket broadcast — fire-and-forget
+    if (this.emitter) {
+      this.emitter.emit('message:created', message);
+    }
+    return message;
   }
 
   list(
