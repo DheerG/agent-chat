@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: completed
 stopped_at: Phase 8 complete — all plans executed, verified
-last_updated: "2026-03-07T19:00:00.000Z"
+last_updated: "2026-03-07T16:46:03.673Z"
 last_activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 12
+  completed_phases: 7
+  total_plans: 23
+  completed_plans: 19
+  percent: 83
 ---
 
 # Project State
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 8 of 8 (Add to Existing Codebases) - COMPLETE
+Phase: 10 of 8 (fix dogfood bugs archived channel writes failing client tests tenant upsert name)
 Plan: 1 of 1 in current phase
 Status: Complete
 Last activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
 
-Progress: [████████████████████████████████] 100%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
+- Total plans completed: 19
 - Average duration: ---
 - Total execution time: ---
 
@@ -97,6 +97,10 @@ Recent decisions affecting current work:
 - Phase 7 completed: All 2 plans executed and verified
 - Phase 8 added: Add process and ability to add this to existing local codebases to test this.
 - Phase 8 completed: All 1 plan executed and verified
+- Phase 9 added: UI polish — fix accessibility, contrast, dead code, and design system gaps from design audit
+- Phase 10 added: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
+- Phase 11 added: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
+- Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 
 ### Pending Todos
 

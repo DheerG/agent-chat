@@ -152,11 +152,11 @@ Plans:
   6. New message indicator (newCount) works when messages arrive while scrolled up
   7. ARIA landmarks present on sidebar, main content, and thread panel
   8. Message list has role="log" and aria-live="polite" for screen readers
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 09-01-PLAN.md — CSS design tokens, WCAG contrast fixes, position fix, touch device support
-- [ ] 09-02-PLAN.md — Accessibility fixes, archive button refactor, ConfirmDialog, dead code fix, tests
+- [x] 09-01-PLAN.md — CSS design tokens, WCAG contrast fixes, position fix, touch device support
+- [x] 09-02-PLAN.md — Accessibility fixes, archive button refactor, ConfirmDialog, dead code fix, tests
 
 ### Phase 10: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
 
