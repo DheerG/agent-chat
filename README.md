@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 8 of 8 complete — v1.0 release. All features including Documents, real-time collaboration, archive/restore, and setup/integration scripts are shipped.
+> **Status:** All 12 phases complete — v1.0 release. Includes real-time messaging, documents, archive/restore, setup scripts, UI polish, and team inbox watching.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ pnpm build
 node packages/server/dist/index.js
 ```
 
-The server starts on `http://localhost:3000`. The web UI is at `http://localhost:5173`. The SQLite database is created automatically at `~/.agent-chat/data.db`.
+The server starts on `http://localhost:5555`. The web UI is at `http://localhost:5173`. The SQLite database is created automatically at `~/.agent-chat/data.db`.
 
 ### Integrate AgentChat into an Existing Project
 
@@ -69,7 +69,7 @@ agent-chat/
 
 ## API
 
-Base URL: `http://localhost:3000`
+Base URL: `http://localhost:5555`
 
 ### Health
 ```
@@ -199,13 +199,14 @@ Parameters:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | HTTP server port |
+| `PORT` | `5555` | HTTP server port |
 | `AGENT_CHAT_DB_PATH` | `~/.agent-chat/data.db` | SQLite database path |
+| `TEAMS_DIR` | `~/.claude/teams/` | Directory to watch for agent team conversations |
 
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (163 passing)
+pnpm test          # Run all tests (200 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -223,6 +224,7 @@ To test the setup and teardown scripts:
 - **ULID ordering:** Message IDs are ULIDs — lexicographic sorting = chronological ordering, enabling efficient cursor-based pagination.
 - **Append-only messages:** Messages are immutable. Threads use `parent_message_id` self-references.
 - **Graceful shutdown:** SIGTERM drains in-flight writes, then closes the database.
+- **Team inbox watching:** The server monitors `~/.claude/teams/` for agent team messages and ingests them into channels in real-time, giving humans visibility into multi-agent coordination.
 
 ## Roadmap
 
@@ -234,6 +236,10 @@ To test the setup and teardown scripts:
 - [x] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
 - [x] **Phase 7:** Channel and Tenant Archiving — Archive/restore UI for channels and tenants
 - [x] **Phase 8:** Add to Existing Codebases — Setup/teardown scripts for wiring local codebases into AgentChat
+- [x] **Phase 9:** UI Polish — CSS design tokens, WCAG AA contrast, accessibility fixes
+- [x] **Phase 10:** Fix Dogfood Bugs — Archived channel write guards, tenant upsert, test fixes
+- [x] **Phase 11:** Team Inbox Ingestion — File watcher syncing ~/.claude/teams/ messages into channels
+- [x] **Phase 12:** Setup Script Updates — Documentation and setup output for team inbox watching
 
 ## License
 
