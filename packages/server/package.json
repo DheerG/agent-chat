@@ -1,0 +1,26 @@
+{
+  "name": "@agent-chat/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agent-chat/shared": "workspace:*",
+    "better-sqlite3": "^12.6.0",
+    "drizzle-orm": "^0.45.0",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
