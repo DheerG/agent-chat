@@ -41,6 +41,21 @@ export interface Presence {
   lastSeenAt: string;  // ISO 8601
 }
 
+// Document — persistent shared artifact pinned to a channel
+export interface Document {
+  id: string;          // ULID
+  channelId: string;
+  tenantId: string;    // denormalized for query efficiency
+  title: string;
+  content: string;
+  contentType: 'text' | 'markdown' | 'json';
+  createdById: string;
+  createdByName: string;
+  createdByType: 'agent' | 'human';
+  createdAt: string;   // ISO 8601
+  updatedAt: string;   // ISO 8601
+}
+
 // Query options
 export interface PaginationOpts {
   limit?: number;     // default 50

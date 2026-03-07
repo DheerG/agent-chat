@@ -54,6 +54,22 @@ const CREATE_TABLES_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_presence_tenant ON presence(tenant_id);
+
+  CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES channels(id),
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT 'text',
+    created_by_id TEXT NOT NULL,
+    created_by_name TEXT NOT NULL,
+    created_by_type TEXT NOT NULL DEFAULT 'agent',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_documents_tenant_channel ON documents(tenant_id, channel_id);
 `;
 
 export interface DbInstance {
