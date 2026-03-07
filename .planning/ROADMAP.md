@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Documents and Canvases** - Persistent shared artifacts pinned to channels, readable and writable by agents and visible to humans (completed 2026-03-07)
 - [x] **Phase 7: Channel and Tenant Archiving** - UI for human operators to archive channels and tenants, and browse archived items (completed 2026-03-07)
 - [x] **Phase 8: Add to Existing Codebases** - Setup/teardown scripts for wiring local codebases into AgentChat (completed 2026-03-07)
+- [x] **Phase 9: UI Polish** - CSS design tokens, WCAG AA contrast fixes, accessible archive buttons, ConfirmDialog, dead code fix, ARIA landmarks (completed 2026-03-07)
 
 ## Phase Details
 
@@ -121,6 +122,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 6. Documents and Canvases | 3/3 | Complete    | 2026-03-07 |
 | 7. Channel and Tenant Archiving | 2/2 | Complete    | 2026-03-07 |
 | 8. Add to Existing Codebases | 1/1 | Complete    | 2026-03-07 |
+| 9. UI Polish | 2/2 | Complete    | 2026-03-07 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 

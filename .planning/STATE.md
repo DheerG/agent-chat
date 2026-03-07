@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 8 complete — all plans executed, verified
-last_updated: "2026-03-07T16:46:03.673Z"
-last_activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
+status: in_progress
+stopped_at: Phase 9 complete — all plans executed
+last_updated: "2026-03-07T19:00:00.000Z"
+last_activity: 2026-03-07 — Phase 9 complete, UI polish verified
 progress:
   total_phases: 12
-  completed_phases: 7
-  total_plans: 23
-  completed_plans: 19
-  percent: 83
+  completed_phases: 9
+  total_plans: 25
+  completed_plans: 23
+  percent: 75
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** v1.0 milestone + Phase 8 COMPLETE
+**Current focus:** v1.0 milestone + Phase 9 COMPLETE
 
 ## Current Position
 
-Phase: 10 of 8 (fix dogfood bugs archived channel writes failing client tests tenant upsert name)
-Plan: 1 of 1 in current phase
+Phase: 9 of 12 (UI polish) - COMPLETE
+Plan: 2 of 2 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
+Last activity: 2026-03-07 — Phase 9 complete, UI polish verified
 
-Progress: [████████░░] 83%
+Progress: [██████████████████████░░░░░░░░░] 75%
 
 ## Performance Metrics
 
@@ -90,6 +90,12 @@ Recent decisions affecting current work:
 - [Phase 7]: TenantService takes ChannelQueries for cascading archive/restore
 - [Phase 7]: refreshKey pattern for triggering hook re-fetches from App state
 - [Phase 7]: Archived section collapsed by default, fetches data only when expanded
+- [Phase 9]: CSS custom properties (design tokens) on :root in App.css for all colors
+- [Phase 9]: WCAG AA contrast: #8a8a9a for sidebar muted text, #718096 for timestamps/muted on white
+- [Phase 9]: ConfirmDialog component replaces window.confirm() for archive operations
+- [Phase 9]: Archive buttons are real <button> elements inside div[role=button] parent (avoids nested buttons)
+- [Phase 9]: ARIA landmarks: aside[aria-label=Channel navigation], main[aria-label=Message area], aside[aria-label=Thread replies]
+- [Phase 9]: Message list has role=log and aria-live=polite for screen reader support
 
 ### Roadmap Evolution
 
@@ -98,6 +104,7 @@ Recent decisions affecting current work:
 - Phase 8 added: Add process and ability to add this to existing local codebases to test this.
 - Phase 8 completed: All 1 plan executed and verified
 - Phase 9 added: UI polish — fix accessibility, contrast, dead code, and design system gaps from design audit
+- Phase 9 completed: All 2 plans executed and verified
 - Phase 10 added: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
 - Phase 11 added: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
 - Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
@@ -108,14 +115,14 @@ None.
 
 ### Blockers/Concerns
 
-None — All 8 phases complete:
+None — 9 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 189 total tests pass (112 server + 24 MCP + 53 client)
+- 193 total tests pass (112 server + 24 MCP + 57 client)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
 ## Session Continuity
 
 Last session: 2026-03-07T19:00:00.000Z
-Stopped at: Phase 8 complete — all plans executed, verified
-Resume file: .planning/phases/08-add-process-and-ability-to-add-this-to-existing-local-codebases-to-test-this/08-01-SUMMARY.md
+Stopped at: Phase 9 complete — all plans executed
+Resume file: .planning/phases/09-ui-polish-fix-accessibility-contrast-dead-code-and-design-system-gaps-from-design-audit/09-02-SUMMARY.md
