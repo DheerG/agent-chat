@@ -1,6 +1,6 @@
 import type { EventEmitter } from 'events';
 import type { WebSocket } from 'ws';
-import type { Message } from '@agent-chat/shared';
+import type { Message, Document } from '@agent-chat/shared';
 import type { Services } from '../services/index.js';
 
 // Wire protocol types — client → server
@@ -23,7 +23,7 @@ export type WsClientMessage = WsSubscribeMessage | WsUnsubscribeMessage | WsPing
 
 // Wire protocol types — server → client
 export interface WsServerMessage {
-  type: 'message' | 'catchup' | 'subscribed' | 'unsubscribed' | 'error' | 'pong';
+  type: 'message' | 'catchup' | 'subscribed' | 'unsubscribed' | 'error' | 'pong' | 'document_created' | 'document_updated';
   [key: string]: unknown;
 }
 
@@ -50,6 +50,14 @@ export class WebSocketHub {
   ) {
     emitter.on('message:created', (msg: Message) => {
       this.broadcastToChannel(msg);
+    });
+
+    emitter.on('document:created', (doc: Document) => {
+      this.broadcastDocumentEvent('document_created', doc);
+    });
+
+    emitter.on('document:updated', (doc: Document) => {
+      this.broadcastDocumentEvent('document_updated', doc);
     });
   }
 
@@ -204,6 +212,24 @@ export class WebSocketHub {
           ws.send(frame);
         } catch {
           // Client may have disconnected — cleanup happens in handleDisconnect
+        }
+      }
+    }
+  }
+
+  private broadcastDocumentEvent(type: 'document_created' | 'document_updated', document: Document): void {
+    const subs = this.channels.get(document.channelId);
+    if (!subs || subs.size === 0) return;
+
+    const frame = JSON.stringify({ type, document });
+
+    for (const ws of subs) {
+      const state = this.clients.get(ws);
+      if (state && state.tenantId === document.tenantId) {
+        try {
+          ws.send(frame);
+        } catch {
+          // Client may have disconnected
         }
       }
     }

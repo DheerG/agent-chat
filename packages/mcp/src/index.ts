@@ -11,6 +11,10 @@ import { loadConfig } from './config.js';
 import { handleSendMessage } from './tools/send-message.js';
 import { handleReadChannel } from './tools/read-channel.js';
 import { handleListChannels } from './tools/list-channels.js';
+import { handleCreateDocument } from './tools/create-document.js';
+import { handleReadDocument } from './tools/read-document.js';
+import { handleUpdateDocument } from './tools/update-document.js';
+import { handleListDocuments } from './tools/list-documents.js';
 
 const config = loadConfig();
 
@@ -100,6 +104,111 @@ server.tool(
   async () => {
     try {
       const result = handleListChannels(services, tenantId);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'create_document',
+  'Create a new document pinned to a channel',
+  {
+    channel_id: z.string().describe('Channel ID to pin document to'),
+    title: z.string().describe('Document title'),
+    content: z.string().describe('Document content'),
+    content_type: z.enum(['text', 'markdown', 'json']).optional().describe('Content type (default: text)'),
+  },
+  async ({ channel_id, title, content, content_type }) => {
+    try {
+      const result = await handleCreateDocument(services, config, tenantId, {
+        channel_id, title, content, content_type,
+      });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'read_document',
+  'Read a document by its ID',
+  {
+    document_id: z.string().describe('Document ID to read'),
+  },
+  async ({ document_id }) => {
+    try {
+      const result = handleReadDocument(services, tenantId, { document_id });
+      if (!result) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Document not found' }) }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'update_document',
+  'Update an existing document (title and/or content)',
+  {
+    document_id: z.string().describe('Document ID to update'),
+    title: z.string().optional().describe('New title (omit to keep current)'),
+    content: z.string().optional().describe('New content (omit to keep current)'),
+  },
+  async ({ document_id, title, content }) => {
+    try {
+      const result = await handleUpdateDocument(services, tenantId, {
+        document_id, title, content,
+      });
+      if (!result) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Document not found' }) }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'list_documents',
+  'List all documents pinned to a channel',
+  {
+    channel_id: z.string().describe('Channel ID to list documents for'),
+  },
+  async ({ channel_id }) => {
+    try {
+      const result = handleListDocuments(services, tenantId, { channel_id });
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
       };
