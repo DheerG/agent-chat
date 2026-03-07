@@ -137,3 +137,53 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 
 Plans:
 - [x] 08-01-PLAN.md — Setup scripts: merge-settings helper, setup.sh, teardown.sh, integration tests
+
+### Phase 9: UI polish — fix accessibility, contrast, dead code, and design system gaps from design audit
+
+**Goal:** Extract CSS design tokens, fix WCAG AA contrast failures, replace inaccessible archive controls with proper buttons and custom confirmation dialog, fix dead newCount code, and add ARIA landmarks across the UI
+**Requirements**: N/A (polish phase)
+**Depends on:** Phase 8
+**Success Criteria** (what must be TRUE):
+  1. All colors are defined as CSS custom properties on :root, not hardcoded hex values
+  2. All sidebar text on dark background meets WCAG AA 4.5:1 contrast ratio
+  3. Timestamps on white background meet WCAG AA 4.5:1 contrast ratio
+  4. Archive controls are keyboard-accessible <button> elements with aria-label
+  5. Archive confirmation uses an in-app dialog, not window.confirm()
+  6. New message indicator (newCount) works when messages arrive while scrolled up
+  7. ARIA landmarks present on sidebar, main content, and thread panel
+  8. Message list has role="log" and aria-live="polite" for screen readers
+**Plans:** 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — CSS design tokens, WCAG contrast fixes, position fix, touch device support
+- [ ] 09-02-PLAN.md — Accessibility fixes, archive button refactor, ConfirmDialog, dead code fix, tests
+
+### Phase 10: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10 to break down)
+
+### Phase 11: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 11 to break down)
+
+### Phase 12: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 12 to break down)
