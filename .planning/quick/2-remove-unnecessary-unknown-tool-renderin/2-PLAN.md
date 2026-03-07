@@ -12,7 +12,7 @@ requirements: []
 
 must_haves:
   truths:
-    - "Team inbox system messages (idle_notification, shutdown_request) do not appear in the message feed"
+    - "Team inbox idle_notification messages do not appear in the message feed"
     - "MCP tool call events (PreToolUse, PostToolUse with toolName) still render as EventCards"
     - "Regular team inbox text messages still render normally"
   artifacts:
@@ -71,10 +71,11 @@ metadata.result = string | object
 In `packages/client/src/components/MessageItem.tsx`, add a filter BEFORE the EventCard rendering block (line 58). The filter should return `null` for messages that are team inbox system events:
 
 ```typescript
-// Team inbox system events (idle_notification, shutdown_request, etc.) — filter out noise
+// Filter out idle_notification noise from team inboxes
 if (
   (message.messageType === 'event' || message.messageType === 'hook') &&
-  message.metadata?.source === 'team_inbox'
+  message.metadata?.source === 'team_inbox' &&
+  message.metadata?.original_type === 'idle_notification'
 ) {
   return null;
 }

@@ -142,9 +142,10 @@ None — all 12 phases complete:
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Improve rendering of messages in the UI. Target common patterns like Markdown to html. | 2026-03-07 | 3234608 | [1-improve-rendering](./quick/1-improve-rendering-of-messages-in-the-ui-/) |
+| 2 | Filter out idle_notification noise from team inbox messages | 2026-03-07 | 58b5705 | [2-remove-unknown-tool](./quick/2-remove-unnecessary-unknown-tool-renderin/) |
 
 ## Session Continuity
 
 Last session: 2026-03-07T18:45:34.445Z
-Stopped at: Completed quick task 1: markdown rendering for messages
+Stopped at: Completed quick task 2: filter idle_notification from team inbox
 Resume file: None
