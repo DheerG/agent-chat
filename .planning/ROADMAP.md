@@ -90,6 +90,20 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Documents are stored independently of messages and remain accessible after the message service is restarted
 **Plans**: 06-01 (Data layer + schema), 06-02 (REST API + MCP tools + WebSocket), 06-03 (Web UI DocumentPanel)
 
+### Phase 7: Channel and Tenant Archiving
+**Goal**: Allow human operators to archive channels and tenants from the web UI, and browse archived items in a dedicated view so they can clean up clutter
+**Depends on**: Phase 6
+**Requirements**: SC-1, SC-2, SC-3, SC-4
+**Success Criteria** (what must be TRUE):
+  1. A human can archive a channel from the sidebar UI and it disappears from the active channel list
+  2. A human can archive a tenant and all its channels disappear from the sidebar
+  3. A human can open an "Archived" view that lists all archived channels and tenants
+  4. A human can restore an archived channel or tenant and it reappears in the active sidebar
+**Plans:** 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Backend: schema migration, queries, services, and HTTP API for archive/restore
+- [ ] 07-02-PLAN.md — Frontend: client API, sidebar archive buttons, archived section, and App integration
+
 ## Progress
 
 **Execution Order:**
@@ -104,15 +118,4 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 4. Real-Time WebSocket Delivery | 3/3 | Complete    | 2026-03-07 |
 | 5. Human Web UI | 3/3 | Complete    | 2026-03-07 |
 | 6. Documents and Canvases | 3/3 | Complete    | 2026-03-07 |
-| 7. Channel and Tenant Archiving | 0/? | Not started | - |
-
-### Phase 7: Channel and Tenant Archiving
-**Goal**: Allow human operators to archive channels and tenants from the web UI, and browse archived items in a dedicated view so they can clean up clutter
-**Depends on**: Phase 6
-**Requirements**: TBD
-**Success Criteria** (what must be TRUE):
-  1. A human can archive a channel from the sidebar UI and it disappears from the active channel list
-  2. A human can archive a tenant and all its channels disappear from the sidebar
-  3. A human can open an "Archived" view that lists all archived channels and tenants
-  4. A human can restore an archived channel or tenant and it reappears in the active sidebar
-**Plans**: TBD
+| 7. Channel and Tenant Archiving | 0/2 | Not started | - |
