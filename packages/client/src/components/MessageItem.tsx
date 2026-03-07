@@ -54,6 +54,15 @@ export function MessageItem({ message, presenceStatus, threadReplyCount, onThrea
     );
   }
 
+  // Filter out idle_notification noise from team inboxes
+  if (
+    (message.messageType === 'event' || message.messageType === 'hook') &&
+    message.metadata?.source === 'team_inbox' &&
+    message.metadata?.original_type === 'idle_notification'
+  ) {
+    return null;
+  }
+
   // Event messages — render as collapsible card
   if (message.messageType === 'event' || message.messageType === 'hook') {
     return <EventCard message={message} />;
