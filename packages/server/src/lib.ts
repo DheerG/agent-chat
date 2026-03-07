@@ -25,3 +25,4 @@ export type {
   WsUnsubscribeMessage,
   WsPingMessage,
 } from './ws/index.js';
+export { TeamInboxWatcher } from './watcher/index.js';

@@ -1,7 +1,10 @@
 // packages/server — AgentChat HTTP + WebSocket Server
 // Phase 2: Domain Services and HTTP API
 // Phase 4: Real-Time WebSocket Delivery
+// Phase 11: Team Inbox Ingestion
 import { EventEmitter } from 'events';
+import { join } from 'path';
+import { homedir } from 'os';
 import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import { createDb } from './db/index.js';
@@ -9,6 +12,7 @@ import { WriteQueue } from './db/queue.js';
 import { createServices } from './services/index.js';
 import { createApp } from './http/app.js';
 import { WebSocketHub } from './ws/index.js';
+import { TeamInboxWatcher } from './watcher/index.js';
 
 const port = Number(process.env['PORT'] ?? 5555);
 
@@ -25,6 +29,15 @@ const app = createApp(services);
 
 // Create WebSocket hub
 const hub = new WebSocketHub(services, emitter);
+
+// Create team inbox watcher (Phase 11)
+const teamsDir = process.env['TEAMS_DIR'] ?? join(homedir(), '.claude', 'teams');
+const teamWatcher = new TeamInboxWatcher(services, teamsDir);
+teamWatcher.start().then(() => {
+  console.log(JSON.stringify({ event: 'team_inbox_watcher_started', teamsDir }));
+}).catch((err) => {
+  console.error(JSON.stringify({ event: 'team_inbox_watcher_error', error: String(err) }));
+});
 
 // Start HTTP server
 const server = serve({ fetch: app.fetch, port }, (info) => {
@@ -74,21 +87,24 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 // Graceful shutdown on SIGTERM
-// Order: close WebSocket connections → stop accepting new HTTP → drain writes → close DB → exit
+// Order: stop watcher → close WebSocket connections → stop accepting new HTTP → drain writes → close DB → exit
 process.once('SIGTERM', () => {
   console.log(JSON.stringify({ event: 'graceful_shutdown_started' }));
 
-  // 1. Close all WebSocket connections
+  // 1. Stop team inbox watcher (stop generating new writes)
+  teamWatcher.stop();
+
+  // 2. Close all WebSocket connections
   hub.closeAll();
   wss.close();
 
-  // 2. Close HTTP server (stop accepting new connections, drain in-flight)
+  // 3. Close HTTP server (stop accepting new connections, drain in-flight)
   server.close(async () => {
-    // 3. Poll until all pending queue writes complete
+    // 4. Poll until all pending queue writes complete
     while (queue.pendingCount > 0) {
       await new Promise<void>((resolve) => setTimeout(resolve, 10));
     }
-    // 4. Close database
+    // 5. Close database
     instance.close();
     console.log(JSON.stringify({ event: 'graceful_shutdown_complete' }));
     process.exit(0);
