@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTenants } from '../hooks/useTenants';
 import { useChannels } from '../hooks/useChannels';
 import { fetchArchivedTenants, fetchArchivedChannels } from '../lib/api';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { Tenant, Channel } from '@agent-chat/shared';
 import './Sidebar.css';
 
@@ -13,6 +14,13 @@ interface SidebarProps {
   onRestoreChannel: (tenantId: string, channelId: string) => void;
   onRestoreTenant: (tenantId: string) => void;
   refreshKey: number;
+}
+
+interface PendingArchive {
+  type: 'tenant' | 'channel';
+  tenantId: string;
+  channelId?: string;
+  name: string;
 }
 
 function TenantGroup({
@@ -31,13 +39,17 @@ function TenantGroup({
   refreshKey: number;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [pendingArchive, setPendingArchive] = useState<PendingArchive | null>(null);
   const { channels, loading } = useChannels(tenant.id, refreshKey);
 
   return (
     <div className="tenant-group">
-      <button
+      <div
         className="tenant-header"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
+        role="button"
+        tabIndex={0}
         aria-expanded={expanded}
       >
         <span className={`tenant-chevron ${expanded ? 'tenant-chevron--expanded' : ''}`}>
@@ -45,50 +57,70 @@ function TenantGroup({
         </span>
         <span className="tenant-name">{tenant.name}</span>
         <span className="tenant-channel-count">{channels.length}</span>
-        <span
+        <button
           className="tenant-archive-btn"
           title="Archive tenant"
-          role="button"
+          aria-label={`Archive ${tenant.name}`}
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Archive "${tenant.name}" and all its channels?`)) {
-              onArchiveTenant(tenant.id);
-            }
+            setPendingArchive({ type: 'tenant', tenantId: tenant.id, name: tenant.name });
           }}
         >
           &#x2715;
-        </span>
-      </button>
+        </button>
+      </div>
       {expanded && (
         <div className="channel-list">
           {loading && <div className="channel-loading">Loading...</div>}
           {channels.map((channel) => (
-            <button
+            <div
               key={channel.id}
               className={`channel-item ${selectedChannelId === channel.id ? 'channel-item--active' : ''}`}
               onClick={() => onChannelSelect(tenant.id, channel.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChannelSelect(tenant.id, channel.id); } }}
+              role="button"
+              tabIndex={0}
             >
               <span className="channel-hash">#</span>
               <span className="channel-name">{channel.name}</span>
-              <span
+              <button
                 className="channel-archive-btn"
                 title="Archive channel"
-                role="button"
+                aria-label={`Archive #${channel.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Archive "#${channel.name}"?`)) {
-                    onArchiveChannel(tenant.id, channel.id);
-                  }
+                  setPendingArchive({ type: 'channel', tenantId: tenant.id, channelId: channel.id, name: channel.name });
                 }}
               >
                 &#x2715;
-              </span>
-            </button>
+              </button>
+            </div>
           ))}
           {!loading && channels.length === 0 && (
             <div className="channel-empty">No channels</div>
           )}
         </div>
+      )}
+      {pendingArchive && (
+        <ConfirmDialog
+          open={true}
+          title={pendingArchive.type === 'tenant' ? 'Archive Tenant' : 'Archive Channel'}
+          message={
+            pendingArchive.type === 'tenant'
+              ? `Archive "${pendingArchive.name}" and all its channels?`
+              : `Archive "#${pendingArchive.name}"?`
+          }
+          confirmLabel="Archive"
+          onConfirm={() => {
+            if (pendingArchive.type === 'tenant') {
+              onArchiveTenant(pendingArchive.tenantId);
+            } else if (pendingArchive.channelId) {
+              onArchiveChannel(pendingArchive.tenantId, pendingArchive.channelId);
+            }
+            setPendingArchive(null);
+          }}
+          onCancel={() => setPendingArchive(null)}
+        />
       )}
     </div>
   );
@@ -235,7 +267,7 @@ export function Sidebar({
   const { tenants, loading, error } = useTenants(refreshKey);
 
   return (
-    <aside className="sidebar" data-testid="sidebar">
+    <aside className="sidebar" data-testid="sidebar" aria-label="Channel navigation">
       <div className="sidebar-header">
         <h1 className="sidebar-title">AgentChat</h1>
       </div>

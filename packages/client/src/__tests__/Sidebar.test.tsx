@@ -86,8 +86,8 @@ describe('Sidebar', () => {
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
-    const channelButton = screen.getByText('general').closest('button');
-    expect(channelButton).toHaveClass('channel-item--active');
+    const channelItem = screen.getByText('general').closest('.channel-item');
+    expect(channelItem).toHaveClass('channel-item--active');
   });
 
   test('shows loading state initially', () => {
@@ -99,6 +99,11 @@ describe('Sidebar', () => {
   test('renders app title', async () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.getByText('AgentChat')).toBeInTheDocument();
+  });
+
+  test('sidebar has aria-label for accessibility', async () => {
+    render(<Sidebar {...defaultProps} />);
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('aria-label', 'Channel navigation');
   });
 });
 
@@ -112,7 +117,7 @@ describe('Sidebar archive/restore', () => {
     expect(archiveButtons.length).toBeGreaterThan(0);
   });
 
-  test('clicking channel archive button calls onArchiveChannel', async () => {
+  test('clicking channel archive button opens confirm dialog and calls onArchiveChannel', async () => {
     const onArchiveChannel = vi.fn();
     render(<Sidebar {...defaultProps} onArchiveChannel={onArchiveChannel} />);
     await waitFor(() => {
@@ -120,6 +125,12 @@ describe('Sidebar archive/restore', () => {
     });
     const archiveButtons = screen.getAllByTitle('Archive channel');
     fireEvent.click(archiveButtons[0]!);
+    // ConfirmDialog should appear
+    await waitFor(() => {
+      expect(screen.getByText('Archive Channel')).toBeInTheDocument();
+    });
+    // Click confirm
+    fireEvent.click(screen.getByText('Archive'));
     expect(onArchiveChannel).toHaveBeenCalledWith('tenant-1', 'ch-1');
   });
 
@@ -132,7 +143,7 @@ describe('Sidebar archive/restore', () => {
     expect(archiveButtons.length).toBeGreaterThan(0);
   });
 
-  test('clicking tenant archive button calls onArchiveTenant', async () => {
+  test('clicking tenant archive button opens confirm dialog and calls onArchiveTenant', async () => {
     const onArchiveTenant = vi.fn();
     render(<Sidebar {...defaultProps} onArchiveTenant={onArchiveTenant} />);
     await waitFor(() => {
@@ -140,7 +151,31 @@ describe('Sidebar archive/restore', () => {
     });
     const archiveButtons = screen.getAllByTitle('Archive tenant');
     fireEvent.click(archiveButtons[0]!);
+    // ConfirmDialog should appear
+    await waitFor(() => {
+      expect(screen.getByText('Archive Tenant')).toBeInTheDocument();
+    });
+    // Click confirm
+    fireEvent.click(screen.getByText('Archive'));
     expect(onArchiveTenant).toHaveBeenCalledWith('tenant-1');
+  });
+
+  test('cancelling confirm dialog does not trigger archive', async () => {
+    const onArchiveChannel = vi.fn();
+    render(<Sidebar {...defaultProps} onArchiveChannel={onArchiveChannel} />);
+    await waitFor(() => {
+      expect(screen.getByText('general')).toBeInTheDocument();
+    });
+    const archiveButtons = screen.getAllByTitle('Archive channel');
+    fireEvent.click(archiveButtons[0]!);
+    await waitFor(() => {
+      expect(screen.getByText('Archive Channel')).toBeInTheDocument();
+    });
+    // Click cancel
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(onArchiveChannel).not.toHaveBeenCalled();
+    // Dialog should be gone
+    expect(screen.queryByText('Archive Channel')).not.toBeInTheDocument();
   });
 
   test('archived section header is rendered', async () => {

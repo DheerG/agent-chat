@@ -21,6 +21,7 @@ export function MessageFeed(props: MessageFeedProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
+  const prevMessageCount = useRef(messages.length);
 
   // Auto-scroll management
   const handleScroll = useCallback(() => {
@@ -40,13 +41,26 @@ export function MessageFeed(props: MessageFeedProps) {
     }
   }, [messages.length, isAtBottom]);
 
-  // Scroll to bottom on initial load
+  // Scroll to bottom on initial load and channel change
   useEffect(() => {
     if (!loading && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
       setIsAtBottom(true);
+      setNewCount(0);
+      prevMessageCount.current = messages.length;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, channelId]);
+
+  // Track new messages arriving while scrolled up
+  useEffect(() => {
+    const currentCount = messages.length;
+    const prevCount = prevMessageCount.current;
+    if (currentCount > prevCount && !isAtBottom) {
+      setNewCount((n) => n + (currentCount - prevCount));
+    }
+    prevMessageCount.current = currentCount;
+  }, [messages.length, isAtBottom]);
 
   const scrollToBottom = useCallback(() => {
     if (listRef.current) {
@@ -94,7 +108,7 @@ export function MessageFeed(props: MessageFeedProps) {
 
   return (
     <div className="message-feed" data-testid="message-feed">
-      <div className="message-list" ref={listRef} onScroll={handleScroll}>
+      <div className="message-list" ref={listRef} onScroll={handleScroll} role="log" aria-live="polite">
         {topLevelMessages.length === 0 && (
           <div className="message-feed-empty">No messages yet</div>
         )}

@@ -34,7 +34,7 @@ export function ThreadPanel({
   }, [sendMessage, parentMessage.id]);
 
   return (
-    <aside className="thread-panel" data-testid="thread-panel">
+    <aside className="thread-panel" data-testid="thread-panel" aria-label="Thread replies">
       <div className="thread-panel-header">
         <h2 className="thread-panel-title">Thread</h2>
         <button

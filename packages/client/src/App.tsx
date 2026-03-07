@@ -117,7 +117,7 @@ export function App() {
         onRestoreTenant={handleRestoreTenant}
         refreshKey={refreshKey}
       />
-      <main className={`main-content ${selectedThread ? 'main-content--with-thread' : ''}`}>
+      <main className={`main-content ${selectedThread ? 'main-content--with-thread' : ''}`} aria-label="Message area">
         {selectedTenantId && selectedChannelId ? (
           <>
             <MessageFeed

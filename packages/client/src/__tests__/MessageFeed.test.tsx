@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MessageFeed } from '../components/MessageFeed';
 import type { Message } from '@agent-chat/shared';
 
@@ -94,5 +94,45 @@ describe('MessageFeed', () => {
   test('ComposeInput is present', () => {
     render(<MessageFeed {...defaultProps} />);
     expect(screen.getByTestId('compose-input')).toBeInTheDocument();
+  });
+
+  test('message list has role="log" and aria-live for accessibility', () => {
+    render(
+      <MessageFeed
+        {...defaultProps}
+        messages={[createMessage({ id: 'm1', content: 'Test' })]}
+      />
+    );
+    const messageList = screen.getByRole('log');
+    expect(messageList).toHaveAttribute('aria-live', 'polite');
+  });
+
+  test('shows new message indicator when messages arrive while scrolled up', async () => {
+    const initialMessages = [
+      createMessage({ id: 'm1', content: 'First message' }),
+    ];
+    const { rerender } = render(
+      <MessageFeed {...defaultProps} messages={initialMessages} />
+    );
+
+    // Simulate being scrolled up: mock scroll properties so the scroll handler
+    // computes isAtBottom = false. We need writable scrollTop for React effects too.
+    const messageList = screen.getByRole('log');
+    Object.defineProperty(messageList, 'scrollHeight', { value: 1000, configurable: true, writable: true });
+    Object.defineProperty(messageList, 'scrollTop', { value: 0, configurable: true, writable: true });
+    Object.defineProperty(messageList, 'clientHeight', { value: 400, configurable: true, writable: true });
+    fireEvent.scroll(messageList);
+
+    // Re-render with additional messages
+    const updatedMessages = [
+      ...initialMessages,
+      createMessage({ id: 'm2', content: 'Second message' }),
+      createMessage({ id: 'm3', content: 'Third message' }),
+    ];
+    rerender(<MessageFeed {...defaultProps} messages={updatedMessages} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('2 new messages')).toBeInTheDocument();
+    });
   });
 });
