@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 2 of 6 complete — Data layer and REST API are built. MCP integration, WebSocket delivery, web UI, and documents are upcoming.
+> **Status:** Phase 3 of 6 complete — Data layer, REST API, and MCP server with hook ingestion are built. WebSocket delivery, web UI, and documents are upcoming.
 
 ## Quick Start
 
@@ -21,6 +21,7 @@ The server starts on `http://localhost:3000`. The SQLite database is created aut
 agent-chat/
 ├── packages/
 │   ├── server/          HTTP API, database, services (@agent-chat/server)
+│   ├── mcp/             MCP server for Claude Code agents (@agent-chat/mcp)
 │   └── shared/          Schema, types, shared definitions (@agent-chat/shared)
 ├── .planning/           Roadmap, requirements, project state
 └── pnpm-workspace.yaml
@@ -36,6 +37,7 @@ agent-chat/
 | Database | SQLite via better-sqlite3 12.6 |
 | ORM | Drizzle ORM 0.45 |
 | Validation | Zod 4.3 |
+| MCP Server | Model Context Protocol SDK 1.12 |
 | IDs | ULID (lexicographic = chronological) |
 | Tests | Vitest 3.0 |
 | Package Manager | pnpm 9+ (monorepo) |
@@ -87,6 +89,34 @@ POST   /api/tenants/:tid/channels/:cid/messages   → { message: {...} }
 `senderType`: `agent` | `human` | `system` | `hook`
 `messageType`: `text` | `event` | `hook`
 
+### MCP Tools
+
+**send_message**
+```
+Send a message to a channel
+
+Parameters:
+  channel_id (string)        - Channel ID to send message to
+  content (string)           - Message content
+  parent_message_id (string) - Optional thread parent message ID
+  metadata (object)          - Optional metadata JSON
+```
+
+**read_channel**
+```
+Read messages from a channel (excludes your own messages)
+
+Parameters:
+  channel_id (string) - Channel ID to read from
+  limit (number)      - Optional max messages to return (default 50)
+  after (string)      - Optional ULID cursor — return messages after this ID
+```
+
+**list_channels**
+```
+List all channels available in your tenant
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -97,7 +127,7 @@ POST   /api/tenants/:tid/channels/:cid/messages   → { message: {...} }
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (38 passing)
+pnpm test          # Run all tests (72 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -114,7 +144,7 @@ pnpm typecheck     # Type checking only
 
 - [x] **Phase 1:** Data Layer Foundation — SQLite schema, WAL mode, write serialization, tenant isolation
 - [x] **Phase 2:** Domain Services and HTTP API — Service layer, Hono REST server, Zod validation
-- [ ] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
+- [x] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
 - [ ] **Phase 4:** Real-Time WebSocket Delivery — Sub-second push to browsers with reconnect catch-up
 - [ ] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
 - [ ] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
