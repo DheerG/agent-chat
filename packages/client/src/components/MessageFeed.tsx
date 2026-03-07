@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { Message } from '@agent-chat/shared';
-import { useMessages } from '../hooks/useMessages';
-import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageItem } from './MessageItem';
 import { ComposeInput } from './ComposeInput';
 import './MessageFeed.css';
@@ -9,34 +7,20 @@ import './MessageFeed.css';
 interface MessageFeedProps {
   tenantId: string;
   channelId: string;
+  messages: Message[];
+  loading: boolean;
+  error: string | null;
+  onSend: (content: string) => void;
+  lastSeenId?: string;
   getPresenceStatus?: (agentId: string) => 'active' | 'idle' | null;
   onThreadOpen?: (parentMessage: Message) => void;
 }
 
-export function MessageFeed({ tenantId, channelId, getPresenceStatus, onThreadOpen }: MessageFeedProps) {
-  const { messages, loading, error, sendMessage, addMessage, lastSeenId } = useMessages(tenantId, channelId);
+export function MessageFeed(props: MessageFeedProps) {
+  const { channelId, messages, loading, error, onSend, getPresenceStatus, onThreadOpen } = props;
   const listRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
-
-  // WebSocket — subscribe to channel and route messages
-  const handleWsMessage = useCallback((msg: Message) => {
-    if (msg.channelId === channelId) {
-      addMessage(msg);
-      if (!isAtBottom) {
-        setNewCount((c) => c + 1);
-      }
-    }
-  }, [channelId, addMessage, isAtBottom]);
-
-  const { subscribe, unsubscribe } = useWebSocket(tenantId, handleWsMessage);
-
-  useEffect(() => {
-    subscribe(channelId, lastSeenId);
-    return () => { unsubscribe(channelId); };
-    // Only re-subscribe when channel changes, not when lastSeenId changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, subscribe, unsubscribe]);
 
   // Auto-scroll management
   const handleScroll = useCallback(() => {
@@ -73,8 +57,8 @@ export function MessageFeed({ tenantId, channelId, getPresenceStatus, onThreadOp
   }, []);
 
   const handleSend = useCallback((content: string) => {
-    void sendMessage(content);
-  }, [sendMessage]);
+    onSend(content);
+  }, [onSend]);
 
   // Count thread replies for each top-level message
   const threadReplyCounts = useMemo(() => {
