@@ -1,5 +1,6 @@
 import type { Message } from '@agent-chat/shared';
 import { EventCard } from './EventCard';
+import { TeamEventCard } from './TeamEventCard';
 import { MessageContent } from './MessageContent';
 import './MessageItem.css';
 
@@ -61,6 +62,16 @@ export function MessageItem({ message, presenceStatus, threadReplyCount, onThrea
     message.metadata?.original_type === 'idle_notification'
   ) {
     return null;
+  }
+
+  // Team inbox structured events — render as compact inline cards
+  if (
+    (message.messageType === 'event' || message.messageType === 'hook') &&
+    message.metadata?.source === 'team_inbox' &&
+    message.metadata?.original_type &&
+    ['task_assignment', 'shutdown_request', 'shutdown_approved'].includes(message.metadata.original_type as string)
+  ) {
+    return <TeamEventCard message={message} />;
   }
 
   // Event messages — render as collapsible card
