@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 6 of 6 complete — v1.0 release. All features including Documents and real-time collaboration are shipped.
+> **Status:** Phase 7 of 7 complete — v1.0 release. All features including Documents, real-time collaboration, and archive/restore are shipped.
 
 ## Quick Start
 
@@ -57,16 +57,22 @@ GET /health → { status: "ok", timestamp: "..." }
 
 ### Tenants
 ```
-GET    /api/tenants              → { tenants: [...] }
-POST   /api/tenants              → { tenant: {...} }    body: { name, codebasePath }
-GET    /api/tenants/:id          → { tenant: {...} }
+GET    /api/tenants                         → { tenants: [...] }
+GET    /api/tenants/archived                → { tenants: [...] }
+POST   /api/tenants                         → { tenant: {...} }    body: { name, codebasePath }
+GET    /api/tenants/:id                     → { tenant: {...} }
+PATCH  /api/tenants/:id/archive             → { success: true }
+PATCH  /api/tenants/:id/restore             → { success: true }
 ```
 
 ### Channels
 ```
-GET    /api/tenants/:tid/channels              → { channels: [...] }
-POST   /api/tenants/:tid/channels              → { channel: {...} }   body: { name, sessionId?, type? }
-GET    /api/tenants/:tid/channels/:id          → { channel: {...} }
+GET    /api/tenants/:tid/channels                → { channels: [...] }
+GET    /api/tenants/:tid/channels/archived       → { channels: [...] }
+POST   /api/tenants/:tid/channels                → { channel: {...} }   body: { name, sessionId?, type? }
+GET    /api/tenants/:tid/channels/:id            → { channel: {...} }
+PATCH  /api/tenants/:tid/channels/:id/archive    → { success: true }
+PATCH  /api/tenants/:tid/channels/:id/restore    → { success: true }
 ```
 
 ### Messages
@@ -178,7 +184,7 @@ Parameters:
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (168 passing)
+pnpm test          # Run all tests (189 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -199,6 +205,7 @@ pnpm typecheck     # Type checking only
 - [x] **Phase 4:** Real-Time WebSocket Delivery — WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
 - [x] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
 - [x] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
+- [x] **Phase 7:** Channel and Tenant Archiving — Archive/restore UI for channels and tenants
 
 ## License
 
