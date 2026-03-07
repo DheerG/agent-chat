@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-07T13:42:04.927Z"
-last_activity: 2026-03-07 — Phase 3 complete, all success criteria verified
+stopped_at: Phase 4 complete, all success criteria verified
+last_updated: "2026-03-07T14:00:00.000Z"
+last_activity: 2026-03-07 — Phase 4 complete, all success criteria verified
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 12
   percent: 100
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** Phase 4 — Real-Time WebSocket Delivery
+**Current focus:** Phase 5 — Human Web UI (next)
 
 ## Current Position
 
-Phase: 3 of 6 (MCP Server and Hook Ingestion) - COMPLETE
+Phase: 4 of 6 (Real-Time WebSocket Delivery) - COMPLETE
 Plan: 3 of 3 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 3 complete, all success criteria verified
+Last activity: 2026-03-07 — Phase 4 complete, all success criteria verified
 
-Progress: [██████████████] 50%
+Progress: [██████████████████] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 12
 - Average duration: ---
 - Total execution time: ---
 
@@ -46,6 +46,7 @@ Progress: [██████████████] 50%
 | 1 | 3 | - | - |
 | 2 | 3 | - | - |
 | 3 | 3 | - | - |
+| 4 | 3 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -67,6 +68,10 @@ Recent decisions affecting current work:
 - [Phase 3]: Agent identity uses session_id as canonical agent_id
 - [Phase 3]: MCP SDK v1.27.1 supports both zod v3 and v4 — no version conflict
 - [Phase 3]: Server package uses lib.ts as side-effect-free library entry point with exports map
+- [Phase 4]: Single WebSocket connection per client, multiplexed across channels via subscribe/unsubscribe
+- [Phase 4]: EventEmitter pattern for decoupling MessageService from WebSocketHub broadcast
+- [Phase 4]: Cursor-based reconnect catch-up using ULID lastSeenId, reusing existing pagination
+- [Phase 4]: ws npm package in noServer mode for HTTP upgrade handling
 
 ### Pending Todos
 
@@ -74,12 +79,12 @@ None yet.
 
 ### Blockers/Concerns
 
-None — Phase 3 blockers resolved:
-- Hook event normalization rules: Resolved in 03-CONTEXT.md and implemented in handlers.ts
-- Agent identity consistency: Resolved by using session_id across both MCP and hooks
+None — Phase 4 blockers resolved:
+- All 3 success criteria verified by 7 integration tests + 9 unit tests
+- Zero regressions on existing 57 tests from Phases 1-3
 
 ## Session Continuity
 
-Last session: 2026-03-07T13:42:04.924Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-real-time-websocket-delivery/04-CONTEXT.md
+Last session: 2026-03-07T14:00:00.000Z
+Stopped at: Phase 4 complete, all success criteria verified
+Resume file: .planning/phases/04-real-time-websocket-delivery/04-VERIFICATION.md
