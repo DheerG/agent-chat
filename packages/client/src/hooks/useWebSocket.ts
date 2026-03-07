@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Message } from '@agent-chat/shared';
+import type { Message, Document } from '@agent-chat/shared';
 
 type MessageHandler = (message: Message) => void;
+type DocumentHandler = (document: Document) => void;
 
 interface UseWebSocketReturn {
   connected: boolean;
@@ -13,7 +14,9 @@ const MAX_RECONNECT_DELAY = 30_000;
 
 export function useWebSocket(
   tenantId: string | null,
-  onMessage?: MessageHandler
+  onMessage?: MessageHandler,
+  onDocumentCreated?: DocumentHandler,
+  onDocumentUpdated?: DocumentHandler,
 ): UseWebSocketReturn {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -22,6 +25,10 @@ export function useWebSocket(
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  const onDocumentCreatedRef = useRef(onDocumentCreated);
+  onDocumentCreatedRef.current = onDocumentCreated;
+  const onDocumentUpdatedRef = useRef(onDocumentUpdated);
+  onDocumentUpdatedRef.current = onDocumentUpdated;
   const tenantIdRef = useRef(tenantId);
   tenantIdRef.current = tenantId;
 
@@ -45,7 +52,7 @@ export function useWebSocket(
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data as string) as { type: string; message?: Message; messages?: Message[] };
+        const data = JSON.parse(event.data as string) as { type: string; message?: Message; messages?: Message[]; document?: Document };
         if (data.type === 'message' && data.message) {
           // Track lastSeenId for reconnection
           const msg = data.message;
@@ -60,6 +67,10 @@ export function useWebSocket(
             }
             onMessageRef.current?.(msg);
           }
+        } else if (data.type === 'document_created' && data.document) {
+          onDocumentCreatedRef.current?.(data.document);
+        } else if (data.type === 'document_updated' && data.document) {
+          onDocumentUpdatedRef.current?.(data.document);
         }
       } catch {
         // Ignore parse errors

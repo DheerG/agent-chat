@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
-import type { Message } from '@agent-chat/shared';
+import type { Message, Document } from '@agent-chat/shared';
 import { Sidebar } from './components/Sidebar';
 import { MessageFeed } from './components/MessageFeed';
 import { ThreadPanel } from './components/ThreadPanel';
+import { DocumentPanel } from './components/DocumentPanel';
 import { usePresence } from './hooks/usePresence';
 import { useMessages } from './hooks/useMessages';
+import { useDocuments } from './hooks/useDocuments';
 import { useWebSocket } from './hooks/useWebSocket';
 import './App.css';
 
@@ -15,6 +17,7 @@ export function App() {
 
   const { getStatus } = usePresence(selectedTenantId, selectedChannelId);
   const { messages, loading, error, sendMessage, addMessage, lastSeenId } = useMessages(selectedTenantId, selectedChannelId);
+  const { documents, loading: docsLoading, error: docsError, addDocument, updateDocument: updateDoc } = useDocuments(selectedTenantId, selectedChannelId);
 
   // WebSocket message handler
   const handleWsMessage = useCallback((msg: Message) => {
@@ -23,7 +26,20 @@ export function App() {
     }
   }, [selectedChannelId, addMessage]);
 
-  const { subscribe, unsubscribe } = useWebSocket(selectedTenantId, handleWsMessage);
+  // WebSocket document handlers
+  const handleDocCreated = useCallback((doc: Document) => {
+    if (selectedChannelId && doc.channelId === selectedChannelId) {
+      addDocument(doc);
+    }
+  }, [selectedChannelId, addDocument]);
+
+  const handleDocUpdated = useCallback((doc: Document) => {
+    if (selectedChannelId && doc.channelId === selectedChannelId) {
+      updateDoc(doc);
+    }
+  }, [selectedChannelId, updateDoc]);
+
+  const { subscribe, unsubscribe } = useWebSocket(selectedTenantId, handleWsMessage, handleDocCreated, handleDocUpdated);
 
   const handleChannelSelect = useCallback((tenantId: string, channelId: string) => {
     // Unsubscribe from old channel
@@ -57,17 +73,24 @@ export function App() {
       />
       <main className={`main-content ${selectedThread ? 'main-content--with-thread' : ''}`}>
         {selectedTenantId && selectedChannelId ? (
-          <MessageFeed
-            tenantId={selectedTenantId}
-            channelId={selectedChannelId}
-            getPresenceStatus={getStatus}
-            onThreadOpen={handleThreadOpen}
-            messages={messages}
-            loading={loading}
-            error={error}
-            onSend={handleSend}
-            lastSeenId={lastSeenId}
-          />
+          <>
+            <MessageFeed
+              tenantId={selectedTenantId}
+              channelId={selectedChannelId}
+              getPresenceStatus={getStatus}
+              onThreadOpen={handleThreadOpen}
+              messages={messages}
+              loading={loading}
+              error={error}
+              onSend={handleSend}
+              lastSeenId={lastSeenId}
+            />
+            <DocumentPanel
+              documents={documents}
+              loading={docsLoading}
+              error={docsError}
+            />
+          </>
         ) : (
           <div className="placeholder">Select a channel to start</div>
         )}

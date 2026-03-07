@@ -1,0 +1,141 @@
+.document-panel {
+  border-top: 1px solid #e0e0e3;
+  background: #fafafa;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.document-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #666;
+  border-bottom: 1px solid #e0e0e3;
+  background: #f5f5f7;
+  position: sticky;
+  top: 0;
+}
+
+.document-panel__count {
+  background: #e0e0e3;
+  color: #555;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.document-panel__list {
+  padding: 4px 0;
+}
+
+.document-panel__loading,
+.document-panel__error,
+.document-panel__empty {
+  padding: 16px;
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.document-panel__error {
+  color: #d32f2f;
+}
+
+.document-item {
+  border-bottom: 1px solid #eee;
+}
+
+.document-item:last-child {
+  border-bottom: none;
+}
+
+.document-item__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+  text-align: left;
+}
+
+.document-item__header:hover {
+  background: #f0f0f2;
+}
+
+.document-item__icon {
+  font-size: 0.65rem;
+  color: #888;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.document-item__name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-item__badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.document-item__badge--text {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.document-item__badge--markdown {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.document-item__badge--json {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.document-item__meta {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 4px 36px;
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.document-item__content {
+  padding: 8px 16px 12px 36px;
+  border-top: 1px solid #eee;
+  background: #fff;
+}
+
+.document-item__body {
+  margin: 0;
+  padding: 8px 12px;
+  background: #f8f8fa;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  color: #333;
+}

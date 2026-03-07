@@ -1,4 +1,4 @@
-import type { Tenant, Channel, Message, Presence, PaginationOpts } from '@agent-chat/shared';
+import type { Tenant, Channel, Message, Presence, PaginationOpts, Document } from '@agent-chat/shared';
 
 const BASE_URL = '/api';
 
@@ -56,6 +56,20 @@ export async function sendMessage(
     }
   );
   return data.message;
+}
+
+export async function fetchDocuments(tenantId: string, channelId: string): Promise<Document[]> {
+  const data = await fetchJson<{ documents: Document[] }>(
+    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/documents`
+  );
+  return data.documents;
+}
+
+export async function fetchDocument(tenantId: string, channelId: string, documentId: string): Promise<Document> {
+  const data = await fetchJson<{ document: Document }>(
+    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/documents/${documentId}`
+  );
+  return data.document;
 }
 
 export async function fetchPresence(tenantId: string, channelId: string): Promise<Presence[]> {
