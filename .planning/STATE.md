@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 Phase: 12 of 12 (Setup Script Updates) - COMPLETE
 Plan: 1 of 1 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 12 complete, setup scripts and README updated
+Last activity: 2026-03-07 - Completed quick task 1: Improve rendering of messages in the UI
 
 Progress: [██████████] 100%
 
@@ -133,9 +133,15 @@ None.
 
 None — all 12 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 200 tests pass (143 server + 57 client)
+- 208 tests pass (143 server + 65 client)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Improve rendering of messages in the UI. Target common patterns like Markdown to html. | 2026-03-07 | 3234608 | [1-improve-rendering](./quick/1-improve-rendering-of-messages-in-the-ui-/) |
 
 ## Session Continuity
 
