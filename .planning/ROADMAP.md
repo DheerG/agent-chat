@@ -12,7 +12,7 @@ AgentChat is built in dependency order, from the data layer up. The foundation p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Data Layer Foundation** - SQLite schema, WAL mode, write serialization, and tenant isolation that every other component depends on
+- [x] **Phase 1: Data Layer Foundation** - SQLite schema, WAL mode, write serialization, and tenant isolation that every other component depends on (completed 2026-03-07)
 - [ ] **Phase 2: Domain Services and HTTP API** - Message/Channel service layer and Hono REST server that expose the data layer to the network
 - [ ] **Phase 3: MCP Server and Hook Ingestion** - Agent integration via MCP stdio tools and passive Claude Code hook capture
 - [ ] **Phase 4: Real-Time WebSocket Delivery** - WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
@@ -97,7 +97,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Layer Foundation | 0/? | Not started | - |
+| 1. Data Layer Foundation | 0/? | Complete    | 2026-03-07 |
 | 2. Domain Services and HTTP API | 0/? | Not started | - |
 | 3. MCP Server and Hook Ingestion | 0/? | Not started | - |
 | 4. Real-Time WebSocket Delivery | 0/? | Not started | - |
