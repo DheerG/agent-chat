@@ -11,249 +11,229 @@ allowed-tools:
   - Grep
   - Agent
   - AskUserQuestion
-  - SlashCommand
 ---
 
 <objective>
-Launch a continuous, autonomous build loop. A small agent team builds the project phase-by-phase using the GSD workflow, and once the product is usable, dogfoods it — using the built software to coordinate, surfacing missing features, and creating new phases to address them.
-
-The command is thin: it sets up the team, configures auto-advance, and enters the build loop. The GSD infrastructure handles the heavy lifting.
+Launch a continuous, autonomous build loop. Each phase is delegated to a fresh agent with full 200k context. The orchestrator (this conversation) stays ultra-thin — just a loop that spawns agents and reads results. Never stops, never pauses for context limits.
 </objective>
 
-<team>
+<critical_architecture>
 
-## Team Structure
+## Why This Works
 
-The lead (this conversation) orchestrates. Specialists are spawned at the right moments:
+The orchestrator NEVER does heavy work. It NEVER uses Skill tool (which runs in same context). Instead:
 
-| Role | When Spawned | Purpose |
-|------|-------------|---------|
-| **Lead** | Immediately (this conversation) | Runs GSD loop: discuss → plan → execute → verify per phase |
-| **Dogfooder** | After Phase 3 (MCP ready) | Actively uses the product via MCP tools, reports missing features |
-| **Design Reviewer** | During Phase 5 (UI phase) | Reviews UI for quality, ShadCN usage, modern patterns, accessibility |
+1. **Each phase → one Agent** with fresh 200k context
+2. The agent runs the FULL GSD chain internally: discuss → plan → execute → verify
+3. Agent returns summary. Orchestrator reads it, spawns next phase.
+4. Orchestrator context stays <10% — can loop indefinitely.
 
-The dogfooder and design reviewer report back to the lead. If they surface gaps, the lead creates new phases via `/gsd:insert-phase` or `/gsd:add-phase`.
+**DO NOT use Skill tool.** Skill runs in your context and fills it up. Always use Agent tool.
 
-</team>
+</critical_architecture>
 
 <process>
 
-## 1. Initialize
-
-Read project state:
+## 1. Initialize (tiny — just read state)
 
 ```bash
 INIT=$(node "./.claude/get-shit-done/bin/gsd-tools.cjs" init progress)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
-Parse for: `current_phase`, `next_phase`, `phase_count`, `project_name`.
+Read `.planning/ROADMAP.md` to get phase list. Parse `--from` / `--to` from $ARGUMENTS.
 
-Read `.planning/ROADMAP.md` and `.planning/config.json`.
-
-**Parse arguments:**
-- `--from N` → start from phase N (default: next incomplete phase)
-- `--to N` → stop after phase N (default: last phase)
-
-## 2. Configure Auto-Advance
-
-Enable continuous execution:
-
+Enable auto-advance:
 ```bash
 node "./.claude/get-shit-done/bin/gsd-tools.cjs" config-set workflow.auto_advance true
 node "./.claude/get-shit-done/bin/gsd-tools.cjs" config-set workflow._auto_chain_active true
 ```
 
-## 3. Build Loop
+## 2. Phase Loop
 
-For each phase from `start_phase` to `end_phase`:
+For each incomplete phase from `start_phase` to `end_phase`:
 
-### 3a. Run GSD Phase Lifecycle
+### 2a. Spawn Phase Agent
 
-Use the Skill tool to chain through:
+**CRITICAL: Use Agent tool, NOT Skill tool.** The agent gets fresh context.
 
 ```
-Skill(skill="gsd:discuss-phase", args="{phase} --auto")
+Agent(
+  name="phase-{N}-builder",
+  subagent_type="general-purpose",
+  model="sonnet",
+  mode="bypassPermissions",
+  description="Build Phase {N}: {name}",
+  prompt="
+    You are building Phase {N}: {phase_name} of the AgentChat project.
+
+    Your job: Run the FULL GSD lifecycle for this phase. Use the Skill tool for each step.
+
+    ## Steps
+
+    1. Run: Skill(skill='gsd:discuss-phase', args='{N} --auto')
+       - This auto-chains: discuss → plan → execute → verify
+       - If it completes the full chain, you're done
+       - If it stops partway (gaps, errors), handle it:
+         - GAPS FOUND → Run: Skill(skill='gsd:plan-phase', args='{N} --gaps')
+         - Then: Skill(skill='gsd:execute-phase', args='{N} --gaps-only')
+         - PLANNING INCOMPLETE → Run: Skill(skill='gsd:plan-phase', args='{N} --auto')
+         - EXECUTION FAILED → Read the error, try to fix, re-run execute
+
+    2. Verify completion:
+       - Read .planning/ROADMAP.md
+       - Confirm Phase {N} is marked complete
+       - If not complete, diagnose and retry the failing step
+
+    3. Return a summary:
+       ## PHASE {N} COMPLETE
+       - What was built
+       - Files created/modified
+       - Any issues encountered and how they were resolved
+       - Any deferred ideas surfaced
+
+    ## Rules
+    - Do NOT ask the user questions. Make decisions autonomously.
+    - If discuss-phase asks gray area questions, select 'All Claude's call' or make reasonable choices.
+    - If verification fails, fix and retry (up to 3 times).
+    - If truly stuck after 3 retries, return ## PHASE {N} BLOCKED with details.
+  "
+)
 ```
 
-The `--auto` flag chains: discuss → plan → execute → verify → transition automatically. Each step spawns fresh subagents with full context.
+Wait for the agent to complete. Read its summary.
 
-Wait for the chain to complete. It will return after the phase is done (or if it hits an unresolvable issue).
+### 2b. Post-Phase: Dogfood Check (Phase 3+ only)
 
-### 3b. Post-Phase: Dogfood Check (Phase 3+)
+**After Phase 3 completes** (MCP server + HTTP API are built), spawn dogfood agent:
 
-**After Phase 3 completes** (MCP server + hooks are built):
+```
+Agent(
+  name="dogfooder",
+  subagent_type="general-purpose",
+  model="sonnet",
+  description="Dogfood test the product",
+  run_in_background=true,
+  prompt="
+    You are a dogfood tester for AgentChat — a local messaging service for agent teams.
 
-1. **Start the service** (if not running):
-   ```bash
-   # Start AgentChat server in background
-   npm run dev &
-   ```
+    ## Setup
+    1. Read .planning/ROADMAP.md and .planning/REQUIREMENTS.md
+    2. Find the server entry point and start it: look for package.json scripts or main server file
+    3. Start the server in background if not running
 
-2. **Spawn dogfood agent** in background:
-   ```
-   Agent(
-     name="dogfooder",
-     subagent_type="general-purpose",
-     model="sonnet",
-     description="Dogfood the product",
-     run_in_background=true,
-     prompt="
-       You are a dogfood tester for AgentChat — a messaging service for agent teams.
+    ## Test the REST API
+    Try each endpoint with curl:
+    - POST to create a tenant
+    - POST to create a channel
+    - POST to send a message
+    - GET to read messages back
+    - GET to list channels
 
-       The service should be running on localhost. Your job:
+    ## Test Edge Cases
+    - Empty channels
+    - Multiple tenants (isolation)
+    - Thread replies
+    - Large message volume
 
-       1. Read .planning/ROADMAP.md and .planning/REQUIREMENTS.md to understand what's built
-       2. Try using the MCP tools that were built:
-          - send_message: Send a test message to a channel
-          - read_channel: Read messages from a channel
-          - list_channels: List available channels
-       3. Try the REST API directly:
-          - POST /api/messages — send a message
-          - GET /api/channels — list channels
-          - GET /api/channels/:id/messages — read history
-       4. Test edge cases:
-          - What happens with empty channels?
-          - Can you get summaries of recent activity?
-          - Can you search for specific messages?
-          - Can you tell which agents are active?
+    ## Think Like an Agent Team Member
+    Try things an agent team would need day-to-day:
+    - 'What happened in the last hour?'
+    - 'Summarize channel activity'
+    - 'Who is active right now?'
+    - 'Search for messages about X'
 
-       For each thing you try, report:
-       - What you tried
-       - What happened (success/failure)
-       - What you WISH you could do but can't (missing features)
+    ## Output
+    Report what works, what's broken, and what's MISSING.
 
-       Be creative. Think about what an agent team would need day-to-day:
-       - 'Show me what happened in the last hour'
-       - 'Summarize the discussion in channel X'
-       - 'Who is currently active?'
-       - 'What decisions were made today?'
+    ## Working Features
+    [list]
 
-       Output a structured report with:
-       ## Working Features
-       ## Issues Found
-       ## Missing Features (things I wished I could do)
-       ## Suggestions for New Requirements
-     "
-   )
-   ```
+    ## Issues Found
+    [list with reproduction steps]
 
-3. **Collect feedback** when the dogfood agent completes. For each missing feature or suggestion:
-   - If it's a natural fit within the current roadmap: note it for an existing future phase
-   - If it requires new work: use Skill(skill="gsd:add-phase") or Skill(skill="gsd:insert-phase") to create a new phase
-   - Add new requirements to REQUIREMENTS.md
+    ## Missing Features (things I wished I could do)
+    [list — these become new requirements]
 
-**After every subsequent phase**, re-run the dogfood agent to test the latest state.
+    ## Suggested New Requirements
+    [specific, testable requirements in REQ-ID format]
+  "
+)
+```
 
-### 3c. Post-Phase: Design Review (Phase 5+)
+Collect dogfood feedback. For genuine gaps (not nice-to-haves):
+- Add requirement to REQUIREMENTS.md
+- Use `Skill(skill='gsd:add-phase')` to create a new phase
+- The loop will pick it up
 
-**After Phase 5 completes** (UI is built):
+### 2c. Post-Phase: Design Review (Phase 5+ only)
 
-Spawn design reviewer agent:
+After Phase 5 (UI), spawn design reviewer:
+
 ```
 Agent(
   name="design-reviewer",
   subagent_type="general-purpose",
   model="sonnet",
-  description="Review UI design quality",
+  description="Audit UI design quality",
   run_in_background=true,
   prompt="
-    You are a UI/UX design reviewer for AgentChat — a Slack-like messaging app for agent teams.
+    You are a UI/UX design reviewer for AgentChat.
 
-    Your job:
-    1. Read the UI source code (src/client/ or similar)
-    2. Check for:
-       - ShadCN component usage (should use shadcn/ui for all standard components)
-       - Tailwind CSS v4 patterns (modern utility-first styling)
-       - Responsive layout (sidebar + main content)
-       - Accessibility (ARIA labels, keyboard navigation, color contrast)
+    ## Audit Checklist
+    1. Read all UI source code (find with: find . -name '*.tsx' -path '*/client/*' or similar)
+    2. Check:
+       - ShadCN component usage (should use shadcn/ui, not raw HTML)
+       - Tailwind CSS v4 patterns
+       - Responsive sidebar + main content layout
+       - Accessibility (ARIA labels, keyboard nav, contrast)
        - Visual hierarchy (message bubbles, sender identity, timestamps)
-       - Thread expansion UX (inline vs sidebar)
-       - Loading states and empty states
-       - Error handling UI (connection lost, message send failed)
+       - Loading states, empty states, error states
        - Dark mode support
-       - Real-time update indicators (new message animations, typing indicators)
+       - Real-time indicators (new message animations)
 
-    3. Compare against modern messaging UIs (Slack, Discord, Linear)
+    3. Rate each: Good / Needs Work / Missing
 
-    4. Rate each area: Good / Needs Work / Missing
-
-    Output a structured report:
-    ## Design Audit
-    ### Component Quality (ShadCN usage, consistency)
+    ## Output
+    ## Design Audit Report
+    ### Component Quality
     ### Layout & Navigation
     ### Visual Polish
     ### Accessibility
-    ### Missing UI Patterns
-    ### Specific Recommendations (with file paths and suggested changes)
+    ### Critical Issues (must fix)
+    ### Recommendations (with file paths and code suggestions)
   "
 )
 ```
 
-Collect feedback. For design issues:
-- Critical issues (broken UX, inaccessible) → create an insert-phase to fix immediately
-- Polish items → add to a future phase or note for the current phase
+For critical design issues, create an insert-phase to fix.
 
-### 3d. Advance
+### 2d. Continue Loop
 
-If the phase chain didn't auto-advance (e.g., verification failed), handle the blocker:
-- If gaps found: let the auto chain handle gap closure
-- If manual intervention needed: present the issue and wait for user input
+After phase agent returns, move to next phase. DO NOT stop. DO NOT suggest /clear. Just spawn the next agent.
 
-Then continue the loop to the next phase.
+If agent returned BLOCKED, try to unblock:
+1. Read the blocker details
+2. If fixable (missing file, config issue), fix it and re-spawn
+3. If truly stuck, inform user but continue to next phase
 
-## 4. Completion
+## 3. Completion
 
-When all phases are done:
+When all phases done, run final dogfood + design review pass, then:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  BUILD COMPLETE ✓
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-All phases executed, verified, and dogfooded.
 ```
-
-Run one final dogfood + design review pass, then present summary.
 
 </process>
 
-<dogfooding_strategy>
-
-## Dogfooding Escalation Path
-
-When the dogfood agent reports a missing feature:
-
-1. **Evaluate**: Is this a genuine gap or a nice-to-have?
-   - Genuine gap: agents can't do their basic coordination job without it
-   - Nice-to-have: would be useful but isn't blocking
-
-2. **For genuine gaps**:
-   - Create a new requirement in REQUIREMENTS.md (e.g., AGNT-10, UI-07)
-   - Use `/gsd:insert-phase` to add a phase addressing the gap
-   - The build loop picks it up in the next iteration
-
-3. **For nice-to-haves**:
-   - Add to v2 requirements in REQUIREMENTS.md
-   - Log in STATE.md under discoveries
-
-4. **Common dogfood-surfaced features** (expect these):
-   - Message search / filtering
-   - Activity summaries ("what happened while I was idle?")
-   - Channel notifications / unread counts
-   - Agent status dashboard
-   - Message pinning / bookmarking
-   - Conversation export
-
-</dogfooding_strategy>
-
-<success_criteria>
-- [ ] Auto-advance configured
-- [ ] Each phase completes: discuss → plan → execute → verify
-- [ ] Dogfood agent runs after Phase 3+ and reports findings
-- [ ] Design reviewer runs after Phase 5+ and reports findings
-- [ ] Missing features from dogfooding become new phases/requirements
-- [ ] All originally planned phases complete
-- [ ] All dogfood-generated phases complete
-- [ ] Final dogfood pass confirms product is self-sufficient for agent team use
-</success_criteria>
+<rules>
+- NEVER use Skill tool in the orchestrator — it eats your context
+- NEVER stop the loop for context warnings — agents have fresh context
+- NEVER suggest /clear or manual commands — this is autonomous
+- The orchestrator is a LOOP, not a worker. It spawns, waits, spawns next.
+- Keep orchestrator output minimal — just phase transition banners
+- Each Agent gets fresh 200k context — they do the heavy lifting
+</rules>
