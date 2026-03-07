@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Channel and Tenant Archiving** - UI for human operators to archive channels and tenants, and browse archived items (completed 2026-03-07)
 - [x] **Phase 8: Add to Existing Codebases** - Setup/teardown scripts for wiring local codebases into AgentChat (completed 2026-03-07)
 - [x] **Phase 9: UI Polish** - CSS design tokens, WCAG AA contrast fixes, accessible archive buttons, ConfirmDialog, dead code fix, ARIA landmarks (completed 2026-03-07)
+- [x] **Phase 10: Fix Dogfood Bugs** - Block writes to archived channels, fix tenant name upsert, verify Sidebar tests (completed 2026-03-07)
 
 ## Phase Details
 
@@ -123,6 +124,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 7. Channel and Tenant Archiving | 2/2 | Complete    | 2026-03-07 |
 | 8. Add to Existing Codebases | 1/1 | Complete    | 2026-03-07 |
 | 9. UI Polish | 2/2 | Complete    | 2026-03-07 |
+| 10. Fix Dogfood Bugs | 1/1 | Complete    | 2026-03-07 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -162,13 +164,20 @@ Plans:
 
 ### Phase 10: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Fix three bugs found during dogfood testing: block writes to archived channels (409 CHANNEL_ARCHIVED), update tenant name on upsert, verify Sidebar archive tests pass
+**Requirements**: N/A (bugfix phase)
 **Depends on:** Phase 9
+**Success Criteria** (what must be TRUE):
+  1. POST to an archived channel returns HTTP 409 with error code CHANNEL_ARCHIVED
+  2. POST document to an archived channel returns HTTP 409 with error code CHANNEL_ARCHIVED
+  3. GET messages/documents from an archived channel still works (read-only access)
+  4. Tenant upsert with same codebasePath but different name updates the name
+  5. All Sidebar archive tests pass
+  6. Full test suite green with zero regressions
 **Plans:** 1/1 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 10 to break down) (completed 2026-03-07)
+- [x] 10-01-PLAN.md — Archived channel write guard, tenant name upsert, Sidebar test verification (completed 2026-03-07)
 
 ### Phase 11: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
 

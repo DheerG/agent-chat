@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 9 complete — all plans executed
-last_updated: "2026-03-07T16:55:02.187Z"
-last_activity: 2026-03-07 — Phase 9 complete, UI polish verified
+status: in_progress
+stopped_at: Phase 10 complete — all dogfood bugs fixed
+last_updated: "2026-03-07T19:55:00.000Z"
+last_activity: 2026-03-07 — Phase 10 complete, dogfood bugs fixed
 progress:
   total_phases: 12
-  completed_phases: 8
-  total_plans: 24
-  completed_plans: 20
+  completed_phases: 10
+  total_plans: 25
+  completed_plans: 24
   percent: 83
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** v1.0 milestone + Phase 9 COMPLETE
+**Current focus:** v1.0 milestone + Phase 10 COMPLETE
 
 ## Current Position
 
-Phase: 11 of 12 (team inbox ingestion file watcher that syncs claude teams messages into agentchat channels in real time)
-Plan: 2 of 2 in current phase
+Phase: 10 of 12 (Fix dogfood bugs) - COMPLETE
+Plan: 1 of 1 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 9 complete, UI polish verified
+Last activity: 2026-03-07 — Phase 10 complete, dogfood bugs fixed
 
 Progress: [████████░░] 83%
 
@@ -96,6 +96,10 @@ Recent decisions affecting current work:
 - [Phase 9]: Archive buttons are real <button> elements inside div[role=button] parent (avoids nested buttons)
 - [Phase 9]: ARIA landmarks: aside[aria-label=Channel navigation], main[aria-label=Message area], aside[aria-label=Thread replies]
 - [Phase 9]: Message list has role=log and aria-live=polite for screen reader support
+- [Phase 10]: Archived channels return 409 CHANNEL_ARCHIVED on write attempts (POST messages, POST documents)
+- [Phase 10]: GET operations on archived channels still allowed for historical access
+- [Phase 10]: Tenant upsert updates name when codebasePath matches but name differs
+- [Phase 10]: updateTenantName uses Drizzle ORM set() for consistency with other queries
 
 ### Roadmap Evolution
 
@@ -106,6 +110,7 @@ Recent decisions affecting current work:
 - Phase 9 added: UI polish — fix accessibility, contrast, dead code, and design system gaps from design audit
 - Phase 9 completed: All 2 plans executed and verified
 - Phase 10 added: Fix dogfood bugs — archived channel writes, failing client tests, tenant upsert name
+- Phase 10 completed: All 1 plan executed and verified
 - Phase 11 added: Team inbox ingestion — file watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time
 - Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 
@@ -115,14 +120,14 @@ None.
 
 ### Blockers/Concerns
 
-None — 9 phases complete:
+None — 10 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 193 total tests pass (112 server + 24 MCP + 57 client)
+- 196 total tests pass (115 server + 24 MCP + 57 client)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T19:00:00.000Z
-Stopped at: Phase 9 complete — all plans executed
-Resume file: .planning/phases/09-ui-polish-fix-accessibility-contrast-dead-code-and-design-system-gaps-from-design-audit/09-02-SUMMARY.md
+Last session: 2026-03-07T19:55:00.000Z
+Stopped at: Phase 10 complete — all dogfood bugs fixed
+Resume file: .planning/phases/10-fix-dogfood-bugs-archived-channel-writes-failing-client-tests-tenant-upsert-name/10-01-SUMMARY.md
