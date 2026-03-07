@@ -205,4 +205,43 @@ describe('Message routes', () => {
     expect(body.messages.length).toBe(0);
     expect(body.pagination.hasMore).toBe(false);
   });
+
+  test('POST message to archived channel returns 409 CHANNEL_ARCHIVED', async () => {
+    const { tenant, channel } = await seedTenantAndChannel('/msg-archived-write-test');
+
+    // Archive the channel
+    await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+
+    // Try to send a message
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: 'agent-1',
+        senderName: 'Agent',
+        senderType: 'agent',
+        content: 'should be rejected',
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json() as { code: string };
+    expect(body.code).toBe('CHANNEL_ARCHIVED');
+  });
+
+  test('GET messages from archived channel still works (read-only)', async () => {
+    const { tenant, channel } = await seedTenantAndChannel('/msg-archived-read-test');
+
+    // Send a message before archiving
+    await sendMessage(tenant.id, channel.id, 'message before archive');
+
+    // Archive the channel
+    await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+
+    // GET should still work
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/messages`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { messages: Message[] };
+    expect(body.messages.length).toBe(1);
+    expect(body.messages[0]!.content).toBe('message before archive');
+  });
 });
