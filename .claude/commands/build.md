@@ -61,7 +61,7 @@ For each incomplete phase from `start_phase` to `end_phase`:
 Agent(
   name="phase-{N}-builder",
   subagent_type="general-purpose",
-  model="sonnet",
+  model="opus",
   mode="bypassPermissions",
   description="Build Phase {N}: {name}",
   prompt="
@@ -111,7 +111,7 @@ Wait for the agent to complete. Read its summary.
 Agent(
   name="dogfooder",
   subagent_type="general-purpose",
-  model="sonnet",
+  model="opus",
   description="Dogfood test the product",
   run_in_background=true,
   prompt="
@@ -174,7 +174,7 @@ After Phase 5 (UI), spawn design reviewer:
 Agent(
   name="design-reviewer",
   subagent_type="general-purpose",
-  model="sonnet",
+  model="opus",
   description="Audit UI design quality",
   run_in_background=true,
   prompt="
@@ -208,7 +208,41 @@ Agent(
 
 For critical design issues, create an insert-phase to fix.
 
-### 2d. Continue Loop
+### 2d. Post-Phase: Update README
+
+After every phase completes, spawn a lightweight agent to update the README:
+
+```
+Agent(
+  name="readme-updater",
+  subagent_type="general-purpose",
+  model="haiku",
+  mode="bypassPermissions",
+  run_in_background=true,
+  description="Update README after Phase {N}",
+  prompt="
+    Update README.md to reflect the current state of the AgentChat project after Phase {N} completed.
+
+    ## Steps
+    1. Read README.md, .planning/ROADMAP.md, and scan the codebase for new packages/endpoints/features
+    2. Update these sections:
+       - Status line at the top (phase X of Y complete)
+       - Roadmap checkboxes (mark completed phases)
+       - API section (add any new endpoints)
+       - Tech Stack (add any new dependencies)
+       - Quick Start (update if setup steps changed)
+       - Project Structure (add new packages/directories)
+       - Testing (update test count)
+    3. Keep the README concise — no verbose descriptions
+    4. Do NOT add sections for features that don't exist yet
+    5. Commit the change: git add README.md && git commit -m 'docs: update README after Phase {N}'
+  "
+)
+```
+
+This runs in the background — don't wait for it before starting the next phase.
+
+### 2e. Continue Loop
 
 After phase agent returns, move to next phase. DO NOT stop. DO NOT suggest /clear. Just spawn the next agent.
 
