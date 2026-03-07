@@ -59,6 +59,25 @@ describe('Tenant routes', () => {
     expect(t1.id).toBe(t2.id);
   });
 
+  test('POST /api/tenants with same codebasePath updates tenant name', async () => {
+    const res1 = await app.request('/api/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Original Name', codebasePath: '/upsert-name-test' }),
+    });
+    const t1 = (await res1.json() as { tenant: Tenant }).tenant;
+    expect(t1.name).toBe('Original Name');
+
+    const res2 = await app.request('/api/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated Name', codebasePath: '/upsert-name-test' }),
+    });
+    const t2 = (await res2.json() as { tenant: Tenant }).tenant;
+    expect(t2.id).toBe(t1.id);
+    expect(t2.name).toBe('Updated Name');
+  });
+
   test('POST /api/tenants with missing codebasePath returns 422 VALIDATION_ERROR', async () => {
     const res = await app.request('/api/tenants', {
       method: 'POST',

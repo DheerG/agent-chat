@@ -93,5 +93,11 @@ export function createTenantQueries(instance: DbInstance, queue: WriteQueue) {
       );
       return result.changes > 0;
     },
+
+    async updateTenantName(id: string, name: string): Promise<void> {
+      await queue.enqueue(() =>
+        db.update(tenants).set({ name }).where(eq(tenants.id, id)).run()
+      );
+    },
   };
 }

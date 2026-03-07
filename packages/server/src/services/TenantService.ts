@@ -10,7 +10,13 @@ export class TenantService {
 
   async upsertByCodebasePath(name: string, codebasePath: string): Promise<Tenant> {
     const existing = this.q.getTenantByCodebasePath(codebasePath);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.name !== name) {
+        await this.q.updateTenantName(existing.id, name);
+        return { ...existing, name };
+      }
+      return existing;
+    }
     return this.q.insertTenant({ name, codebasePath });
   }
 
