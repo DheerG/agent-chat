@@ -1,0 +1,118 @@
+.message-item {
+  display: flex;
+  padding: 8px 16px;
+  gap: 10px;
+  transition: background 0.1s ease;
+}
+
+.message-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* System messages */
+.message-item--system {
+  justify-content: center;
+  padding: 4px 16px;
+}
+
+.message-system-text {
+  font-size: 0.8rem;
+  color: #a0aec0;
+  font-style: italic;
+}
+
+/* Agent messages */
+.message-item--agent {
+  /* Default styling */
+}
+
+/* Human messages */
+.message-item--human .message-content {
+  background: #eef2ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+/* Avatar */
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+
+/* Content */
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.message-sender-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.message-timestamp {
+  font-size: 0.75rem;
+  color: #a0aec0;
+}
+
+.message-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #2d3748;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Thread link */
+.message-thread-link {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.message-thread-link:hover {
+  text-decoration: underline;
+}
+
+/* Presence dot */
+.presence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.presence-dot--active {
+  background: #22c55e;
+}
+
+.presence-dot--idle {
+  background: #9ca3af;
+}

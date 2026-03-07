@@ -1,0 +1,77 @@
+.event-card {
+  margin: 4px 16px;
+  border-radius: 8px;
+  background: #e8edf3;
+  border: 1px solid #d0d7e0;
+  overflow: hidden;
+}
+
+.event-card-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #4a5568;
+  gap: 8px;
+  text-align: left;
+}
+
+.event-card-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.event-card-icon {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+.event-card-tool-name {
+  flex: 1;
+  font-weight: 500;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.event-card-chevron {
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+  opacity: 0.5;
+}
+
+.event-card-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+.event-card-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid #d0d7e0;
+}
+
+.event-card-section {
+  margin-top: 8px;
+}
+
+.event-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #718096;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.event-card-json {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  background: #f7f8fa;
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #2d3748;
+  margin: 0;
+}
