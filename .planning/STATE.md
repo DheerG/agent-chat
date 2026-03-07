@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-07T15:50:38.826Z"
-last_activity: 2026-03-07 — Phase 7 complete, all success criteria verified
+stopped_at: Phase 8 complete — all plans executed, verified
+last_updated: "2026-03-07T19:00:00.000Z"
+last_activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 8
   total_plans: 21
-  completed_plans: 17
-  percent: 81
+  completed_plans: 21
+  percent: 100
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** v1.0 milestone COMPLETE
+**Current focus:** v1.0 milestone + Phase 8 COMPLETE
 
 ## Current Position
 
-Phase: 08 of 7
-Plan: 2 of 2 in current phase
+Phase: 8 of 8 (Add to Existing Codebases) - COMPLETE
+Plan: 1 of 1 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 7 complete, all success criteria verified
+Last activity: 2026-03-07 — Phase 8 complete, setup/teardown scripts verified
 
-Progress: [████████░░] 81%
+Progress: [████████████████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
+- Total plans completed: 21
 - Average duration: ---
 - Total execution time: ---
 
@@ -50,6 +50,7 @@ Progress: [████████░░] 81%
 | 5 | 3 | - | - |
 | 6 | 3 | - | - |
 | 7 | 2 | - | - |
+| 8 | 1 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -95,6 +96,7 @@ Recent decisions affecting current work:
 - Phase 7 added: Channel and Tenant Archiving — UI for archiving/restoring channels and tenants
 - Phase 7 completed: All 2 plans executed and verified
 - Phase 8 added: Add process and ability to add this to existing local codebases to test this.
+- Phase 8 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -102,13 +104,14 @@ None.
 
 ### Blockers/Concerns
 
-None — All 7 phases complete:
+None — All 8 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
 - 189 total tests pass (112 server + 24 MCP + 53 client)
+- Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T15:40:33.158Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-add-process-and-ability-to-add-this-to-existing-local-codebases-to-test-this/08-CONTEXT.md
+Last session: 2026-03-07T19:00:00.000Z
+Stopped at: Phase 8 complete — all plans executed, verified
+Resume file: .planning/phases/08-add-process-and-ability-to-add-this-to-existing-local-codebases-to-test-this/08-01-SUMMARY.md
