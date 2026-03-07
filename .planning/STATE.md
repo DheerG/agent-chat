@@ -85,6 +85,10 @@ Recent decisions affecting current work:
 - [Phase 6]: WebSocket document events reuse channel subscription model
 - [Phase 6]: DocumentPanel placed below MessageFeed with expand/collapse content view
 
+### Roadmap Evolution
+
+- Phase 7 added: Channel and Tenant Archiving — UI for archiving/restoring channels and tenants
+
 ### Pending Todos
 
 None.
