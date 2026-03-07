@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-07T14:26:21.342Z"
-last_activity: 2026-03-07 — Phase 5 complete, all success criteria verified
+stopped_at: Phase 6 complete — all plans executed, verified
+last_updated: "2026-03-07T17:46:00.000Z"
+last_activity: 2026-03-07 — Phase 6 complete, all success criteria verified
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_phases: 6
+  total_plans: 18
+  completed_plans: 18
+  percent: 100
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Agent teams can communicate through structured channels, and humans can observe those conversations in real-time
-**Current focus:** Phase 6 — Polish & Hardening (next)
+**Current focus:** v1.0 milestone COMPLETE
 
 ## Current Position
 
-Phase: 5 of 6 (Human Web UI) - COMPLETE
+Phase: 6 of 6 (Documents and Canvases) - COMPLETE
 Plan: 3 of 3 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 5 complete, all success criteria verified
+Last activity: 2026-03-07 — Phase 6 complete, all success criteria verified
 
-Progress: [████████████████████████] 83%
+Progress: [████████████████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
+- Total plans completed: 18
 - Average duration: ---
 - Total execution time: ---
 
@@ -48,6 +48,7 @@ Progress: [███████████████████████
 | 3 | 3 | - | - |
 | 4 | 3 | - | - |
 | 5 | 3 | - | - |
+| 6 | 3 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -77,20 +78,26 @@ Recent decisions affecting current work:
 - [Phase 5]: Message state lifted from MessageFeed to App for ThreadPanel shared access
 - [Phase 5]: WebSocket reconnect with exponential backoff (1s-30s max)
 - [Phase 5]: Message deduplication via Set to handle REST+WS race conditions
+- [Phase 6]: Documents table with ULID IDs, tenant isolation, channel association, and content_type enum
+- [Phase 6]: DocumentService emits document:created and document:updated events via EventEmitter
+- [Phase 6]: MCP tools use snake_case args (channel_id, document_id) matching existing conventions
+- [Phase 6]: list_documents returns metadata only (no content field) to keep payloads small
+- [Phase 6]: WebSocket document events reuse channel subscription model
+- [Phase 6]: DocumentPanel placed below MessageFeed with expand/collapse content view
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-None — Phase 5 blockers resolved:
-- All 6 requirements (UI-01 through UI-06) verified
-- 36 client tests + 77 server tests pass (113 total)
-- Zero regressions on existing tests
+None — All 6 phases complete:
+- All requirements verified (INFRA, MSG, AGNT, UI, DOC)
+- 168 total tests pass (98 server + 24 MCP + 46 client)
+- Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T14:26:21.338Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-documents-and-canvases/06-CONTEXT.md
+Last session: 2026-03-07T17:46:00.000Z
+Stopped at: Phase 6 complete — all plans executed, verified
+Resume file: .planning/phases/06-documents-and-canvases/06-03-SUMMARY.md
