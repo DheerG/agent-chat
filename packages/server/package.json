@@ -12,9 +12,12 @@
   },
   "dependencies": {
     "@agent-chat/shared": "workspace:*",
+    "@hono/node-server": "^1.19.11",
     "better-sqlite3": "^12.6.0",
     "drizzle-orm": "^0.45.0",
-    "ulid": "^2.3.0"
+    "hono": "^4.12.5",
+    "ulid": "^2.3.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

@@ -41,5 +41,9 @@ export function createTenantQueries(instance: DbInstance, queue: WriteQueue) {
       const row = db.select().from(tenants).where(eq(tenants.codebasePath, codebasePath)).get();
       return row ? rowToTenant(row) : null;
     },
+
+    listAll(): Tenant[] {
+      return db.select().from(tenants).all().map(rowToTenant);
+    },
   };
 }

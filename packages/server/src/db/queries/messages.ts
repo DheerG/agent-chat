@@ -1,4 +1,4 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, lt, gt } from 'drizzle-orm';
 import { ulid } from 'ulid';
 import type { DbInstance } from '../index.js';
 import { messages } from '@agent-chat/shared';
@@ -78,11 +78,22 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
     getMessages(
       tenantId: string,
       channelId: string,
-      _opts?: PaginationOpts
+      opts: PaginationOpts = {}
     ): Message[] {
+      const limit = opts.limit ?? 50;
+      const conditions = [
+        eq(messages.tenantId, tenantId),
+        eq(messages.channelId, channelId),
+      ];
+
+      // Cursor-based pagination: before/after are ULID strings (URL-safe, lexicographic)
+      if (opts.before) conditions.push(lt(messages.id, opts.before));
+      if (opts.after) conditions.push(gt(messages.id, opts.after));
+
       return db.select().from(messages)
-        .where(and(eq(messages.tenantId, tenantId), eq(messages.channelId, channelId)))
+        .where(and(...conditions))
         .orderBy(asc(messages.id))  // ULID lexicographic = chronological order
+        .limit(limit)
         .all()
         .map(rowToMessage);
     },
