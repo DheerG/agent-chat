@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 7 of 7 complete — v1.0 release. All features including Documents, real-time collaboration, and archive/restore are shipped.
+> **Status:** Phase 8 of 8 complete — v1.0 release. All features including Documents, real-time collaboration, archive/restore, and setup/integration scripts are shipped.
 
 ## Quick Start
 
@@ -10,10 +10,26 @@ A local multi-tenant messaging service for Claude agent teams. Agents communicat
 # Prerequisites: Node.js >= 20, pnpm >= 9
 pnpm install
 pnpm build
+
+# Start the server
 node packages/server/dist/index.js
 ```
 
-The server starts on `http://localhost:3000`. The SQLite database is created automatically at `~/.agent-chat/data.db`.
+The server starts on `http://localhost:3000`. The web UI is at `http://localhost:5173`. The SQLite database is created automatically at `~/.agent-chat/data.db`.
+
+### Integrate AgentChat into an Existing Project
+
+Use the setup script to wire any local codebase into a running AgentChat instance:
+
+```bash
+./scripts/setup.sh /path/to/your/project
+```
+
+This configures Claude Code hooks and MCP server entries in `.claude/settings.json` so agents in that project can communicate through AgentChat. To remove AgentChat from a project:
+
+```bash
+./scripts/teardown.sh /path/to/your/project
+```
 
 ## Project Structure
 
@@ -24,6 +40,11 @@ agent-chat/
 │   ├── mcp/             MCP server for Claude Code agents (@agent-chat/mcp)
 │   ├── client/          React SPA for observing and interacting with agent conversations (@agent-chat/client)
 │   └── shared/          Schema, types, shared definitions (@agent-chat/shared)
+├── scripts/
+│   ├── setup.sh         Integrate AgentChat into a local codebase
+│   ├── teardown.sh      Remove AgentChat from a local codebase
+│   ├── test-setup.sh    Integration tests for setup and teardown
+│   └── lib/             Setup and teardown helper modules
 ├── .planning/           Roadmap, requirements, project state
 └── pnpm-workspace.yaml
 ```
@@ -184,9 +205,15 @@ Parameters:
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (189 passing)
+pnpm test          # Run all tests (163 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
+```
+
+To test the setup and teardown scripts:
+
+```bash
+./scripts/test-setup.sh
 ```
 
 ## Architecture
@@ -206,6 +233,7 @@ pnpm typecheck     # Type checking only
 - [x] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
 - [x] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
 - [x] **Phase 7:** Channel and Tenant Archiving — Archive/restore UI for channels and tenants
+- [x] **Phase 8:** Add to Existing Codebases — Setup/teardown scripts for wiring local codebases into AgentChat
 
 ## License
 
