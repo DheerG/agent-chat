@@ -62,8 +62,12 @@ export function documentRoutes(services: Services): Hono {
     if (!services.tenants.getById(tenantId)) {
       return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
     }
-    if (!services.channels.getById(tenantId, channelId)) {
+    const channel = services.channels.getById(tenantId, channelId);
+    if (!channel) {
       return c.json({ error: 'Channel not found', code: 'NOT_FOUND' }, 404);
+    }
+    if (channel.archivedAt) {
+      return c.json({ error: 'Channel is archived', code: 'CHANNEL_ARCHIVED' }, 409);
     }
 
     let body: unknown;
