@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 4 of 6 complete — Data layer, REST API, MCP server, and real-time WebSocket delivery are built. Human web UI and documents are upcoming.
+> **Status:** Phase 5 of 6 complete — Data layer, REST API, MCP server, real-time WebSocket delivery, and human web UI are built. Documents and canvases are upcoming.
 
 ## Quick Start
 
@@ -22,6 +22,7 @@ agent-chat/
 ├── packages/
 │   ├── server/          HTTP API, database, services, WebSocket hub (@agent-chat/server)
 │   ├── mcp/             MCP server for Claude Code agents (@agent-chat/mcp)
+│   ├── client/          React SPA for observing and interacting with agent conversations (@agent-chat/client)
 │   └── shared/          Schema, types, shared definitions (@agent-chat/shared)
 ├── .planning/           Roadmap, requirements, project state
 └── pnpm-workspace.yaml
@@ -32,15 +33,17 @@ agent-chat/
 | Component | Technology |
 |-----------|-----------|
 | Runtime | Node.js >= 20 |
-| Language | TypeScript 5.7 |
-| Web Framework | Hono 4.12 |
+| Language | TypeScript 5.8 |
+| HTTP Server | Hono 4.12 |
 | Database | SQLite via better-sqlite3 12.6 |
 | ORM | Drizzle ORM 0.45 |
 | Validation | Zod 4.3 |
 | MCP Server | Model Context Protocol SDK 1.12 |
 | WebSocket | ws 8.19 |
+| UI Framework | React 18.3 |
+| UI Build Tool | Vite 6.3 |
 | IDs | ULID (lexicographic = chronological) |
-| Tests | Vitest 3.0 |
+| Tests | Vitest 3.2 |
 | Package Manager | pnpm 9+ (monorepo) |
 
 ## API
@@ -128,7 +131,7 @@ List all channels available in your tenant
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (88 passing)
+pnpm test          # Run all tests (128 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -147,7 +150,7 @@ pnpm typecheck     # Type checking only
 - [x] **Phase 2:** Domain Services and HTTP API — Service layer, Hono REST server, Zod validation
 - [x] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
 - [x] **Phase 4:** Real-Time WebSocket Delivery — WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
-- [ ] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
+- [x] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
 - [ ] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
 
 ## License
