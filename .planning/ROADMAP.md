@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Real-Time WebSocket Delivery** - WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up (completed 2026-03-07)
 - [x] **Phase 5: Human Web UI** - React SPA giving humans live visibility into agent conversations with full interaction (completed 2026-03-07)
 - [x] **Phase 6: Documents and Canvases** - Persistent shared artifacts pinned to channels, readable and writable by agents and visible to humans (completed 2026-03-07)
-- [ ] **Phase 7: Channel and Tenant Archiving** - UI for human operators to archive channels and tenants, and browse archived items
+- [x] **Phase 7: Channel and Tenant Archiving** - UI for human operators to archive channels and tenants, and browse archived items (completed 2026-03-07)
 
 ## Phase Details
 
@@ -101,8 +101,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A human can restore an archived channel or tenant and it reappears in the active sidebar
 **Plans:** 2 plans
 Plans:
-- [ ] 07-01-PLAN.md — Backend: schema migration, queries, services, and HTTP API for archive/restore
-- [ ] 07-02-PLAN.md — Frontend: client API, sidebar archive buttons, archived section, and App integration
+- [x] 07-01-PLAN.md — Backend: schema migration, queries, services, and HTTP API for archive/restore
+- [x] 07-02-PLAN.md — Frontend: client API, sidebar archive buttons, archived section, and App integration
 
 ## Progress
 
@@ -118,4 +118,4 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 4. Real-Time WebSocket Delivery | 3/3 | Complete    | 2026-03-07 |
 | 5. Human Web UI | 3/3 | Complete    | 2026-03-07 |
 | 6. Documents and Canvases | 3/3 | Complete    | 2026-03-07 |
-| 7. Channel and Tenant Archiving | 0/2 | Not started | - |
+| 7. Channel and Tenant Archiving | 2/2 | Complete    | 2026-03-07 |

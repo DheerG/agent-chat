@@ -9,6 +9,7 @@ export const tenants = sqliteTable('tenants', {
   name: text('name').notNull(),
   codebasePath: text('codebase_path').notNull(),  // unique — project root path
   createdAt: text('created_at').notNull(),        // ISO 8601
+  archivedAt: text('archived_at'),               // nullable — NULL = active, ISO 8601 = archived
 }, (t) => [
   uniqueIndex('idx_tenants_codebase_path').on(t.codebasePath),
 ]);
@@ -21,6 +22,7 @@ export const channels = sqliteTable('channels', {
   type: text('type', { enum: ['session', 'manual'] }).notNull().default('manual'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),               // nullable — NULL = active, ISO 8601 = archived
 }, (t) => [
   index('idx_channels_tenant').on(t.tenantId),
 ]);

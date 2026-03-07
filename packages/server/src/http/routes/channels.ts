@@ -11,7 +11,7 @@ const CreateChannelSchema = z.object({
 export function channelRoutes(services: Services): Hono {
   const router = new Hono();
 
-  // GET /api/tenants/:tenantId/channels
+  // GET /api/tenants/:tenantId/channels — list active channels
   router.get('/', (c) => {
     // Hono propagates ancestor path params; non-null assertion is safe here —
     // this route is only reachable via /api/tenants/:tenantId/channels
@@ -21,6 +21,17 @@ export function channelRoutes(services: Services): Hono {
     }
     const channelList = services.channels.listByTenant(tenantId);
     return c.json({ channels: channelList });
+  });
+
+  // GET /api/tenants/:tenantId/channels/archived — list only archived channels
+  // CRITICAL: must be registered BEFORE /:channelId to avoid matching "archived" as a channelId
+  router.get('/archived', (c) => {
+    const tenantId = c.req.param('tenantId') as string;
+    if (!services.tenants.getById(tenantId)) {
+      return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
+    }
+    const archivedList = services.channels.listArchivedByTenant(tenantId);
+    return c.json({ channels: archivedList });
   });
 
   // POST /api/tenants/:tenantId/channels
@@ -53,6 +64,34 @@ export function channelRoutes(services: Services): Hono {
     const channel = services.channels.getById(tenantId, channelId);
     if (!channel) return c.json({ error: 'Channel not found', code: 'NOT_FOUND' }, 404);
     return c.json({ channel });
+  });
+
+  // PATCH /api/tenants/:tenantId/channels/:channelId/archive
+  router.patch('/:channelId/archive', async (c) => {
+    const tenantId = c.req.param('tenantId') as string;
+    const channelId = c.req.param('channelId') as string;
+    if (!services.tenants.getById(tenantId)) {
+      return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
+    }
+    const success = await services.channels.archive(tenantId, channelId);
+    if (!success) {
+      return c.json({ error: 'Channel not found or already archived', code: 'NOT_FOUND' }, 404);
+    }
+    return c.json({ success: true });
+  });
+
+  // PATCH /api/tenants/:tenantId/channels/:channelId/restore
+  router.patch('/:channelId/restore', async (c) => {
+    const tenantId = c.req.param('tenantId') as string;
+    const channelId = c.req.param('channelId') as string;
+    if (!services.tenants.getById(tenantId)) {
+      return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
+    }
+    const success = await services.channels.restore(tenantId, channelId);
+    if (!success) {
+      return c.json({ error: 'Channel not found or not archived', code: 'NOT_FOUND' }, 404);
+    }
+    return c.json({ success: true });
   });
 
   return router;

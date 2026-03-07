@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 6 complete — all plans executed, verified
-last_updated: "2026-03-07T17:46:00.000Z"
-last_activity: 2026-03-07 — Phase 6 complete, all success criteria verified
+stopped_at: Phase 7 complete — all plans executed, verified
+last_updated: "2026-03-07T18:30:00.000Z"
+last_activity: 2026-03-07 — Phase 7 complete, all success criteria verified
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 18
-  completed_plans: 18
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 20
+  completed_plans: 20
   percent: 100
 ---
 
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 6 of 6 (Documents and Canvases) - COMPLETE
-Plan: 3 of 3 in current phase
+Phase: 7 of 7 (Channel and Tenant Archiving) - COMPLETE
+Plan: 2 of 2 in current phase
 Status: Complete
-Last activity: 2026-03-07 — Phase 6 complete, all success criteria verified
+Last activity: 2026-03-07 — Phase 7 complete, all success criteria verified
 
 Progress: [████████████████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
+- Total plans completed: 20
 - Average duration: ---
 - Total execution time: ---
 
@@ -49,6 +49,7 @@ Progress: [███████████████████████
 | 4 | 3 | - | - |
 | 5 | 3 | - | - |
 | 6 | 3 | - | - |
+| 7 | 2 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -84,10 +85,15 @@ Recent decisions affecting current work:
 - [Phase 6]: list_documents returns metadata only (no content field) to keep payloads small
 - [Phase 6]: WebSocket document events reuse channel subscription model
 - [Phase 6]: DocumentPanel placed below MessageFeed with expand/collapse content view
+- [Phase 7]: Raw SQL for IS NULL/IS NOT NULL queries due to Drizzle ORM 0.45.1 compatibility issue
+- [Phase 7]: TenantService takes ChannelQueries for cascading archive/restore
+- [Phase 7]: refreshKey pattern for triggering hook re-fetches from App state
+- [Phase 7]: Archived section collapsed by default, fetches data only when expanded
 
 ### Roadmap Evolution
 
 - Phase 7 added: Channel and Tenant Archiving — UI for archiving/restoring channels and tenants
+- Phase 7 completed: All 2 plans executed and verified
 
 ### Pending Todos
 
@@ -95,13 +101,13 @@ None.
 
 ### Blockers/Concerns
 
-None — All 6 phases complete:
-- All requirements verified (INFRA, MSG, AGNT, UI, DOC)
-- 168 total tests pass (98 server + 24 MCP + 46 client)
+None — All 7 phases complete:
+- All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
+- 189 total tests pass (112 server + 24 MCP + 53 client)
 - Zero regressions across all packages
 
 ## Session Continuity
 
-Last session: 2026-03-07T17:46:00.000Z
-Stopped at: Phase 6 complete — all plans executed, verified
-Resume file: .planning/phases/06-documents-and-canvases/06-03-SUMMARY.md
+Last session: 2026-03-07T18:30:00.000Z
+Stopped at: Phase 7 complete — all plans executed, verified
+Resume file: .planning/phases/07-channel-and-tenant-archiving/07-02-SUMMARY.md

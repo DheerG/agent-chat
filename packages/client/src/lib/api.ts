@@ -78,3 +78,29 @@ export async function fetchPresence(tenantId: string, channelId: string): Promis
   );
   return data.presence;
 }
+
+export async function archiveChannel(tenantId: string, channelId: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/tenants/${tenantId}/channels/${channelId}/archive`, { method: 'PATCH' });
+}
+
+export async function restoreChannel(tenantId: string, channelId: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/tenants/${tenantId}/channels/${channelId}/restore`, { method: 'PATCH' });
+}
+
+export async function archiveTenant(tenantId: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/tenants/${tenantId}/archive`, { method: 'PATCH' });
+}
+
+export async function restoreTenant(tenantId: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/tenants/${tenantId}/restore`, { method: 'PATCH' });
+}
+
+export async function fetchArchivedTenants(): Promise<Tenant[]> {
+  const data = await fetchJson<{ tenants: Tenant[] }>(`${BASE_URL}/tenants/archived`);
+  return data.tenants;
+}
+
+export async function fetchArchivedChannels(tenantId: string): Promise<Channel[]> {
+  const data = await fetchJson<{ channels: Channel[] }>(`${BASE_URL}/tenants/${tenantId}/channels/archived`);
+  return data.channels;
+}

@@ -20,4 +20,16 @@ export class ChannelService {
   getById(tenantId: string, channelId: string): Channel | null {
     return this.q.getChannelById(tenantId, channelId);
   }
+
+  listArchivedByTenant(tenantId: string): Channel[] {
+    return this.q.getArchivedChannelsByTenant(tenantId);
+  }
+
+  async archive(tenantId: string, channelId: string): Promise<boolean> {
+    return this.q.archiveChannel(tenantId, channelId);
+  }
+
+  async restore(tenantId: string, channelId: string): Promise<boolean> {
+    return this.q.restoreChannel(tenantId, channelId);
+  }
 }

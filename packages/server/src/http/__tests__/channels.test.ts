@@ -24,6 +24,15 @@ async function createTenant(codebasePath = '/test'): Promise<Tenant> {
   return (await res.json() as { tenant: Tenant }).tenant;
 }
 
+async function createChannel(tenantId: string, name = 'general'): Promise<Channel> {
+  const res = await app.request(`/api/tenants/${tenantId}/channels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return (await res.json() as { channel: Channel }).channel;
+}
+
 describe('Channel routes', () => {
   test('POST /api/tenants/:id/channels creates channel and returns 201', async () => {
     const tenant = await createTenant();
@@ -107,6 +116,99 @@ describe('Channel routes', () => {
   test('GET /api/tenants/:id/channels/:channelId returns 404 for unknown channel', async () => {
     const tenant = await createTenant('/ch-404-test');
     const res = await app.request(`/api/tenants/${tenant.id}/channels/bad-channel-id`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Channel archive/restore routes', () => {
+  test('PATCH /:channelId/archive returns 200 and channel not in GET channels', async () => {
+    const tenant = await createTenant('/ch-archive-test');
+    const channel = await createChannel(tenant.id, 'ch-to-archive');
+
+    const archiveRes = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+    expect(archiveRes.status).toBe(200);
+    const archiveBody = await archiveRes.json() as { success: boolean };
+    expect(archiveBody.success).toBe(true);
+
+    // Channel should not appear in active list
+    const listRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const listBody = await listRes.json() as { channels: Channel[] };
+    expect(listBody.channels.find(c => c.id === channel.id)).toBeUndefined();
+  });
+
+  test('PATCH /:channelId/archive returns 404 for non-existent channel', async () => {
+    const tenant = await createTenant('/ch-archive-404');
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/nonexistent/archive`, { method: 'PATCH' });
+    expect(res.status).toBe(404);
+  });
+
+  test('PATCH /:channelId/restore returns 200 and channel reappears', async () => {
+    const tenant = await createTenant('/ch-restore-test');
+    const channel = await createChannel(tenant.id, 'ch-to-restore');
+
+    await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+    const restoreRes = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/restore`, { method: 'PATCH' });
+    expect(restoreRes.status).toBe(200);
+    const restoreBody = await restoreRes.json() as { success: boolean };
+    expect(restoreBody.success).toBe(true);
+
+    // Channel should reappear in active list
+    const listRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const listBody = await listRes.json() as { channels: Channel[] };
+    expect(listBody.channels.find(c => c.id === channel.id)).toBeDefined();
+  });
+
+  test('GET /channels/archived returns only archived channels', async () => {
+    const tenant = await createTenant('/ch-archived-list');
+    const ch1 = await createChannel(tenant.id, 'active-ch');
+    const ch2 = await createChannel(tenant.id, 'archived-ch');
+
+    await app.request(`/api/tenants/${tenant.id}/channels/${ch2.id}/archive`, { method: 'PATCH' });
+
+    const archivedRes = await app.request(`/api/tenants/${tenant.id}/channels/archived`);
+    expect(archivedRes.status).toBe(200);
+    const archivedBody = await archivedRes.json() as { channels: Channel[] };
+    expect(archivedBody.channels.length).toBe(1);
+    expect(archivedBody.channels[0].id).toBe(ch2.id);
+
+    // Active list should only have ch1
+    const activeRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const activeBody = await activeRes.json() as { channels: Channel[] };
+    expect(activeBody.channels.length).toBe(1);
+    expect(activeBody.channels[0].id).toBe(ch1.id);
+  });
+
+  test('Existing channel list endpoints exclude archived items (regression)', async () => {
+    const tenant = await createTenant('/ch-regression');
+    const ch1 = await createChannel(tenant.id, 'ch-a');
+    const ch2 = await createChannel(tenant.id, 'ch-b');
+    const ch3 = await createChannel(tenant.id, 'ch-c');
+
+    await app.request(`/api/tenants/${tenant.id}/channels/${ch2.id}/archive`, { method: 'PATCH' });
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const body = await res.json() as { channels: Channel[] };
+    expect(body.channels.length).toBe(2);
+    const ids = body.channels.map(c => c.id);
+    expect(ids).toContain(ch1.id);
+    expect(ids).toContain(ch3.id);
+    expect(ids).not.toContain(ch2.id);
+  });
+
+  test('PATCH archive on already-archived channel returns 404', async () => {
+    const tenant = await createTenant('/ch-double-archive');
+    const channel = await createChannel(tenant.id, 'already-archived');
+
+    await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
+    expect(res.status).toBe(404);
+  });
+
+  test('PATCH restore on non-archived channel returns 404', async () => {
+    const tenant = await createTenant('/ch-not-archived');
+    const channel = await createChannel(tenant.id, 'not-archived');
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/restore`, { method: 'PATCH' });
     expect(res.status).toBe(404);
   });
 });

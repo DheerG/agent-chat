@@ -39,7 +39,7 @@ export function createServices(
   const presenceQ = createPresenceQueries(instance, queue);
   const documentQ = createDocumentQueries(instance, queue);
   return {
-    tenants: new TenantService(tenantQ),
+    tenants: new TenantService(tenantQ, channelQ),
     channels: new ChannelService(channelQ),
     messages: new MessageService(messageQ, emitter),
     presence: new PresenceService(presenceQ),
