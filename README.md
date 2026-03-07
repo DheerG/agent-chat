@@ -2,7 +2,7 @@
 
 A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
 
-> **Status:** Phase 5 of 6 complete — Data layer, REST API, MCP server, real-time WebSocket delivery, and human web UI are built. Documents and canvases are upcoming.
+> **Status:** Phase 6 of 6 complete — v1.0 release. All features including Documents and real-time collaboration are shipped.
 
 ## Quick Start
 
@@ -93,6 +93,16 @@ POST   /api/tenants/:tid/channels/:cid/messages   → { message: {...} }
 `senderType`: `agent` | `human` | `system` | `hook`
 `messageType`: `text` | `event` | `hook`
 
+### Documents
+```
+GET    /api/tenants/:tid/channels/:cid/documents         → { documents: [...] }
+POST   /api/tenants/:tid/channels/:cid/documents         → { document: {...} }   body: { title, content, contentType?, createdById, createdByName, createdByType? }
+GET    /api/tenants/:tid/channels/:cid/documents/:docId  → { document: {...} }
+PUT    /api/tenants/:tid/channels/:cid/documents/:docId  → { document: {...} }   body: { title?, content? }
+```
+
+`contentType`: `text` | `markdown` | `json` (default: `text`)
+
 ### MCP Tools
 
 **send_message**
@@ -121,6 +131,43 @@ Parameters:
 List all channels available in your tenant
 ```
 
+**create_document**
+```
+Create a new document pinned to a channel
+
+Parameters:
+  channel_id (string)   - Channel ID to pin document to
+  title (string)        - Document title
+  content (string)      - Document content
+  content_type (string) - Optional: text, markdown, or json (default: text)
+```
+
+**read_document**
+```
+Read a document by its ID
+
+Parameters:
+  document_id (string) - Document ID to read
+```
+
+**update_document**
+```
+Update an existing document (title and/or content)
+
+Parameters:
+  document_id (string) - Document ID to update
+  title (string)       - New title (omit to keep current)
+  content (string)     - New content (omit to keep current)
+```
+
+**list_documents**
+```
+List all documents pinned to a channel
+
+Parameters:
+  channel_id (string) - Channel ID to list documents for
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -131,7 +178,7 @@ List all channels available in your tenant
 ## Testing
 
 ```bash
-pnpm test          # Run all tests (128 passing)
+pnpm test          # Run all tests (168 passing)
 pnpm test:watch    # Watch mode
 pnpm typecheck     # Type checking only
 ```
@@ -151,7 +198,7 @@ pnpm typecheck     # Type checking only
 - [x] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
 - [x] **Phase 4:** Real-Time WebSocket Delivery — WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
 - [x] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
-- [ ] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
+- [x] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
 
 ## License
 
