@@ -248,7 +248,7 @@ Plans:
 **Goal:** Fix tenant identity bug (use actual codebase path from team config cwd instead of team directory path) and overhaul the web UI with tenant-scoped navigation, channel header bar, message grouping, date separators, and visual polish
 **Requirements**: N/A (bugfix + polish phase)
 **Depends on:** Phase 14
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 15-01-PLAN.md — Backend: Fix TeamInboxWatcher tenant identity to use cwd from team config
