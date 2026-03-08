@@ -21,6 +21,17 @@
   font-style: italic;
 }
 
+/* Grouped messages — reduced spacing, no avatar */
+.message-item--grouped {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+.message-avatar-spacer {
+  width: 32px;
+  min-width: 32px;
+}
+
 /* Agent messages */
 .message-item--agent {
   /* Default styling */

@@ -4,15 +4,13 @@ import { Sidebar } from '../components/Sidebar';
 
 // Mock the API module
 vi.mock('../lib/api', () => ({
-  fetchTenants: vi.fn(),
   fetchChannels: vi.fn(),
   fetchArchivedTenants: vi.fn(),
   fetchArchivedChannels: vi.fn(),
 }));
 
-import { fetchTenants, fetchChannels, fetchArchivedTenants, fetchArchivedChannels } from '../lib/api';
+import { fetchChannels, fetchArchivedTenants, fetchArchivedChannels } from '../lib/api';
 
-const mockFetchTenants = vi.mocked(fetchTenants);
 const mockFetchChannels = vi.mocked(fetchChannels);
 const mockFetchArchivedTenants = vi.mocked(fetchArchivedTenants);
 const mockFetchArchivedChannels = vi.mocked(fetchArchivedChannels);
@@ -32,7 +30,12 @@ const mockChannelsT2 = [
 ];
 
 const defaultProps = {
+  selectedTenantId: 'tenant-1' as string | null,
   selectedChannelId: null as string | null,
+  tenants: mockTenants,
+  tenantsLoading: false,
+  tenantsError: null as string | null,
+  onTenantSelect: vi.fn(),
   onChannelSelect: vi.fn(),
   onArchiveChannel: vi.fn(),
   onArchiveTenant: vi.fn(),
@@ -43,7 +46,6 @@ const defaultProps = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockFetchTenants.mockResolvedValue(mockTenants);
   mockFetchChannels.mockImplementation(async (tenantId: string) => {
     if (tenantId === 'tenant-1') return mockChannelsT1;
     if (tenantId === 'tenant-2') return mockChannelsT2;
@@ -54,26 +56,36 @@ beforeEach(() => {
 });
 
 describe('Sidebar', () => {
-  test('renders tenant names from fetched data', async () => {
+  test('renders tenant switcher with tenant names', async () => {
     render(<Sidebar {...defaultProps} />);
-    await waitFor(() => {
-      expect(screen.getByText('Project Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Project Beta')).toBeInTheDocument();
-    });
+    const select = screen.getByRole('combobox');
+    expect(select).toBeInTheDocument();
+    // Both tenants should appear as options
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent('Project Alpha');
+    expect(options[1]).toHaveTextContent('Project Beta');
   });
 
-  test('renders channels under each tenant', async () => {
-    render(<Sidebar {...defaultProps} />);
+  test('renders channels for the selected tenant', async () => {
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
       expect(screen.getByText('session-abc')).toBeInTheDocument();
-      expect(screen.getByText('dev')).toBeInTheDocument();
     });
+  });
+
+  test('does not show channels from other tenants', async () => {
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+    await waitFor(() => {
+      expect(screen.getByText('general')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('dev')).not.toBeInTheDocument();
   });
 
   test('clicking a channel calls onChannelSelect with correct IDs', async () => {
     const onChannelSelect = vi.fn();
-    render(<Sidebar {...defaultProps} onChannelSelect={onChannelSelect} />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" onChannelSelect={onChannelSelect} />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
@@ -82,7 +94,7 @@ describe('Sidebar', () => {
   });
 
   test('selected channel has active class', async () => {
-    render(<Sidebar {...defaultProps} selectedChannelId="ch-1" />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" selectedChannelId="ch-1" />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
@@ -90,10 +102,17 @@ describe('Sidebar', () => {
     expect(channelItem).toHaveClass('channel-item--active');
   });
 
-  test('shows loading state initially', () => {
-    mockFetchTenants.mockReturnValue(new Promise(() => {})); // Never resolves
-    render(<Sidebar {...defaultProps} />);
+  test('shows loading state when tenantsLoading is true', () => {
+    render(<Sidebar {...defaultProps} tenantsLoading={true} tenants={[]} />);
     expect(screen.getByText('Loading tenants...')).toBeInTheDocument();
+  });
+
+  test('changing tenant select calls onTenantSelect', () => {
+    const onTenantSelect = vi.fn();
+    render(<Sidebar {...defaultProps} onTenantSelect={onTenantSelect} />);
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'tenant-2' } });
+    expect(onTenantSelect).toHaveBeenCalledWith('tenant-2');
   });
 
   test('renders app title', async () => {
@@ -105,11 +124,21 @@ describe('Sidebar', () => {
     render(<Sidebar {...defaultProps} />);
     expect(screen.getByTestId('sidebar')).toHaveAttribute('aria-label', 'Channel navigation');
   });
+
+  test('shows workspace label', () => {
+    render(<Sidebar {...defaultProps} />);
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
+  });
+
+  test('shows no workspaces option when tenants is empty and not loading', () => {
+    render(<Sidebar {...defaultProps} tenants={[]} selectedTenantId={null} />);
+    expect(screen.getByText('No workspaces')).toBeInTheDocument();
+  });
 });
 
 describe('Sidebar archive/restore', () => {
   test('archive button appears on channel items', async () => {
-    render(<Sidebar {...defaultProps} />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
@@ -119,7 +148,7 @@ describe('Sidebar archive/restore', () => {
 
   test('clicking channel archive button opens confirm dialog and calls onArchiveChannel', async () => {
     const onArchiveChannel = vi.fn();
-    render(<Sidebar {...defaultProps} onArchiveChannel={onArchiveChannel} />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" onArchiveChannel={onArchiveChannel} />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
@@ -134,23 +163,17 @@ describe('Sidebar archive/restore', () => {
     expect(onArchiveChannel).toHaveBeenCalledWith('tenant-1', 'ch-1');
   });
 
-  test('archive button appears on tenant headers', async () => {
-    render(<Sidebar {...defaultProps} />);
-    await waitFor(() => {
-      expect(screen.getByText('Project Alpha')).toBeInTheDocument();
-    });
-    const archiveButtons = screen.getAllByTitle('Archive tenant');
-    expect(archiveButtons.length).toBeGreaterThan(0);
+  test('archive button appears on tenant switcher row', async () => {
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+    const archiveButton = screen.getByTitle('Archive tenant');
+    expect(archiveButton).toBeInTheDocument();
   });
 
   test('clicking tenant archive button opens confirm dialog and calls onArchiveTenant', async () => {
     const onArchiveTenant = vi.fn();
-    render(<Sidebar {...defaultProps} onArchiveTenant={onArchiveTenant} />);
-    await waitFor(() => {
-      expect(screen.getByText('Project Alpha')).toBeInTheDocument();
-    });
-    const archiveButtons = screen.getAllByTitle('Archive tenant');
-    fireEvent.click(archiveButtons[0]!);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" onArchiveTenant={onArchiveTenant} />);
+    const archiveButton = screen.getByTitle('Archive tenant');
+    fireEvent.click(archiveButton);
     // ConfirmDialog should appear
     await waitFor(() => {
       expect(screen.getByText('Archive Tenant')).toBeInTheDocument();
@@ -162,7 +185,7 @@ describe('Sidebar archive/restore', () => {
 
   test('cancelling confirm dialog does not trigger archive', async () => {
     const onArchiveChannel = vi.fn();
-    render(<Sidebar {...defaultProps} onArchiveChannel={onArchiveChannel} />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" onArchiveChannel={onArchiveChannel} />);
     await waitFor(() => {
       expect(screen.getByText('general')).toBeInTheDocument();
     });
@@ -218,7 +241,7 @@ describe('Sidebar archive/restore', () => {
     });
 
     const onRestoreChannel = vi.fn();
-    render(<Sidebar {...defaultProps} onRestoreChannel={onRestoreChannel} />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" onRestoreChannel={onRestoreChannel} />);
 
     await waitFor(() => {
       expect(screen.getByText('Archived')).toBeInTheDocument();

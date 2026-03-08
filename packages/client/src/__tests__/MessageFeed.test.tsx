@@ -107,6 +107,56 @@ describe('MessageFeed', () => {
     expect(messageList).toHaveAttribute('aria-live', 'polite');
   });
 
+  test('groups consecutive messages from same sender within 5 minutes', () => {
+    const baseTime = new Date('2026-03-07T12:00:00Z').getTime();
+    render(
+      <MessageFeed
+        {...defaultProps}
+        messages={[
+          createMessage({ id: 'm1', content: 'First', senderId: 'agent-1', senderName: 'Bot', createdAt: new Date(baseTime).toISOString() }),
+          createMessage({ id: 'm2', content: 'Second', senderId: 'agent-1', senderName: 'Bot', createdAt: new Date(baseTime + 60000).toISOString() }),
+          createMessage({ id: 'm3', content: 'Third', senderId: 'agent-1', senderName: 'Bot', createdAt: new Date(baseTime + 120000).toISOString() }),
+        ]}
+      />
+    );
+    const items = screen.getAllByTestId('message-item');
+    // First message is not grouped, second and third are
+    expect(items[0]).not.toHaveClass('message-item--grouped');
+    expect(items[1]).toHaveClass('message-item--grouped');
+    expect(items[2]).toHaveClass('message-item--grouped');
+  });
+
+  test('does not group messages from different senders', () => {
+    const baseTime = new Date('2026-03-07T12:00:00Z').getTime();
+    render(
+      <MessageFeed
+        {...defaultProps}
+        messages={[
+          createMessage({ id: 'm1', content: 'From A', senderId: 'agent-1', senderName: 'Bot A', createdAt: new Date(baseTime).toISOString() }),
+          createMessage({ id: 'm2', content: 'From B', senderId: 'agent-2', senderName: 'Bot B', createdAt: new Date(baseTime + 60000).toISOString() }),
+        ]}
+      />
+    );
+    const items = screen.getAllByTestId('message-item');
+    expect(items[0]).not.toHaveClass('message-item--grouped');
+    expect(items[1]).not.toHaveClass('message-item--grouped');
+  });
+
+  test('renders date separators between messages from different days', () => {
+    // Use dates far enough apart to be different local days regardless of timezone
+    render(
+      <MessageFeed
+        {...defaultProps}
+        messages={[
+          createMessage({ id: 'm1', content: 'Day 1', createdAt: '2026-03-05T12:00:00Z' }),
+          createMessage({ id: 'm2', content: 'Day 2', createdAt: '2026-03-07T12:00:00Z' }),
+        ]}
+      />
+    );
+    const separators = screen.getAllByTestId('date-separator');
+    expect(separators.length).toBe(2); // One for first message, one for day change
+  });
+
   test('shows new message indicator when messages arrive while scrolled up', async () => {
     const initialMessages = [
       createMessage({ id: 'm1', content: 'First message' }),

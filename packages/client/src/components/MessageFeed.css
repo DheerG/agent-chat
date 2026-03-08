@@ -28,6 +28,29 @@
   color: var(--color-error);
 }
 
+/* Date separator */
+.date-separator {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px 8px;
+  gap: 12px;
+}
+
+.date-separator::before,
+.date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.date-separator-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .new-message-indicator {
   position: absolute;
   bottom: 80px;

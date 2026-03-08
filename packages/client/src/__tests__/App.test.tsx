@@ -33,7 +33,7 @@ vi.mock('../hooks/useWebSocket', () => ({
 vi.mock('../hooks/useTenants', () => ({
   useTenants: vi.fn().mockReturnValue({
     tenants: [
-      { id: 'tenant-1', name: 'Test Workspace', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'tenant-1', name: 'Test Workspace', codebasePath: '/test', createdAt: '2026-01-01T00:00:00Z', archivedAt: null },
     ],
     loading: false,
     error: null,
@@ -43,11 +43,31 @@ vi.mock('../hooks/useTenants', () => ({
 vi.mock('../hooks/useChannels', () => ({
   useChannels: vi.fn().mockReturnValue({
     channels: [
-      { id: 'ch-1', tenantId: 'tenant-1', name: 'general', sessionId: null, type: 'manual', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 'ch-1', tenantId: 'tenant-1', name: 'general', sessionId: null, type: 'manual', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
     ],
     loading: false,
     error: null,
   }),
+}));
+
+vi.mock('../hooks/useDocuments', () => ({
+  useDocuments: vi.fn().mockReturnValue({
+    documents: [],
+    loading: false,
+    error: null,
+    addDocument: vi.fn(),
+    updateDocument: vi.fn(),
+  }),
+}));
+
+// Mock archived API calls used by Sidebar's ArchivedSection
+vi.mock('../lib/api', () => ({
+  fetchArchivedTenants: vi.fn().mockResolvedValue([]),
+  fetchArchivedChannels: vi.fn().mockResolvedValue([]),
+  archiveChannel: vi.fn(),
+  archiveTenant: vi.fn(),
+  restoreChannel: vi.fn(),
+  restoreTenant: vi.fn(),
 }));
 
 import { useMessages } from '../hooks/useMessages';
@@ -86,7 +106,8 @@ beforeEach(() => {
 describe('App', () => {
   test('renders placeholder when no channel selected', () => {
     render(<App />);
-    expect(screen.getByText('Select a channel to start')).toBeInTheDocument();
+    expect(screen.getByText('Welcome to AgentChat')).toBeInTheDocument();
+    expect(screen.getByText('Select a channel from the sidebar to view messages')).toBeInTheDocument();
   });
 
   test('renders sidebar with tenants', () => {
@@ -114,6 +135,18 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('message-feed')).toBeInTheDocument();
+    });
+  });
+
+  test('renders channel header after selecting a channel', async () => {
+    render(<App />);
+
+    // Click the channel in sidebar
+    const channelBtn = screen.getByText('general');
+    fireEvent.click(channelBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('channel-header')).toBeInTheDocument();
     });
   });
 

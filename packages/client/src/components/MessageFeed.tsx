@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { Message } from '@agent-chat/shared';
 import { MessageItem } from './MessageItem';
 import { ComposeInput } from './ComposeInput';
@@ -14,6 +14,17 @@ interface MessageFeedProps {
   lastSeenId?: string;
   getPresenceStatus?: (agentId: string) => 'active' | 'idle' | null;
   onThreadOpen?: (parentMessage: Message) => void;
+}
+
+function formatDateSeparator(isoString: string): string {
+  const date = new Date(isoString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export function MessageFeed(props: MessageFeedProps) {
@@ -90,6 +101,29 @@ export function MessageFeed(props: MessageFeedProps) {
     return messages.filter((m) => !m.parentMessageId);
   }, [messages]);
 
+  // Compute message grouping and date separators
+  const groupedMessages = useMemo(() => {
+    return topLevelMessages.map((msg, i) => {
+      if (i === 0) {
+        return { message: msg, isGrouped: false, showDateSeparator: true };
+      }
+      const prev = topLevelMessages[i - 1]!;
+      const sameSender = msg.senderId === prev.senderId;
+      const timeDiff = new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime();
+      const within5Min = timeDiff < 5 * 60 * 1000;
+      const sameType = msg.senderType === prev.senderType;
+      const isGroupable = sameSender && sameType && within5Min && msg.senderType !== 'system';
+
+      // Date separator: show if the day changes
+      const msgDate = new Date(msg.createdAt).toDateString();
+      const prevDate = new Date(prev.createdAt).toDateString();
+      const showDateSeparator = msgDate !== prevDate;
+
+      // Don't group if a date separator breaks the flow
+      return { message: msg, isGrouped: isGroupable && !showDateSeparator, showDateSeparator };
+    });
+  }, [topLevelMessages]);
+
   if (loading) {
     return (
       <div className="message-feed" data-testid="message-feed">
@@ -112,14 +146,21 @@ export function MessageFeed(props: MessageFeedProps) {
         {topLevelMessages.length === 0 && (
           <div className="message-feed-empty">No messages yet</div>
         )}
-        {topLevelMessages.map((msg) => (
-          <MessageItem
-            key={msg.id}
-            message={msg}
-            presenceStatus={msg.senderType === 'agent' ? getPresenceStatus?.(msg.senderId) ?? null : null}
-            threadReplyCount={threadReplyCounts.get(msg.id)}
-            onThreadOpen={onThreadOpen}
-          />
+        {groupedMessages.map(({ message: msg, isGrouped, showDateSeparator }) => (
+          <React.Fragment key={msg.id}>
+            {showDateSeparator && (
+              <div className="date-separator" data-testid="date-separator">
+                <span className="date-separator-text">{formatDateSeparator(msg.createdAt)}</span>
+              </div>
+            )}
+            <MessageItem
+              message={msg}
+              isGrouped={isGrouped}
+              presenceStatus={msg.senderType === 'agent' ? getPresenceStatus?.(msg.senderId) ?? null : null}
+              threadReplyCount={threadReplyCounts.get(msg.id)}
+              onThreadOpen={onThreadOpen}
+            />
+          </React.Fragment>
         ))}
       </div>
       {newCount > 0 && (

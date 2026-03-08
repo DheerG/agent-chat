@@ -6,6 +6,7 @@ import './MessageItem.css';
 
 interface MessageItemProps {
   message: Message;
+  isGrouped?: boolean;
   presenceStatus?: 'active' | 'idle' | null;
   threadReplyCount?: number;
   onThreadOpen?: (parentMessage: Message) => void;
@@ -45,7 +46,7 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-export function MessageItem({ message, presenceStatus, threadReplyCount, onThreadOpen }: MessageItemProps) {
+export function MessageItem({ message, isGrouped, presenceStatus, threadReplyCount, onThreadOpen }: MessageItemProps) {
   // System messages — centered, muted
   if (message.senderType === 'system') {
     return (
@@ -81,6 +82,27 @@ export function MessageItem({ message, presenceStatus, threadReplyCount, onThrea
 
   // Regular messages (agent or human)
   const isHuman = message.senderType === 'human';
+
+  // Grouped variant: no avatar, no header, reduced padding
+  if (isGrouped) {
+    return (
+      <div className={`message-item message-item--grouped ${isHuman ? 'message-item--human' : 'message-item--agent'}`} data-testid="message-item">
+        <div className="message-avatar-spacer" />
+        <div className="message-content">
+          <div className="message-text"><MessageContent content={message.content} /></div>
+          {threadReplyCount !== undefined && threadReplyCount > 0 && (
+            <button
+              className="message-thread-link"
+              onClick={() => onThreadOpen?.(message)}
+              data-testid="thread-link"
+            >
+              {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`message-item ${isHuman ? 'message-item--human' : 'message-item--agent'}`} data-testid="message-item">

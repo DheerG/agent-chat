@@ -67,3 +67,19 @@
   color: var(--color-text-placeholder);
   font-size: 1rem;
 }
+
+.placeholder-content {
+  text-align: center;
+}
+
+.placeholder-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.placeholder-text {
+  font-size: 0.9rem;
+  color: var(--color-text-placeholder);
+}
