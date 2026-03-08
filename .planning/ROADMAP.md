@@ -217,3 +217,33 @@ Plans:
 
 Plans:
 - [x] 12-01-PLAN.md — Setup script summary and README documentation updates (completed 2026-03-07)
+
+### Phase 13: Add MCP layer for agent team context persistence and recovery
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0/2 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 13 to break down) (completed 2026-03-08)
+
+### Phase 14: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
+
+### Phase 15: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 14
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 15 to break down)
