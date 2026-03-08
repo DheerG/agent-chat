@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 13 context gathered
-last_updated: "2026-03-08T12:26:44.346Z"
+stopped_at: Phase 14 context gathered
+last_updated: "2026-03-08T12:29:58.212Z"
 last_activity: "2026-03-07 - Completed quick task 1: Improve rendering of messages in the UI"
 progress:
   total_phases: 15
@@ -150,6 +150,6 @@ None — all 12 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-08T12:10:23.099Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-add-mcp-layer-for-agent-team-context-persistence-and-recovery/13-CONTEXT.md
+Last session: 2026-03-08T12:29:58.209Z
+Stopped at: Phase 14 context gathered
+Resume file: .planning/phases/14-harden-team-lifecycle-archived-team-reuse-same-name-conflicts-and-ingestion-edge-cases/14-CONTEXT.md
