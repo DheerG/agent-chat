@@ -67,6 +67,19 @@ function buildMcpEntry(agentChatDir, projectDir) {
   };
 }
 
+function buildMcpEntryGlobal(agentChatDir) {
+  const dbPath = path.join(os.homedir(), '.agent-chat', 'data.db');
+  return {
+    command: 'node',
+    args: [path.join(agentChatDir, 'packages', 'mcp', 'dist', 'index.js')],
+    env: {
+      AGENT_CHAT_DB_PATH: dbPath,
+      AGENT_CHAT_TENANT_ID: 'auto',
+      AGENT_CHAT_AGENT_NAME: 'claude-agent',
+    },
+  };
+}
+
 const HOOK_EVENTS = ['SessionStart', 'SessionEnd', 'PreToolUse', 'PostToolUse'];
 
 // ---------------------------------------------------------------------------
@@ -138,6 +151,59 @@ function mergeTeardown(settings) {
     }
   }
 
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Split merge/teardown functions (for CLI split-file mode)
+// ---------------------------------------------------------------------------
+
+function mergeHooksOnly(settings) {
+  const result = JSON.parse(JSON.stringify(settings));
+  if (!result.hooks) result.hooks = {};
+  for (const event of HOOK_EVENTS) {
+    if (!Array.isArray(result.hooks[event])) {
+      result.hooks[event] = [];
+    }
+    if (!hasAgentChatHook(result.hooks[event])) {
+      result.hooks[event].push(buildHookEntry(event));
+    }
+  }
+  return result;
+}
+
+function mergeMcpOnly(settings, mcpEntry) {
+  const result = JSON.parse(JSON.stringify(settings));
+  if (!result.mcpServers) result.mcpServers = {};
+  result.mcpServers[AGENT_CHAT_MCP_KEY] = mcpEntry;
+  return result;
+}
+
+function teardownHooksOnly(settings) {
+  const result = JSON.parse(JSON.stringify(settings));
+  if (result.hooks) {
+    for (const event of Object.keys(result.hooks)) {
+      if (Array.isArray(result.hooks[event])) {
+        result.hooks[event] = result.hooks[event].filter((group) => {
+          if (!group || !Array.isArray(group.hooks)) return true;
+          return !group.hooks.some(
+            (h) => typeof h.command === 'string' && h.command.includes(AGENT_CHAT_MARKER)
+          );
+        });
+        if (result.hooks[event].length === 0) delete result.hooks[event];
+      }
+    }
+    if (Object.keys(result.hooks).length === 0) delete result.hooks;
+  }
+  return result;
+}
+
+function teardownMcpOnly(settings) {
+  const result = JSON.parse(JSON.stringify(settings));
+  if (result.mcpServers) {
+    delete result.mcpServers[AGENT_CHAT_MCP_KEY];
+    if (Object.keys(result.mcpServers).length === 0) delete result.mcpServers;
+  }
   return result;
 }
 
@@ -305,6 +371,72 @@ function runTests() {
     );
   }
 
+  // Test 7: mergeHooksOnly adds hooks but no mcpServers
+  {
+    const result = mergeHooksOnly({});
+    assert(
+      'mergeHooksOnly adds hooks only',
+      result.hooks &&
+        HOOK_EVENTS.every((e) => Array.isArray(result.hooks[e]) && result.hooks[e].length === 1) &&
+        !result.mcpServers,
+      'mergeHooksOnly created mcpServers or missing hooks'
+    );
+  }
+
+  // Test 8: mergeMcpOnly adds MCP but no hooks
+  {
+    const mcpEntry = buildMcpEntry(testDir, testProject);
+    const result = mergeMcpOnly({}, mcpEntry);
+    assert(
+      'mergeMcpOnly adds MCP only',
+      result.mcpServers &&
+        result.mcpServers[AGENT_CHAT_MCP_KEY] &&
+        result.mcpServers[AGENT_CHAT_MCP_KEY].command === 'node' &&
+        !result.hooks,
+      'mergeMcpOnly created hooks or missing MCP'
+    );
+  }
+
+  // Test 9: buildMcpEntryGlobal does NOT include AGENT_CHAT_CWD
+  {
+    const entry = buildMcpEntryGlobal(testDir);
+    assert(
+      'buildMcpEntryGlobal omits AGENT_CHAT_CWD',
+      entry.command === 'node' &&
+        entry.env &&
+        entry.env.AGENT_CHAT_DB_PATH &&
+        entry.env.AGENT_CHAT_TENANT_ID === 'auto' &&
+        !('AGENT_CHAT_CWD' in entry.env),
+      'buildMcpEntryGlobal includes AGENT_CHAT_CWD or missing fields'
+    );
+  }
+
+  // Test 10: teardownHooksOnly removes hooks but not MCP
+  {
+    const withBoth = mergeSetup({}, testDir, testProject);
+    const result = teardownHooksOnly(withBoth);
+    assert(
+      'teardownHooksOnly removes hooks only',
+      !result.hooks &&
+        result.mcpServers &&
+        result.mcpServers[AGENT_CHAT_MCP_KEY],
+      'teardownHooksOnly removed MCP or kept hooks'
+    );
+  }
+
+  // Test 11: teardownMcpOnly removes MCP but not hooks
+  {
+    const withBoth = mergeSetup({}, testDir, testProject);
+    const result = teardownMcpOnly(withBoth);
+    assert(
+      'teardownMcpOnly removes MCP only',
+      result.hooks &&
+        HOOK_EVENTS.every((e) => Array.isArray(result.hooks[e]) && result.hooks[e].length === 1) &&
+        !result.mcpServers,
+      'teardownMcpOnly removed hooks or kept MCP'
+    );
+  }
+
   // Print results
   console.log('');
   console.log('merge-settings.cjs Self-Tests');
@@ -319,6 +451,28 @@ function runTests() {
 
   process.exit(failed > 0 ? 1 : 0);
 }
+
+// ---------------------------------------------------------------------------
+// Exports (for use by bin/cli.js)
+// ---------------------------------------------------------------------------
+
+module.exports = {
+  mergeSetup,
+  mergeTeardown,
+  mergeHooksOnly,
+  mergeMcpOnly,
+  teardownHooksOnly,
+  teardownMcpOnly,
+  readSettingsFile,
+  writeSettingsFile,
+  buildHookEntry,
+  buildMcpEntry,
+  buildMcpEntryGlobal,
+  hasAgentChatHook,
+  HOOK_EVENTS,
+  AGENT_CHAT_MARKER,
+  AGENT_CHAT_MCP_KEY,
+};
 
 // ---------------------------------------------------------------------------
 // Main
@@ -370,4 +524,6 @@ function main() {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
