@@ -820,6 +820,126 @@ describe('TeamInboxWatcher', () => {
     });
   });
 
+  describe('Codebase path tenant identity', () => {
+    /** Helper: write a team config with custom members (including cwd) */
+    function writeTeamConfigWithCwd(
+      dir: string,
+      teamName: string,
+      cwd: string,
+    ): void {
+      const teamDir = join(dir, teamName);
+      mkdirSync(teamDir, { recursive: true });
+      writeFileSync(
+        join(teamDir, 'config.json'),
+        JSON.stringify({
+          name: teamName,
+          description: `Test team ${teamName}`,
+          createdAt: Date.now(),
+          leadAgentId: `team-lead@${teamName}`,
+          members: [
+            { agentId: `team-lead@${teamName}`, name: 'team-lead', agentType: 'team-lead', cwd },
+            { agentId: `worker@${teamName}`, name: 'worker', agentType: 'worker', cwd },
+          ],
+        }),
+      );
+    }
+
+    it('uses cwd from team config as tenant codebasePath', async () => {
+      writeTeamConfigWithCwd(teamsDir, 'my-team', '/Users/test/my-project');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      expect(tenants[0]!.codebasePath).toBe('/Users/test/my-project');
+      expect(tenants[0]!.name).toBe('my-project'); // basename of cwd
+    });
+
+    it('multiple teams on same codebase share one tenant', async () => {
+      writeTeamConfigWithCwd(teamsDir, 'team-alpha', '/Users/test/shared-project');
+      writeTeamConfigWithCwd(teamsDir, 'team-beta', '/Users/test/shared-project');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      expect(tenants[0]!.codebasePath).toBe('/Users/test/shared-project');
+      expect(tenants[0]!.name).toBe('shared-project');
+
+      // Both teams should have their own channels
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      expect(channels.length).toBe(2);
+      const channelNames = channels.map(c => c.name).sort();
+      expect(channelNames).toEqual(['team-alpha', 'team-beta']);
+    });
+
+    it('falls back to team path when no cwd in members', async () => {
+      // Default writeTeamConfig does NOT include cwd
+      writeTeamConfig(teamsDir, 'legacy-team');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      // Falls back to team directory path
+      expect(tenants[0]!.codebasePath).toBe(join(teamsDir, 'legacy-team'));
+      // Tenant name is basename of the team directory = teamName
+      expect(tenants[0]!.name).toBe('legacy-team');
+    });
+
+    it('each team gets its own channel within shared tenant', async () => {
+      writeTeamConfigWithCwd(teamsDir, 'team-a', '/Users/test/project');
+      writeTeamConfigWithCwd(teamsDir, 'team-b', '/Users/test/project');
+
+      writeInbox(teamsDir, 'team-a', 'team-lead', [
+        {
+          from: 'worker-a',
+          text: 'Message from team A',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+      writeInbox(teamsDir, 'team-b', 'team-lead', [
+        {
+          from: 'worker-b',
+          text: 'Message from team B',
+          timestamp: '2026-03-07T11:00:01.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      expect(channels.length).toBe(2);
+
+      // Each channel should have its own messages
+      const channelA = channels.find(c => c.name === 'team-a')!;
+      const channelB = channels.find(c => c.name === 'team-b')!;
+
+      const msgsA = services.messages.list(tenants[0]!.id, channelA.id);
+      expect(msgsA.messages.length).toBe(1);
+      expect(msgsA.messages[0]!.content).toBe('Message from team A');
+
+      const msgsB = services.messages.list(tenants[0]!.id, channelB.id);
+      expect(msgsB.messages.length).toBe(1);
+      expect(msgsB.messages[0]!.content).toBe('Message from team B');
+    });
+
+    it('teams on different codebases get separate tenants', async () => {
+      writeTeamConfigWithCwd(teamsDir, 'team-x', '/Users/test/project-x');
+      writeTeamConfigWithCwd(teamsDir, 'team-y', '/Users/test/project-y');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(2);
+      const paths = tenants.map(t => t.codebasePath).sort();
+      expect(paths).toEqual(['/Users/test/project-x', '/Users/test/project-y']);
+    });
+  });
+
   describe('Watcher robustness', () => {
     it('handles team directory disappearing after start', async () => {
       writeTeamConfig(teamsDir, 'my-team');
