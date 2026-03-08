@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# test-setup.sh — Integration tests for setup.sh and teardown.sh
+# test-setup.sh — Integration tests for setup.sh, teardown.sh, and bin/cli.js
 # Usage: ./scripts/test-setup.sh
 #
-# Runs 6 test cases validating setup, teardown, idempotency,
-# and merge behavior. Uses temporary directories and cleans up.
+# Runs 12 test cases validating setup, teardown, CLI install/uninstall,
+# idempotency, and merge behavior. Uses temporary directories and cleans up.
 
 set -euo pipefail
 
@@ -12,6 +12,7 @@ AGENT_CHAT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SETUP="$AGENT_CHAT_DIR/scripts/setup.sh"
 TEARDOWN="$AGENT_CHAT_DIR/scripts/teardown.sh"
 MERGE="$AGENT_CHAT_DIR/scripts/lib/merge-settings.cjs"
+CLI="$AGENT_CHAT_DIR/bin/cli.js"
 
 PASSED=0
 FAILED=0
@@ -350,6 +351,225 @@ test_merge_self_test() {
 }
 
 # ---------------------------------------------------------------------------
+# CLI tests (bin/cli.js)
+# ---------------------------------------------------------------------------
+
+# Test 7: CLI project install creates split files
+test_cli_project_install() {
+  local dir
+  dir=$(create_temp_dir)
+
+  node "$CLI" install --project "$dir" >/dev/null 2>&1
+
+  local hooks_file="$dir/.claude/settings.json"
+  local mcp_file="$dir/.mcp.json"
+
+  # Check hooks file exists with hooks but NO mcpServers
+  if [ ! -f "$hooks_file" ]; then
+    fail "CLI project install" "hooks file not created"
+    cleanup_temp_dir "$dir"
+    return
+  fi
+
+  if ! json_check "$hooks_file" "
+    j.hooks &&
+    j.hooks.SessionStart && j.hooks.SessionStart.length === 1 &&
+    j.hooks.SessionEnd && j.hooks.SessionEnd.length === 1 &&
+    j.hooks.PreToolUse && j.hooks.PreToolUse.length === 1 &&
+    j.hooks.PostToolUse && j.hooks.PostToolUse.length === 1 &&
+    !j.mcpServers
+  "; then
+    fail "CLI project install" "hooks file has wrong structure"
+    cleanup_temp_dir "$dir"
+    return
+  fi
+
+  # Check MCP file exists with mcpServers and AGENT_CHAT_CWD
+  if [ ! -f "$mcp_file" ]; then
+    fail "CLI project install" "MCP file not created"
+    cleanup_temp_dir "$dir"
+    return
+  fi
+
+  if json_check "$mcp_file" "
+    j.mcpServers &&
+    j.mcpServers['agent-chat'] &&
+    j.mcpServers['agent-chat'].command === 'node' &&
+    j.mcpServers['agent-chat'].env.AGENT_CHAT_CWD === '$dir'
+  "; then
+    pass "CLI project install"
+  else
+    fail "CLI project install" "MCP file has wrong structure or missing AGENT_CHAT_CWD"
+  fi
+
+  cleanup_temp_dir "$dir"
+}
+
+# Test 8: CLI project install is idempotent
+test_cli_idempotent() {
+  local dir
+  dir=$(create_temp_dir)
+
+  node "$CLI" install --project "$dir" >/dev/null 2>&1
+  local hooks1 mcp1
+  hooks1=$(cat "$dir/.claude/settings.json")
+  mcp1=$(cat "$dir/.mcp.json")
+
+  node "$CLI" install --project "$dir" >/dev/null 2>&1
+  local hooks2 mcp2
+  hooks2=$(cat "$dir/.claude/settings.json")
+  mcp2=$(cat "$dir/.mcp.json")
+
+  if [ "$hooks1" = "$hooks2" ] && [ "$mcp1" = "$mcp2" ]; then
+    pass "CLI idempotent install"
+  else
+    fail "CLI idempotent install" "Second run changed the output"
+  fi
+
+  cleanup_temp_dir "$dir"
+}
+
+# Test 9: CLI project uninstall removes only AgentChat
+test_cli_uninstall_selective() {
+  local dir
+  dir=$(create_temp_dir)
+  mkdir -p "$dir/.claude"
+
+  # Create existing hooks
+  cat > "$dir/.claude/settings.json" <<'EXISTING'
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo my-existing-hook"
+          }
+        ]
+      }
+    ]
+  }
+}
+EXISTING
+
+  # Install AgentChat via CLI
+  node "$CLI" install --project "$dir" >/dev/null 2>&1
+
+  # Add another MCP server to .mcp.json
+  node -e "
+    const fs = require('fs');
+    const mcp = JSON.parse(fs.readFileSync('$dir/.mcp.json', 'utf8'));
+    mcp.mcpServers['other-server'] = { command: 'test', args: [] };
+    fs.writeFileSync('$dir/.mcp.json', JSON.stringify(mcp, null, 2) + '\n');
+  "
+
+  # Uninstall
+  node "$CLI" uninstall --project "$dir" >/dev/null 2>&1
+
+  local hooks_file="$dir/.claude/settings.json"
+  local mcp_file="$dir/.mcp.json"
+
+  # Check existing hook preserved in settings.json
+  if ! json_check "$hooks_file" "
+    j.hooks &&
+    j.hooks.SessionStart &&
+    j.hooks.SessionStart.length === 1 &&
+    j.hooks.SessionStart[0].hooks[0].command === 'echo my-existing-hook' &&
+    !j.hooks.SessionEnd &&
+    !j.hooks.PreToolUse &&
+    !j.hooks.PostToolUse
+  "; then
+    fail "CLI uninstall selective" "Hooks not correctly cleaned"
+    cleanup_temp_dir "$dir"
+    return
+  fi
+
+  # Check other MCP server preserved in .mcp.json
+  if json_check "$mcp_file" "
+    j.mcpServers['other-server'] &&
+    j.mcpServers['other-server'].command === 'test' &&
+    !j.mcpServers['agent-chat']
+  "; then
+    pass "CLI uninstall selective"
+  else
+    fail "CLI uninstall selective" "MCP servers not correctly cleaned"
+  fi
+
+  cleanup_temp_dir "$dir"
+}
+
+# Test 10: CLI global install writes to correct files
+test_cli_global_install() {
+  local mock_home
+  mock_home=$(create_temp_dir)
+
+  HOME=$mock_home node "$CLI" install --global >/dev/null 2>&1
+
+  local hooks_file="$mock_home/.claude/settings.json"
+  local mcp_file="$mock_home/.claude/.mcp.json"
+
+  # Check hooks file has hooks but NO mcpServers
+  if ! json_check "$hooks_file" "
+    j.hooks &&
+    j.hooks.SessionStart && j.hooks.SessionStart.length === 1 &&
+    !j.mcpServers
+  "; then
+    fail "CLI global install" "hooks file has wrong structure"
+    cleanup_temp_dir "$mock_home"
+    return
+  fi
+
+  # Check MCP file has mcpServers but NO AGENT_CHAT_CWD
+  if json_check "$mcp_file" "
+    j.mcpServers &&
+    j.mcpServers['agent-chat'] &&
+    j.mcpServers['agent-chat'].command === 'node' &&
+    !('AGENT_CHAT_CWD' in j.mcpServers['agent-chat'].env)
+  "; then
+    pass "CLI global install"
+  else
+    fail "CLI global install" "MCP file wrong or has AGENT_CHAT_CWD"
+  fi
+
+  cleanup_temp_dir "$mock_home"
+}
+
+# Test 11: CLI global uninstall
+test_cli_global_uninstall() {
+  local mock_home
+  mock_home=$(create_temp_dir)
+
+  HOME=$mock_home node "$CLI" install --global >/dev/null 2>&1
+  HOME=$mock_home node "$CLI" uninstall --global >/dev/null 2>&1
+
+  local hooks_file="$mock_home/.claude/settings.json"
+  local mcp_file="$mock_home/.claude/.mcp.json"
+
+  # Both files should be removed (they had only AgentChat entries)
+  if [ ! -f "$hooks_file" ] && [ ! -f "$mcp_file" ]; then
+    pass "CLI global uninstall"
+  else
+    fail "CLI global uninstall" "Files not cleaned up"
+  fi
+
+  cleanup_temp_dir "$mock_home"
+}
+
+# Test 12: CLI --help exits 0
+test_cli_help() {
+  local output
+  output=$(node "$CLI" --help 2>&1)
+  local exit_code=$?
+
+  if [ $exit_code -eq 0 ] && echo "$output" | grep -q "install" && echo "$output" | grep -q "uninstall"; then
+    pass "CLI --help"
+  else
+    fail "CLI --help" "Exit code $exit_code or missing commands in output"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 
@@ -359,6 +579,12 @@ test_merge_existing
 test_teardown_selective
 test_teardown_clean
 test_merge_self_test
+test_cli_project_install
+test_cli_idempotent
+test_cli_uninstall_selective
+test_cli_global_install
+test_cli_global_uninstall
+test_cli_help
 
 # ---------------------------------------------------------------------------
 # Summary
