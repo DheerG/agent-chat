@@ -235,7 +235,7 @@ export class TeamInboxWatcher {
     // Process only new messages (after last processed index)
     for (let i = lastIndex; i < messages.length; i++) {
       const msg = messages[i];
-      if (!msg || !msg.from || !msg.timestamp || msg.text == null) continue;
+      if (!msg || typeof msg !== 'object' || !msg.from || !msg.timestamp || msg.text == null) continue;
 
       // Dedup key: from|timestamp|hash(text)
       const textHash = createHash('sha256').update(msg.text).digest('hex').slice(0, 16);
@@ -292,6 +292,33 @@ export class TeamInboxWatcher {
   }
 
   /**
+   * Remove a team from internal tracking.
+   * Called when a team directory disappears.
+   * Does NOT modify the database — the tenant and channel remain for historical access.
+   */
+  private removeTeam(teamName: string): void {
+    this.teams.delete(teamName);
+
+    // Clear lastProcessedIndex entries for this team's files
+    const prefix = join(this.teamsDir, teamName);
+    for (const key of this.lastProcessedIndex.keys()) {
+      if (key.startsWith(prefix)) {
+        this.lastProcessedIndex.delete(key);
+      }
+    }
+
+    // Clear debounce timers for this team
+    for (const [key, timer] of this.debounceTimers.entries()) {
+      if (key.startsWith(teamName + '/') || key.startsWith(teamName + '\\')) {
+        clearTimeout(timer);
+        this.debounceTimers.delete(key);
+      }
+    }
+
+    console.log(JSON.stringify({ event: 'team_removed', teamName }));
+  }
+
+  /**
    * Handle a file change event from fs.watch.
    * Debounces by file path (100ms) to handle rapid writes.
    */
@@ -345,6 +372,12 @@ export class TeamInboxWatcher {
           }));
         }
       }
+      return;
+    }
+
+    // Existing team — check if directory still exists
+    if (!existsSync(teamPath)) {
+      this.removeTeam(teamName);
       return;
     }
 
