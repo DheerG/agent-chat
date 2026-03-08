@@ -156,10 +156,15 @@ export class TeamInboxWatcher {
       return;
     }
 
-    // Create/get tenant using team directory as codebasePath (unique per team)
+    // Extract actual codebase path from team members' cwd field
+    // Falls back to team directory path for backward compatibility
+    const codebasePath = config.members?.find(m => m.cwd)?.cwd ?? teamPath;
+    const tenantName = basename(codebasePath);
+
+    // Create/get tenant using actual codebase path (shared across teams in same codebase)
     const tenant = await this.services.tenants.upsertByCodebasePath(
-      teamName,
-      teamPath,
+      tenantName,
+      codebasePath,
     );
 
     // Find or create channel for this team
