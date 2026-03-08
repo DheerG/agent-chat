@@ -1,17 +1,19 @@
 import { describe, test, expect, beforeEach } from 'vitest';
-import { createDb } from '../../db/index.js';
+import { createDb, type DbInstance } from '../../db/index.js';
 import { WriteQueue } from '../../db/queue.js';
-import { createServices } from '../../services/index.js';
+import { createServices, type Services } from '../../services/index.js';
 import { createApp } from '../app.js';
 import type { Hono } from 'hono';
 import type { Tenant } from '@agent-chat/shared';
 
 let app: Hono;
+let services: Services;
+let instance: DbInstance;
 
 beforeEach(() => {
-  const instance = createDb(':memory:');
+  instance = createDb(':memory:');
   const queue = new WriteQueue();
-  const services = createServices(instance, queue);
+  services = createServices(instance, queue);
   app = createApp(services);
 });
 
@@ -259,5 +261,53 @@ describe('Tenant archive/restore routes', () => {
     expect(ids).toContain(t1.id);
     expect(ids).toContain(t3.id);
     expect(ids).not.toContain(t2.id);
+  });
+});
+
+describe('TenantService auto-restore on upsert', () => {
+  test('upsertByCodebasePath restores archived tenant', async () => {
+    // Create a tenant
+    const tenant = await services.tenants.upsertByCodebasePath('my-team', '/path/to/team');
+
+    // Create a channel for this tenant
+    const channel = await services.channels.create(tenant.id, { name: 'my-team', type: 'manual' });
+
+    // Archive the tenant (which cascades to channels)
+    await services.tenants.archive(tenant.id);
+
+    // Verify tenant is archived
+    const archived = services.tenants.getById(tenant.id);
+    expect(archived?.archivedAt).not.toBeNull();
+
+    // Verify channel is archived (listByTenant filters archived_at IS NULL)
+    const archivedChannels = services.channels.listByTenant(tenant.id);
+    expect(archivedChannels.length).toBe(0);
+
+    // Call upsert again — should auto-restore
+    const restored = await services.tenants.upsertByCodebasePath('my-team', '/path/to/team');
+    expect(restored.archivedAt).toBeNull();
+    expect(restored.id).toBe(tenant.id); // Same tenant, not a new one
+
+    // Verify channel is also restored
+    const restoredChannels = services.channels.listByTenant(tenant.id);
+    expect(restoredChannels.length).toBe(1);
+    expect(restoredChannels[0]!.name).toBe('my-team');
+  });
+
+  test('upsertByCodebasePath restores and updates name simultaneously', async () => {
+    const tenant = await services.tenants.upsertByCodebasePath('old-name', '/path/to/team2');
+    await services.tenants.archive(tenant.id);
+
+    const restored = await services.tenants.upsertByCodebasePath('new-name', '/path/to/team2');
+    expect(restored.archivedAt).toBeNull();
+    expect(restored.name).toBe('new-name');
+    expect(restored.id).toBe(tenant.id);
+  });
+
+  test('upsertByCodebasePath does not change non-archived tenant', async () => {
+    const tenant = await services.tenants.upsertByCodebasePath('my-team', '/path/to/team3');
+    const same = await services.tenants.upsertByCodebasePath('my-team', '/path/to/team3');
+    expect(same.id).toBe(tenant.id);
+    expect(same.archivedAt).toBeNull();
   });
 });
