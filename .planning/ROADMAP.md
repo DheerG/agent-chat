@@ -245,10 +245,11 @@ Plans:
 
 ### Phase 15: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Fix tenant identity bug (use actual codebase path from team config cwd instead of team directory path) and overhaul the web UI with tenant-scoped navigation, channel header bar, message grouping, date separators, and visual polish
+**Requirements**: N/A (bugfix + polish phase)
 **Depends on:** Phase 14
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 15 to break down)
+- [ ] 15-01-PLAN.md — Backend: Fix TeamInboxWatcher tenant identity to use cwd from team config
+- [ ] 15-02-PLAN.md — Frontend: UI overhaul with tenant switcher, channel header, message grouping, visual polish
