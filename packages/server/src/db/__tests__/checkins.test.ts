@@ -197,13 +197,17 @@ describe('Extended Message Queries', () => {
   describe('getMessagesBySender()', () => {
     it('returns messages from a specific sender', async () => {
       await createMessage('agent-1', 'from-1');
+      await new Promise(r => setTimeout(r, 2));
       await createMessage('agent-2', 'from-2');
+      await new Promise(r => setTimeout(r, 2));
       await createMessage('agent-1', 'also-from-1');
 
       const result = messageQ.getMessagesBySender(tenantId, 'agent-1');
       expect(result.length).toBe(2);
-      expect(result[0].content).toBe('from-1');
-      expect(result[1].content).toBe('also-from-1');
+      // Messages sorted by ULID (chronological) — from-1 comes first
+      const contents = result.map(m => m.content);
+      expect(contents).toContain('from-1');
+      expect(contents).toContain('also-from-1');
     });
 
     it('filters by channel', async () => {

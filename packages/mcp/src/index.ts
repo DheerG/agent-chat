@@ -15,6 +15,10 @@ import { handleCreateDocument } from './tools/create-document.js';
 import { handleReadDocument } from './tools/read-document.js';
 import { handleUpdateDocument } from './tools/update-document.js';
 import { handleListDocuments } from './tools/list-documents.js';
+import { handleGetTeamContext } from './tools/get-team-context.js';
+import { handleGetAgentActivity } from './tools/get-agent-activity.js';
+import { handleCheckin } from './tools/checkin.js';
+import { handleGetTeamMembers } from './tools/get-team-members.js';
 
 const config = loadConfig();
 
@@ -209,6 +213,95 @@ server.tool(
   async ({ channel_id }) => {
     try {
       const result = handleListDocuments(services, tenantId, { channel_id });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Context persistence and recovery tools (Phase 13)
+server.tool(
+  'get_team_context',
+  'Get summary of recent team activity. Use since="last_checkin" to get updates since your last check-in.',
+  {
+    since: z.string().optional().describe('ISO timestamp or "last_checkin" — filter messages after this time'),
+    channel_id: z.string().optional().describe('Scope to a specific channel (omit for all channels)'),
+    include_full_messages: z.boolean().optional().describe('If true, return full messages instead of summary (default: false)'),
+  },
+  async ({ since, channel_id, include_full_messages }) => {
+    try {
+      const result = await handleGetTeamContext(services, config, tenantId, {
+        since, channel_id, include_full_messages,
+      });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'get_agent_activity',
+  'Get messages sent by a specific agent. Defaults to your own activity.',
+  {
+    agent_name: z.string().optional().describe('Agent name to query (defaults to you)'),
+    since: z.string().optional().describe('ISO timestamp or "last_checkin" — filter messages after this time'),
+    channel_id: z.string().optional().describe('Scope to a specific channel (omit for all channels)'),
+  },
+  async ({ agent_name, since, channel_id }) => {
+    try {
+      const result = await handleGetAgentActivity(services, config, tenantId, {
+        agent_name, since, channel_id,
+      });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'checkin',
+  'Record a check-in timestamp. Use this after consuming context to set your "last_checkin" watermark.',
+  {},
+  async () => {
+    try {
+      const result = await handleCheckin(services, config, tenantId);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  'get_team_members',
+  'Get information about team members (names, roles, types).',
+  {},
+  async () => {
+    try {
+      const result = handleGetTeamMembers(services, config, tenantId);
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result) }],
       };
