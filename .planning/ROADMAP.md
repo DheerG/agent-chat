@@ -26,6 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 12: Setup Script Updates** - Documentation and setup output for team inbox watching (completed 2026-03-07)
 - [x] **Phase 13: MCP Layer for Agent Team Context** - MCP tools for agent team context persistence and recovery (completed 2026-03-08)
 - [x] **Phase 14: Harden Team Lifecycle** - Fix archived team reuse, same-name conflicts, and ingestion edge cases (completed 2026-03-08)
+- [x] **Phase 15: Tenant-per-codebase fix and UI overhaul** - Fix tenant identity bug, tenant switcher, channel header, message grouping, date separators (completed 2026-03-08)
 
 ## Phase Details
 
@@ -133,6 +134,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 12. Setup Script Updates | 1/1 | Complete    | 2026-03-07 |
 | 13. MCP Layer for Agent Team Context | 1/1 | Complete    | 2026-03-08 |
 | 14. Harden Team Lifecycle | 2/2 | Complete    | 2026-03-08 |
+| 15. Tenant-per-codebase fix and UI overhaul | 2/2 | Complete    | 2026-03-08 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -248,8 +250,8 @@ Plans:
 **Goal:** Fix tenant identity bug (use actual codebase path from team config cwd instead of team directory path) and overhaul the web UI with tenant-scoped navigation, channel header bar, message grouping, date separators, and visual polish
 **Requirements**: N/A (bugfix + polish phase)
 **Depends on:** Phase 14
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 15-01-PLAN.md — Backend: Fix TeamInboxWatcher tenant identity to use cwd from team config
-- [ ] 15-02-PLAN.md — Frontend: UI overhaul with tenant switcher, channel header, message grouping, visual polish
+- [x] 15-01-PLAN.md — Backend: Fix TeamInboxWatcher tenant identity to use cwd from team config (completed 2026-03-08)
+- [x] 15-02-PLAN.md — Frontend: UI overhaul with tenant switcher, channel header, message grouping, visual polish (completed 2026-03-08)

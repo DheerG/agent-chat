@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Not started
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-08T12:44:14.305Z"
-last_activity: "2026-03-08 - Completed Phase 14: Harden team lifecycle"
+status: Complete
+stopped_at: Phase 15 complete
+last_updated: "2026-03-08T13:01:00.000Z"
+last_activity: "2026-03-08 - Completed Phase 15: Tenant-per-codebase fix and UI overhaul"
 progress:
   total_phases: 15
-  completed_phases: 11
-  total_plans: 31
-  completed_plans: 25
-  percent: 81
+  completed_phases: 15
+  total_plans: 33
+  completed_plans: 33
+  percent: 100
 ---
 
 # Project State
@@ -26,16 +26,16 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 15 of 15 (tenant-per-codebase fix and UI overhaul)
-Plan: 0 of 0 in current phase
-Status: Not started
-Last activity: 2026-03-08 - Completed Phase 14: Harden team lifecycle
+Plan: 2 of 2 in current phase
+Status: Complete
+Last activity: 2026-03-08 - Completed Phase 15: Tenant-per-codebase fix and UI overhaul
 
-Progress: [████████░░] 87%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 23
+- Total plans completed: 33
 - Average duration: ---
 - Total execution time: ---
 
@@ -51,6 +51,13 @@ Progress: [████████░░] 87%
 | 6 | 3 | - | - |
 | 7 | 2 | - | - |
 | 8 | 1 | - | - |
+| 9 | 2 | - | - |
+| 10 | 1 | - | - |
+| 11 | 2 | - | - |
+| 12 | 1 | - | - |
+| 13 | 1 | - | - |
+| 14 | 2 | - | - |
+| 15 | 2 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -113,6 +120,14 @@ Recent decisions affecting current work:
 - [Phase 14]: TeamInboxWatcher.removeTeam cleans internal state when team directory disappears
 - [Phase 14]: Directory-gone detection in processFileChange prevents stale team state
 - [Phase 14]: Stricter inbox validation rejects non-object entries in inbox arrays
+- [Phase 15]: TeamInboxWatcher uses config.members[].cwd as codebase path, falls back to team dir path
+- [Phase 15]: Multiple teams on same codebase share ONE tenant with separate channels
+- [Phase 15]: Sidebar refactored from expandable tenant groups to dropdown tenant switcher
+- [Phase 15]: useTenants hook lifted from Sidebar to App.tsx for parent-controlled selection
+- [Phase 15]: localStorage persistence for selected tenant with safe fallback for test environments
+- [Phase 15]: ChannelHeader component shows channel name and tenant context above message feed
+- [Phase 15]: Message grouping: same sender within 5min gets collapsed avatar/header
+- [Phase 15]: Date separators with "Today"/"Yesterday"/full date format between different days
 
 ### Roadmap Evolution
 
@@ -132,6 +147,7 @@ Recent decisions affecting current work:
 - Phase 14 added: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
 - Phase 14 completed: All 2 plans executed and verified
 - Phase 15 added: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
+- Phase 15 completed: All 2 plans executed and verified
 
 ### Pending Todos
 
@@ -139,9 +155,9 @@ None.
 
 ### Blockers/Concerns
 
-None — all 14 phases complete:
+None — all 15 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 252 tests pass (173 server + 79 client)
+- 312 tests pass (177 server + 87 client + 48 MCP)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
@@ -155,6 +171,6 @@ None — all 14 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-08T12:44:14.299Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-tenant-per-codebase-fix-and-ui-overhaul-tenant-scoping-sidebar-navigation-and-channel-management/15-CONTEXT.md
+Last session: 2026-03-08T13:01:00.000Z
+Stopped at: Phase 15 complete
+Resume file: .planning/phases/15-tenant-per-codebase-fix-and-ui-overhaul-tenant-scoping-sidebar-navigation-and-channel-management/15-02-SUMMARY.md
