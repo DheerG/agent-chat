@@ -24,6 +24,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 10: Fix Dogfood Bugs** - Block writes to archived channels, fix tenant name upsert, verify Sidebar tests (completed 2026-03-07)
 - [x] **Phase 11: Team Inbox Ingestion** - File watcher that syncs ~/.claude/teams/ messages into AgentChat channels in real-time (completed 2026-03-07)
 - [x] **Phase 12: Setup Script Updates** - Documentation and setup output for team inbox watching (completed 2026-03-07)
+- [x] **Phase 13: MCP Layer for Agent Team Context** - MCP tools for agent team context persistence and recovery (completed 2026-03-08)
+- [x] **Phase 14: Harden Team Lifecycle** - Fix archived team reuse, same-name conflicts, and ingestion edge cases (completed 2026-03-08)
 
 ## Phase Details
 
@@ -129,6 +131,8 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 10. Fix Dogfood Bugs | 1/1 | Complete    | 2026-03-07 |
 | 11. Team Inbox Ingestion | 2/2 | Complete    | 2026-03-07 |
 | 12. Setup Script Updates | 1/1 | Complete    | 2026-03-07 |
+| 13. MCP Layer for Agent Team Context | 1/1 | Complete    | 2026-03-08 |
+| 14. Harden Team Lifecycle | 2/2 | Complete    | 2026-03-08 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -230,13 +234,14 @@ Plans:
 
 ### Phase 14: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Fix the archived-team-reuse bug, handle same-name tenant conflicts, and harden the TeamInboxWatcher against ingestion edge cases
+**Requirements**: N/A (hardening phase)
 **Depends on:** Phase 13
-**Plans:** 0 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 14 to break down)
+- [x] 14-01-PLAN.md — Fix archived team reuse: auto-restore in TenantService.upsertByCodebasePath (completed 2026-03-08)
+- [x] 14-02-PLAN.md — Harden TeamInboxWatcher: removeTeam, directory-gone detection, edge case tests (completed 2026-03-08)
 
 ### Phase 15: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
 

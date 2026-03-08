@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 14 context gathered
-last_updated: "2026-03-08T12:29:58.212Z"
-last_activity: "2026-03-07 - Completed quick task 1: Improve rendering of messages in the UI"
+stopped_at: Phase 14 complete
+last_updated: "2026-03-08T12:45:00.000Z"
+last_activity: "2026-03-08 - Completed Phase 14: Harden team lifecycle"
 progress:
   total_phases: 15
-  completed_phases: 10
-  total_plans: 29
-  completed_plans: 23
-  percent: 79
+  completed_phases: 14
+  total_plans: 31
+  completed_plans: 27
+  percent: 87
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 14 of 12 (harden team lifecycle archived team reuse same name conflicts and ingestion edge cases)
-Plan: 1 of 1 in current phase
-Status: Complete
-Last activity: 2026-03-07 - Completed quick task 1: Improve rendering of messages in the UI
+Phase: 15 of 15 (tenant-per-codebase fix and UI overhaul)
+Plan: 0 of 0 in current phase
+Status: Not started
+Last activity: 2026-03-08 - Completed Phase 14: Harden team lifecycle
 
-Progress: [████████░░] 79%
+Progress: [████████░░] 87%
 
 ## Performance Metrics
 
@@ -109,6 +109,10 @@ Recent decisions affecting current work:
 - [Phase 11]: Watcher stops FIRST in SIGTERM shutdown sequence (before WebSocket, HTTP, DB)
 - [Phase 12]: setup.sh summary updated with team watching info and TEAMS_DIR override
 - [Phase 12]: README.md updated with TEAMS_DIR env var, team watching architecture, Phases 9-12, corrected port
+- [Phase 14]: TenantService.upsertByCodebasePath auto-restores archived tenants and cascades to channels
+- [Phase 14]: TeamInboxWatcher.removeTeam cleans internal state when team directory disappears
+- [Phase 14]: Directory-gone detection in processFileChange prevents stale team state
+- [Phase 14]: Stricter inbox validation rejects non-object entries in inbox arrays
 
 ### Roadmap Evolution
 
@@ -126,6 +130,7 @@ Recent decisions affecting current work:
 - Phase 12 completed: All 1 plan executed and verified
 - Phase 13 added: Add MCP layer for agent team context persistence and recovery
 - Phase 14 added: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
+- Phase 14 completed: All 2 plans executed and verified
 - Phase 15 added: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
 
 ### Pending Todos
@@ -134,9 +139,9 @@ None.
 
 ### Blockers/Concerns
 
-None — all 12 phases complete:
+None — all 14 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 208 tests pass (143 server + 65 client)
+- 252 tests pass (173 server + 79 client)
 - Setup scripts: 6 integration tests + 8 self-tests pass
 - Zero regressions across all packages
 
@@ -150,6 +155,6 @@ None — all 12 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-08T12:29:58.209Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-harden-team-lifecycle-archived-team-reuse-same-name-conflicts-and-ingestion-edge-cases/14-CONTEXT.md
+Last session: 2026-03-08T12:45:00.000Z
+Stopped at: Phase 14 complete
+Resume file: .planning/ROADMAP.md
