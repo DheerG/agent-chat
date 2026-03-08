@@ -58,6 +58,13 @@ export interface Document {
   updatedAt: string;   // ISO 8601
 }
 
+// Checkin — agent context recovery watermark
+export interface Checkin {
+  agentId: string;
+  tenantId: string;
+  lastCheckinAt: string;  // ISO 8601
+}
+
 // Query options
 export interface PaginationOpts {
   limit?: number;     // default 50

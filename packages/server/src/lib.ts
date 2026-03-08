@@ -12,6 +12,7 @@ export { ChannelService } from './services/ChannelService.js';
 export { MessageService } from './services/MessageService.js';
 export { PresenceService } from './services/PresenceService.js';
 export { DocumentService } from './services/DocumentService.js';
+export { CheckinService } from './services/CheckinService.js';
 export type { PaginatedMessages, SendMessageData } from './services/MessageService.js';
 export type { CreateDocumentData, UpdateDocumentData } from './services/DocumentService.js';
 export { createApp } from './http/app.js';

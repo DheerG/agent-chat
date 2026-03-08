@@ -21,8 +21,38 @@ function rowToMessage(row: MessageRow): Message {
   };
 }
 
+interface MessageRawRow {
+  id: string;
+  channel_id: string;
+  tenant_id: string;
+  parent_message_id: string | null;
+  sender_id: string;
+  sender_name: string;
+  sender_type: string;
+  content: string;
+  message_type: string;
+  metadata: string;
+  created_at: string;
+}
+
+function rawRowToMessage(row: MessageRawRow): Message {
+  return {
+    id: row.id,
+    channelId: row.channel_id,
+    tenantId: row.tenant_id,
+    parentMessageId: row.parent_message_id,
+    senderId: row.sender_id,
+    senderName: row.sender_name,
+    senderType: row.sender_type as Message['senderType'],
+    content: row.content,
+    messageType: row.message_type as Message['messageType'],
+    metadata: JSON.parse(row.metadata) as Record<string, unknown>,
+    createdAt: row.created_at,
+  };
+}
+
 export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
-  const { db } = instance;
+  const { db, rawDb } = instance;
 
   return {
     // Messages are APPEND-ONLY — no updateMessage or deleteMessage exported
@@ -114,6 +144,70 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
         .orderBy(asc(messages.id))
         .all()
         .map(rowToMessage);
+    },
+
+    // Extended queries for Phase 13 — context persistence and recovery
+
+    getMessagesSince(
+      tenantId: string,
+      channelId: string,
+      since: string,
+      limit: number = 200,
+    ): Message[] {
+      const rows = rawDb.prepare(`
+        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
+               sender_type, content, message_type, metadata, created_at
+        FROM messages
+        WHERE tenant_id = ? AND channel_id = ? AND created_at > ?
+        ORDER BY id ASC
+        LIMIT ?
+      `).all(tenantId, channelId, since, limit) as MessageRawRow[];
+      return rows.map(rawRowToMessage);
+    },
+
+    getMessagesByTenantSince(
+      tenantId: string,
+      since: string,
+      limit: number = 200,
+    ): Message[] {
+      const rows = rawDb.prepare(`
+        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
+               sender_type, content, message_type, metadata, created_at
+        FROM messages
+        WHERE tenant_id = ? AND created_at > ?
+        ORDER BY id ASC
+        LIMIT ?
+      `).all(tenantId, since, limit) as MessageRawRow[];
+      return rows.map(rawRowToMessage);
+    },
+
+    getMessagesBySender(
+      tenantId: string,
+      senderId: string,
+      opts: { since?: string; channelId?: string; limit?: number } = {},
+    ): Message[] {
+      const limit = opts.limit ?? 100;
+      let sql = `
+        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
+               sender_type, content, message_type, metadata, created_at
+        FROM messages
+        WHERE tenant_id = ? AND sender_id = ?
+      `;
+      const params: (string | number)[] = [tenantId, senderId];
+
+      if (opts.channelId) {
+        sql += ' AND channel_id = ?';
+        params.push(opts.channelId);
+      }
+      if (opts.since) {
+        sql += ' AND created_at > ?';
+        params.push(opts.since);
+      }
+      sql += ' ORDER BY id ASC LIMIT ?';
+      params.push(limit);
+
+      const rows = rawDb.prepare(sql).all(...params) as MessageRawRow[];
+      return rows.map(rawRowToMessage);
     },
   };
 }

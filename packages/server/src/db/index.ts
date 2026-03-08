@@ -70,6 +70,13 @@ const CREATE_TABLES_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_documents_tenant_channel ON documents(tenant_id, channel_id);
+
+  CREATE TABLE IF NOT EXISTS checkins (
+    agent_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    last_checkin_at TEXT NOT NULL,
+    PRIMARY KEY (agent_id, tenant_id)
+  );
 `;
 
 export interface DbInstance {

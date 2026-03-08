@@ -72,6 +72,12 @@ export const documents = sqliteTable('documents', {
   index('idx_documents_tenant_channel').on(t.tenantId, t.channelId),
 ]);
 
+export const checkins = sqliteTable('checkins', {
+  agentId: text('agent_id').notNull(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  lastCheckinAt: text('last_checkin_at').notNull(),
+});
+
 // Drizzle-inferred types — used by query layer and consumers
 export type TenantRow = typeof tenants.$inferSelect;
 export type TenantInsert = typeof tenants.$inferInsert;
@@ -83,3 +89,5 @@ export type PresenceRow = typeof presence.$inferSelect;
 export type PresenceInsert = typeof presence.$inferInsert;
 export type DocumentRow = typeof documents.$inferSelect;
 export type DocumentInsert = typeof documents.$inferInsert;
+export type CheckinRow = typeof checkins.$inferSelect;
+export type CheckinInsert = typeof checkins.$inferInsert;
