@@ -702,4 +702,121 @@ describe('TeamInboxWatcher', () => {
       expect(result.messages[0]!.metadata.source).toBe('team_inbox');
     });
   });
+
+  describe('Archived team reuse', () => {
+    it('restores archived tenant when team reappears', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Before archive',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      // Verify tenant was created
+      let tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      const tenantId = tenants[0]!.id;
+
+      // Archive the tenant
+      await services.tenants.archive(tenantId);
+
+      // Verify it's archived (listAll filters archived)
+      tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(0);
+
+      watcher.stop();
+
+      // Recreate watcher and start again (simulates team recreated)
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Tenant should be auto-restored
+      tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      expect(tenants[0]!.id).toBe(tenantId); // Same tenant ID, not a new one
+      expect(tenants[0]!.archivedAt).toBeNull();
+    });
+
+    it('restores channels when archived tenant is reused', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channelsBefore = services.channels.listByTenant(tenantId);
+      expect(channelsBefore.length).toBe(1);
+      const channelId = channelsBefore[0]!.id;
+
+      // Archive tenant (cascades to channels)
+      await services.tenants.archive(tenantId);
+      expect(services.channels.listByTenant(tenantId).length).toBe(0);
+
+      watcher.stop();
+
+      // Restart watcher
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Channel should be restored, not duplicated
+      const channelsAfter = services.channels.listByTenant(tenantId);
+      expect(channelsAfter.length).toBe(1);
+      expect(channelsAfter[0]!.id).toBe(channelId); // Same channel
+    });
+
+    it('new messages visible after archived team is recreated', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Message before archive',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channels = services.channels.listByTenant(tenantId);
+      const channelId = channels[0]!.id;
+
+      // Archive tenant
+      await services.tenants.archive(tenantId);
+
+      watcher.stop();
+
+      // Add new message to inbox (simulates team recreation with new messages)
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Message before archive',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+        {
+          from: 'engineer',
+          text: 'Message after recreate',
+          timestamp: '2026-03-07T12:00:00.000Z',
+        },
+      ]);
+
+      // Restart watcher — should auto-restore and ingest new message
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Verify tenant restored and messages visible
+      const restoredTenants = services.tenants.listAll();
+      expect(restoredTenants.length).toBe(1);
+
+      const result = services.messages.list(tenantId, channelId);
+      // At least 2 messages (original + new; restart re-ingests original too)
+      expect(result.messages.length).toBeGreaterThanOrEqual(2);
+      const contents = result.messages.map(m => m.content);
+      expect(contents).toContain('Message after recreate');
+    });
+  });
 });
