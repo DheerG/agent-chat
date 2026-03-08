@@ -819,4 +819,141 @@ describe('TeamInboxWatcher', () => {
       expect(contents).toContain('Message after recreate');
     });
   });
+
+  describe('Watcher robustness', () => {
+    it('handles team directory disappearing after start', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Hello',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      // Verify team was discovered
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+
+      // Delete team directory (simulates team cleanup)
+      rmSync(join(teamsDir, 'my-team'), { recursive: true, force: true });
+
+      // Trigger a file change for the deleted team directory
+      // Write a new team to trigger watcher activity
+      writeTeamConfig(teamsDir, 'other-team');
+
+      await wait(500);
+
+      // Watcher should still be running (no crash)
+      // The original team's data is still in DB but watcher doesn't track it anymore
+      expect(services.tenants.listAll().length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('rediscovers team after delete and recreate', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      await watcher.start();
+
+      let tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      const originalTenantId = tenants[0]!.id;
+
+      watcher.stop();
+
+      // Delete the team directory
+      rmSync(join(teamsDir, 'my-team'), { recursive: true, force: true });
+
+      // Recreate the team
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'After recreate',
+          timestamp: '2026-03-07T12:00:00.000Z',
+        },
+      ]);
+
+      // Start fresh watcher
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Should reuse the same tenant (via upsertByCodebasePath)
+      tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      expect(tenants[0]!.id).toBe(originalTenantId);
+
+      // New message should be ingested
+      const channels = services.channels.listByTenant(originalTenantId);
+      expect(channels.length).toBeGreaterThanOrEqual(1);
+      const result = services.messages.list(originalTenantId, channels[0]!.id);
+      const contents = result.messages.map(m => m.content);
+      expect(contents).toContain('After recreate');
+    });
+
+    it('handles non-object entries in inbox array', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      // Write inbox with mixed types (some non-objects)
+      const inboxDir = join(teamsDir, 'my-team', 'inboxes');
+      mkdirSync(inboxDir, { recursive: true });
+      writeFileSync(
+        join(inboxDir, 'team-lead.json'),
+        JSON.stringify([
+          null,
+          42,
+          'string-entry',
+          true,
+          { from: 'engineer', text: 'Valid message', timestamp: '2026-03-07T11:00:00.000Z' },
+          [1, 2, 3],
+        ]),
+      );
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      const result = services.messages.list(tenants[0]!.id, channels[0]!.id);
+
+      // Only the valid object message should be ingested
+      expect(result.messages.length).toBe(1);
+      expect(result.messages[0]!.content).toBe('Valid message');
+    });
+
+    it('handles inbox file written as partial JSON (truncated)', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      const inboxDir = join(teamsDir, 'my-team', 'inboxes');
+      mkdirSync(inboxDir, { recursive: true });
+      // Write truncated JSON (simulates partial write)
+      writeFileSync(
+        join(inboxDir, 'team-lead.json'),
+        '[{"from":"engineer","text":"Hel',
+      );
+
+      await watcher.start();
+
+      // Should not crash, just skip the invalid file
+      const tenants = services.tenants.listAll();
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      const result = services.messages.list(tenants[0]!.id, channels[0]!.id);
+      expect(result.messages.length).toBe(0);
+
+      // Now write valid JSON — should process correctly via fs.watch
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Fixed message',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      // Wait longer for fs.watch event + 100ms debounce + processing
+      await wait(600);
+
+      const result2 = services.messages.list(tenants[0]!.id, channels[0]!.id);
+      expect(result2.messages.length).toBe(1);
+    });
+  });
 });
