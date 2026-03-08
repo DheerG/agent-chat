@@ -27,6 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 13: MCP Layer for Agent Team Context** - MCP tools for agent team context persistence and recovery (completed 2026-03-08)
 - [x] **Phase 14: Harden Team Lifecycle** - Fix archived team reuse, same-name conflicts, and ingestion edge cases (completed 2026-03-08)
 - [x] **Phase 15: Tenant-per-codebase fix and UI overhaul** - Fix tenant identity bug, tenant switcher, channel header, message grouping, date separators (completed 2026-03-08)
+- [x] **Phase 16: npx-based install and uninstall scripts** - npx agent-chat install/uninstall CLI for global and project-specific MCP and hooks config (completed 2026-03-08)
 
 ## Phase Details
 
@@ -135,6 +136,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 13. MCP Layer for Agent Team Context | 1/1 | Complete    | 2026-03-08 |
 | 14. Harden Team Lifecycle | 2/2 | Complete    | 2026-03-08 |
 | 15. Tenant-per-codebase fix and UI overhaul | 2/2 | Complete    | 2026-03-08 |
+| 16. npx-based install and uninstall scripts | 1/1 | Complete    | 2026-03-08 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -255,3 +257,13 @@ Plans:
 Plans:
 - [x] 15-01-PLAN.md — Backend: Fix TeamInboxWatcher tenant identity to use cwd from team config (completed 2026-03-08)
 - [x] 15-02-PLAN.md — Frontend: UI overhaul with tenant switcher, channel header, message grouping, visual polish (completed 2026-03-08)
+
+### Phase 16: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
+
+**Goal:** Create npx-runnable install/uninstall CLI commands for configuring Claude Code hooks and MCP server entries, supporting both global (~/.claude/) and project-level setups
+**Requirements**: N/A (developer experience phase)
+**Depends on:** Phase 15
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 16-01-PLAN.md — CLI entry point, merge-settings refactor, integration tests (completed 2026-03-08)

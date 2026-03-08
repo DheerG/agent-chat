@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Complete
-stopped_at: Phase 15 complete
-last_updated: "2026-03-08T13:01:00.000Z"
-last_activity: "2026-03-08 - Completed Phase 15: Tenant-per-codebase fix and UI overhaul"
+stopped_at: Phase 16 complete
+last_updated: "2026-03-08T14:00:00.000Z"
+last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 15
-  completed_phases: 15
-  total_plans: 33
-  completed_plans: 33
+  total_phases: 16
+  completed_phases: 16
+  total_plans: 34
+  completed_plans: 34
   percent: 100
 ---
 
@@ -25,17 +25,17 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 
 ## Current Position
 
-Phase: 15 of 15 (tenant-per-codebase fix and UI overhaul)
-Plan: 2 of 2 in current phase
+Phase: 16 of 16 (npx-based install and uninstall scripts)
+Plan: 1 of 1 in current phase
 Status: Complete
-Last activity: 2026-03-08 - Completed Phase 15: Tenant-per-codebase fix and UI overhaul
+Last activity: 2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33
+- Total plans completed: 34
 - Average duration: ---
 - Total execution time: ---
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | 13 | 1 | - | - |
 | 14 | 2 | - | - |
 | 15 | 2 | - | - |
+| 16 | 1 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: ---
@@ -128,6 +129,11 @@ Recent decisions affecting current work:
 - [Phase 15]: ChannelHeader component shows channel name and tenant context above message feed
 - [Phase 15]: Message grouping: same sender within 5min gets collapsed avatar/header
 - [Phase 15]: Date separators with "Today"/"Yesterday"/full date format between different days
+- [Phase 16]: CLI at bin/cli.js with install/uninstall subcommands, --global and --project flags
+- [Phase 16]: Global install: hooks in ~/.claude/settings.json, MCP in ~/.claude/.mcp.json (no AGENT_CHAT_CWD)
+- [Phase 16]: Project install: hooks in <project>/.claude/settings.json, MCP in <project>/.mcp.json (with AGENT_CHAT_CWD)
+- [Phase 16]: merge-settings.cjs exports functions for reuse while maintaining backward CLI compatibility
+- [Phase 16]: package.json bin field enables npx agent-chat usage
 
 ### Roadmap Evolution
 
@@ -147,7 +153,10 @@ Recent decisions affecting current work:
 - Phase 14 added: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
 - Phase 14 completed: All 2 plans executed and verified
 - Phase 15 added: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
+- Phase 16 added: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
 - Phase 15 completed: All 2 plans executed and verified
+- Phase 16 added: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
+- Phase 16 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -155,10 +164,10 @@ None.
 
 ### Blockers/Concerns
 
-None — all 15 phases complete:
+None — all 16 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 312 tests pass (177 server + 87 client + 48 MCP)
-- Setup scripts: 6 integration tests + 8 self-tests pass
+- 313 tests pass (178 server + 87 client + 48 MCP)
+- Setup scripts: 12 integration tests + 13 self-tests pass
 - Zero regressions across all packages
 
 ### Quick Tasks Completed
@@ -171,6 +180,6 @@ None — all 15 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-08T13:01:00.000Z
-Stopped at: Phase 15 complete
-Resume file: .planning/phases/15-tenant-per-codebase-fix-and-ui-overhaul-tenant-scoping-sidebar-navigation-and-channel-management/15-02-SUMMARY.md
+Last session: 2026-03-08T14:00:00.000Z
+Stopped at: Phase 16 complete
+Resume file: .planning/phases/16-npx-based-install-and-uninstall-scripts-for-global-and-project-specific-mcp-and-hooks-config/16-01-SUMMARY.md
