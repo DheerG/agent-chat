@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: "Completed quick task 1: markdown rendering for messages"
-last_updated: "2026-03-07T18:45:34.449Z"
-last_activity: 2026-03-07 — Phase 12 complete, setup scripts and README updated
+stopped_at: Phase 13 context gathered
+last_updated: "2026-03-08T12:10:23.104Z"
+last_activity: "2026-03-07 - Completed quick task 1: Improve rendering of messages in the UI"
 progress:
-  total_phases: 12
+  total_phases: 15
   completed_phases: 10
   total_plans: 27
   completed_plans: 23
@@ -124,6 +124,9 @@ Recent decisions affecting current work:
 - Phase 11 completed: All 2 plans executed and verified
 - Phase 12 added: Setup script updates — auto-configure team inbox watcher and update teardown to remove it
 - Phase 12 completed: All 1 plan executed and verified
+- Phase 13 added: Add MCP layer for agent team context persistence and recovery
+- Phase 14 added: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
+- Phase 15 added: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
 
 ### Pending Todos
 
@@ -147,6 +150,6 @@ None — all 12 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-07T18:58:34Z
-Stopped at: Completed quick task 3: render team event messages as compact TeamEventCards
-Resume file: None
+Last session: 2026-03-08T12:10:23.099Z
+Stopped at: Phase 13 context gathered
+Resume file: .planning/phases/13-add-mcp-layer-for-agent-team-context-persistence-and-recovery/13-CONTEXT.md
