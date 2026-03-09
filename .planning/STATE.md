@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Complete
-stopped_at: Phase 16 complete
-last_updated: "2026-03-08T14:00:00.000Z"
+status: completed
+stopped_at: Phase 17 context gathered
+last_updated: "2026-03-09T11:40:11.778Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 16
-  completed_phases: 16
+  total_phases: 17
+  completed_phases: 13
   total_plans: 34
-  completed_plans: 34
-  percent: 100
+  completed_plans: 28
+  percent: 82
 ---
 
 # Project State
@@ -153,10 +153,10 @@ Recent decisions affecting current work:
 - Phase 14 added: Harden team lifecycle — archived team reuse, same-name conflicts, and ingestion edge cases
 - Phase 14 completed: All 2 plans executed and verified
 - Phase 15 added: Tenant-per-codebase fix and UI overhaul — tenant scoping, sidebar navigation, and channel management
-- Phase 16 added: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
 - Phase 15 completed: All 2 plans executed and verified
 - Phase 16 added: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
 - Phase 16 completed: All 1 plan executed and verified
+- Phase 17 added: Link team channels for conversation continuity
 
 ### Pending Todos
 
@@ -180,6 +180,6 @@ None — all 16 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-08T14:00:00.000Z
-Stopped at: Phase 16 complete
-Resume file: .planning/phases/16-npx-based-install-and-uninstall-scripts-for-global-and-project-specific-mcp-and-hooks-config/16-01-SUMMARY.md
+Last session: 2026-03-09T11:40:11.774Z
+Stopped at: Phase 17 context gathered
+Resume file: .planning/phases/17-link-team-channels-for-conversation-continuity-sequential-team-sessions-should-share-or-link-channels-instead-of-creating-disjointed-conversations/17-CONTEXT.md
