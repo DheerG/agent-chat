@@ -90,6 +90,14 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
       return row ? rowToChannel(row) : null;
     },
 
+    /** Find a channel by name within a tenant, including archived channels */
+    getChannelByName(tenantId: string, name: string): Channel | null {
+      const row = rawDb.prepare(
+        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at FROM channels WHERE tenant_id = ? AND name = ? LIMIT 1'
+      ).get(tenantId, name) as ChannelRawRow | undefined;
+      return row ? rawRowToChannel(row) : null;
+    },
+
     getArchivedChannelsByTenant(tenantId: string): Channel[] {
       const rows = rawDb.prepare(
         'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at FROM channels WHERE tenant_id = ? AND archived_at IS NOT NULL'

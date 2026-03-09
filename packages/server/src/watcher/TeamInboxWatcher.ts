@@ -167,10 +167,16 @@ export class TeamInboxWatcher {
       codebasePath,
     );
 
-    // Find or create channel for this team
-    const existingChannels = this.services.channels.listByTenant(tenant.id);
-    let channel = existingChannels.find(c => c.name === teamName);
-    if (!channel) {
+    // Find existing channel by name (including archived channels for conversation continuity)
+    let channel = this.services.channels.findByName(tenant.id, teamName);
+    if (channel) {
+      // Auto-restore if archived (team was restarted after channel archival)
+      if (channel.archivedAt) {
+        await this.services.channels.restore(tenant.id, channel.id);
+        channel = { ...channel, archivedAt: null };
+      }
+    } else {
+      // No existing channel — create a new one
       channel = await this.services.channels.create(tenant.id, {
         name: teamName,
         type: 'manual',

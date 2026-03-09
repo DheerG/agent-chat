@@ -21,6 +21,11 @@ export class ChannelService {
     return this.q.getChannelById(tenantId, channelId);
   }
 
+  /** Find a channel by name within a tenant (includes archived channels) */
+  findByName(tenantId: string, name: string): Channel | null {
+    return this.q.getChannelByName(tenantId, name);
+  }
+
   listArchivedByTenant(tenantId: string): Channel[] {
     return this.q.getArchivedChannelsByTenant(tenantId);
   }
