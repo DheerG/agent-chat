@@ -28,6 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 14: Harden Team Lifecycle** - Fix archived team reuse, same-name conflicts, and ingestion edge cases (completed 2026-03-08)
 - [x] **Phase 15: Tenant-per-codebase fix and UI overhaul** - Fix tenant identity bug, tenant switcher, channel header, message grouping, date separators (completed 2026-03-08)
 - [x] **Phase 16: npx-based install and uninstall scripts** - npx agent-chat install/uninstall CLI for global and project-specific MCP and hooks config (completed 2026-03-08)
+- [x] **Phase 17: Link team channels for conversation continuity** - Channel reuse and auto-restore for sequential team sessions (completed 2026-03-09)
 
 ## Phase Details
 
@@ -137,6 +138,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 14. Harden Team Lifecycle | 2/2 | Complete    | 2026-03-08 |
 | 15. Tenant-per-codebase fix and UI overhaul | 2/2 | Complete    | 2026-03-08 |
 | 16. npx-based install and uninstall scripts | 1/1 | Complete    | 2026-03-08 |
+| 17. Link team channels for conversation continuity | 1/1 | Complete    | 2026-03-09 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -270,10 +272,16 @@ Plans:
 
 ### Phase 17: Link team channels for conversation continuity — sequential team sessions should share or link channels instead of creating disjointed conversations
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** When a team with the same name reappears in the same tenant, reuse the existing channel (restoring if archived) so all messages appear in one continuous conversation thread
+**Requirements**: N/A (conversation continuity fix)
 **Depends on:** Phase 16
+**Success Criteria** (what must be TRUE):
+  1. A team that restarts with the same name reuses the existing channel, not a new one
+  2. An archived channel is auto-restored when a team with that name reappears
+  3. Messages from sequential team sessions appear in the same channel
+  4. No duplicate channels are created across multiple restarts
+  5. All existing tests pass with zero regressions
 **Plans:** 1/1 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 17 to break down) (completed 2026-03-09)
+- [x] 17-01-PLAN.md — Channel reuse: getChannelByName query, findByName service, processTeam auto-restore (completed 2026-03-09)

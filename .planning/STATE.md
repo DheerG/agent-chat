@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 17 context gathered
-last_updated: "2026-03-09T11:46:48.030Z"
+stopped_at: Phase 17 complete
+last_updated: "2026-03-09T11:48:10.235Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
   total_phases: 17
@@ -134,6 +134,9 @@ Recent decisions affecting current work:
 - [Phase 16]: Project install: hooks in <project>/.claude/settings.json, MCP in <project>/.mcp.json (with AGENT_CHAT_CWD)
 - [Phase 16]: merge-settings.cjs exports functions for reuse while maintaining backward CLI compatibility
 - [Phase 16]: package.json bin field enables npx agent-chat usage
+- [Phase 17]: getChannelByName query finds channels regardless of archive status for conversation continuity
+- [Phase 17]: ChannelService.findByName returns any channel (active or archived) by name within a tenant
+- [Phase 17]: TeamInboxWatcher.processTeam uses findByName + auto-restore pattern (mirrors TenantService upsert)
 
 ### Roadmap Evolution
 
@@ -157,6 +160,7 @@ Recent decisions affecting current work:
 - Phase 16 added: npx-based install and uninstall scripts for global and project-specific MCP and hooks config
 - Phase 16 completed: All 1 plan executed and verified
 - Phase 17 added: Link team channels for conversation continuity
+- Phase 17 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -164,9 +168,9 @@ None.
 
 ### Blockers/Concerns
 
-None — all 16 phases complete:
+None — all 17 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
-- 313 tests pass (178 server + 87 client + 48 MCP)
+- 318 tests pass (183 server + 87 client + 48 MCP)
 - Setup scripts: 12 integration tests + 13 self-tests pass
 - Zero regressions across all packages
 
@@ -180,6 +184,6 @@ None — all 16 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-09T11:40:11.774Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-link-team-channels-for-conversation-continuity-sequential-team-sessions-should-share-or-link-channels-instead-of-creating-disjointed-conversations/17-CONTEXT.md
+Last session: 2026-03-09T11:48:10.232Z
+Stopped at: Phase 17 complete
+Resume file: .planning/phases/17-link-team-channels-for-conversation-continuity-sequential-team-sessions-should-share-or-link-channels-instead-of-creating-disjointed-conversations/17-01-SUMMARY.md
