@@ -267,3 +267,13 @@ Plans:
 
 Plans:
 - [x] 16-01-PLAN.md — CLI entry point, merge-settings refactor, integration tests (completed 2026-03-08)
+
+### Phase 17: Link team channels for conversation continuity — sequential team sessions should share or link channels instead of creating disjointed conversations
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 16
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 17 to break down) (completed 2026-03-09)
