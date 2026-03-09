@@ -940,6 +940,184 @@ describe('TeamInboxWatcher', () => {
     });
   });
 
+  describe('Channel reuse for sequential team sessions', () => {
+    it('reuses existing channel when team restarts (no archive)', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'First session message',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const channelsBefore = services.channels.listByTenant(tenants[0]!.id);
+      expect(channelsBefore.length).toBe(1);
+      const originalChannelId = channelsBefore[0]!.id;
+
+      watcher.stop();
+
+      // Simulate team restart — new watcher, same team directory
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Should reuse the same channel, not create a new one
+      const channelsAfter = services.channels.listByTenant(tenants[0]!.id);
+      expect(channelsAfter.length).toBe(1);
+      expect(channelsAfter[0]!.id).toBe(originalChannelId);
+    });
+
+    it('restores and reuses archived channel when team restarts', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channelsBefore = services.channels.listByTenant(tenantId);
+      const originalChannelId = channelsBefore[0]!.id;
+
+      // Archive the channel (simulates user archiving from UI)
+      await services.channels.archive(tenantId, originalChannelId);
+      expect(services.channels.listByTenant(tenantId).length).toBe(0);
+
+      watcher.stop();
+
+      // Restart watcher — team comes back
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Channel should be restored and reused
+      const channelsAfter = services.channels.listByTenant(tenantId);
+      expect(channelsAfter.length).toBe(1);
+      expect(channelsAfter[0]!.id).toBe(originalChannelId);
+      expect(channelsAfter[0]!.archivedAt).toBeNull();
+    });
+
+    it('messages from sequential sessions appear in same channel', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Session 1 message',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channels = services.channels.listByTenant(tenantId);
+      const channelId = channels[0]!.id;
+
+      // Verify first session message
+      let result = services.messages.list(tenantId, channelId);
+      expect(result.messages.length).toBe(1);
+      expect(result.messages[0]!.content).toBe('Session 1 message');
+
+      watcher.stop();
+
+      // Simulate second session — add new messages to inbox
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Session 1 message',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+        {
+          from: 'engineer',
+          text: 'Session 2 message',
+          timestamp: '2026-03-07T14:00:00.000Z',
+        },
+      ]);
+
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Both messages should be in the same channel
+      result = services.messages.list(tenantId, channelId);
+      expect(result.messages.length).toBeGreaterThanOrEqual(2);
+      const contents = result.messages.map(m => m.content);
+      expect(contents).toContain('Session 1 message');
+      expect(contents).toContain('Session 2 message');
+    });
+
+    it('restores archived channel and continues conversation', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Before archive',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channels = services.channels.listByTenant(tenantId);
+      const channelId = channels[0]!.id;
+
+      // Archive channel
+      await services.channels.archive(tenantId, channelId);
+
+      watcher.stop();
+
+      // Add new message and restart
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        {
+          from: 'engineer',
+          text: 'Before archive',
+          timestamp: '2026-03-07T11:00:00.000Z',
+        },
+        {
+          from: 'engineer',
+          text: 'After restart',
+          timestamp: '2026-03-07T15:00:00.000Z',
+        },
+      ]);
+
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Same channel should have both messages
+      const result = services.messages.list(tenantId, channelId);
+      expect(result.messages.length).toBeGreaterThanOrEqual(2);
+      const contents = result.messages.map(m => m.content);
+      expect(contents).toContain('Before archive');
+      expect(contents).toContain('After restart');
+    });
+
+    it('does not create duplicate channels across multiple restarts', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      // Session 1
+      await watcher.start();
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      watcher.stop();
+
+      // Session 2
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+      watcher.stop();
+
+      // Session 3
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+      watcher.stop();
+
+      // Should still be just 1 channel
+      const allChannels = services.channels.listByTenant(tenantId);
+      expect(allChannels.length).toBe(1);
+    });
+  });
+
   describe('Watcher robustness', () => {
     it('handles team directory disappearing after start', async () => {
       writeTeamConfig(teamsDir, 'my-team');
