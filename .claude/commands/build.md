@@ -1,7 +1,7 @@
 ---
 name: build
 description: Launch autonomous build loop with dogfooding agent team
-argument-hint: "[--from <phase>] [--to <phase>]"
+argument-hint: "[--from <phase>] [--to <phase>] [--add \"phase description\"]"
 allowed-tools:
   - Read
   - Write
@@ -11,10 +11,13 @@ allowed-tools:
   - Grep
   - Agent
   - AskUserQuestion
+  - Skill
 ---
 
 <objective>
 Launch a continuous, autonomous build loop. Each phase is delegated to a fresh agent with full 200k context. The orchestrator (this conversation) stays ultra-thin — just a loop that spawns agents and reads results. Never stops, never pauses for context limits.
+
+Supports inline phase addition: `/build --add "description"` adds a new phase and immediately builds it.
 </objective>
 
 <critical_architecture>
@@ -41,13 +44,44 @@ INIT=$(node "./.claude/get-shit-done/bin/gsd-tools.cjs" init progress)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
-Read `.planning/ROADMAP.md` to get phase list. Parse `--from` / `--to` from $ARGUMENTS.
+Read `.planning/ROADMAP.md` to get phase list. Parse flags from $ARGUMENTS:
+- `--from <N>` / `--to <N>` — range of phases to build
+- `--add "<description>"` — add a new phase first, then build it (and any other pending phases)
 
-Enable auto-advance:
+### 1a. Handle inline phase addition
+
+Detect if the user wants to add a phase before building. This is triggered by:
+- `--add "description"` flag
+- Or if $ARGUMENTS contains a description that isn't a recognized flag (no `--from`, `--to`, or other flags — just a bare description string)
+
+If a description is detected, add the phase:
+
+```bash
+# Add the phase via gsd-tools
+RESULT=$(node "./.claude/get-shit-done/bin/gsd-tools.cjs" phase add "${description}")
+```
+
+Extract the `phase_number` from the JSON result. Update STATE.md Roadmap Evolution section with an Edit:
+```
+- Phase {N} added: {description}
+```
+
+Set `start_phase` to the new phase number. Build from the new phase onward (unless `--from` overrides).
+
+If no description is detected, find incomplete phases from the roadmap as before.
+
+### 1b. Enable auto-advance
+
 ```bash
 node "./.claude/get-shit-done/bin/gsd-tools.cjs" config-set workflow.auto_advance true
 node "./.claude/get-shit-done/bin/gsd-tools.cjs" config-set workflow._auto_chain_active true
 ```
+
+### 1c. Determine phase range
+
+- If `--add` was used and no `--from`/`--to`: build from the new phase through all pending phases
+- If `--from`/`--to` specified: use those
+- Otherwise: build all incomplete phases
 
 ## 2. Phase Loop
 
@@ -264,7 +298,7 @@ When all phases done, run final dogfood + design review pass, then:
 </process>
 
 <rules>
-- NEVER use Skill tool in the orchestrator — it eats your context
+- NEVER use Skill tool in the orchestrator for phase execution — it eats your context. The ONE exception is `gsd:add-phase` during init (tiny operation).
 - NEVER stop the loop for context warnings — agents have fresh context
 - NEVER suggest /clear or manual commands — this is autonomous
 - The orchestrator is a LOOP, not a worker. It spawns, waits, spawns next.
