@@ -472,10 +472,14 @@ describe('TeamInboxWatcher', () => {
         },
       ]);
 
-      // Wait for fs.watch to detect and process
-      await wait(500);
+      // Wait for fs.watch to detect and process (macOS FSEvents can have variable latency)
+      // Retry pattern to handle timing variability
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await wait(200);
+        tenants = services.tenants.listAll();
+        if (tenants.length > 0) break;
+      }
 
-      tenants = services.tenants.listAll();
       expect(tenants.length).toBe(1);
       expect(tenants[0]!.name).toBe('new-team');
 
