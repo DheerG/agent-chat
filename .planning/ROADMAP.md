@@ -29,6 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 15: Tenant-per-codebase fix and UI overhaul** - Fix tenant identity bug, tenant switcher, channel header, message grouping, date separators (completed 2026-03-08)
 - [x] **Phase 16: npx-based install and uninstall scripts** - npx agent-chat install/uninstall CLI for global and project-specific MCP and hooks config (completed 2026-03-08)
 - [x] **Phase 17: Link team channels for conversation continuity** - Channel reuse and auto-restore for sequential team sessions (completed 2026-03-09)
+- [x] **Phase 18: Auto-hide stale sessions** - Auto-hide channels inactive 48h+, persistent archive state, show/hide stale toggle (completed 2026-03-22)
 
 ## Phase Details
 
@@ -139,6 +140,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 15. Tenant-per-codebase fix and UI overhaul | 2/2 | Complete    | 2026-03-08 |
 | 16. npx-based install and uninstall scripts | 1/1 | Complete    | 2026-03-08 |
 | 17. Link team channels for conversation continuity | 1/1 | Complete    | 2026-03-09 |
+| 18. Auto-hide stale sessions | 2/2 | Complete    | 2026-03-22 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
