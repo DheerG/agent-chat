@@ -1315,4 +1315,67 @@ describe('TeamInboxWatcher', () => {
       expect(activeChannels[0]!.id).toBe(channelId);
     });
   });
+
+  describe('Team channel archival on deletion', () => {
+    it('archives team channel when team directory is removed', async () => {
+      writeTeamConfig(teamsDir, 'ephemeral-team');
+
+      await watcher.start();
+      await wait(200);
+
+      // Verify tenant and channel were created
+      const tenants = services.tenants.listAll();
+      const tenant = tenants.find(t => t.name === 'ephemeral-team');
+      expect(tenant).toBeDefined();
+
+      const channels = services.channels.listByTenant(tenant!.id);
+      expect(channels.length).toBe(1);
+      const channel = channels[0]!;
+      expect(channel.archivedAt).toBeNull();
+
+      // Remove team directory
+      rmSync(join(teamsDir, 'ephemeral-team'), { recursive: true, force: true });
+
+      // Directly trigger the file change processing (simulates fs.watch detection)
+      await (watcher as any).processFileChange('ephemeral-team/config.json');
+
+      // Verify channel is archived (system-initiated, not user-initiated)
+      const updatedChannel = services.channels.getById(tenant!.id, channel.id);
+      expect(updatedChannel).not.toBeNull();
+      expect(updatedChannel!.archivedAt).not.toBeNull();
+      expect(updatedChannel!.userArchived).toBe(false);
+    });
+
+    it('system-archived team channel can be restored when team reappears', async () => {
+      writeTeamConfig(teamsDir, 'returning-team');
+
+      await watcher.start();
+      await wait(200);
+
+      const tenants = services.tenants.listAll();
+      const tenant = tenants.find(t => t.name === 'returning-team');
+      expect(tenant).toBeDefined();
+
+      const channels = services.channels.listByTenant(tenant!.id);
+      const channelId = channels[0]!.id;
+
+      // Remove team directory → triggers archive
+      rmSync(join(teamsDir, 'returning-team'), { recursive: true, force: true });
+      await (watcher as any).processFileChange('returning-team/config.json');
+
+      // Verify archived
+      let ch = services.channels.getById(tenant!.id, channelId);
+      expect(ch!.archivedAt).not.toBeNull();
+
+      // Recreate team directory
+      writeTeamConfig(teamsDir, 'returning-team');
+
+      // Process new team (simulates fs.watch detecting new config.json)
+      await (watcher as any).processFileChange('returning-team/config.json');
+
+      // Channel should be auto-restored (system-initiated archive allows auto-restore)
+      ch = services.channels.getById(tenant!.id, channelId);
+      expect(ch!.archivedAt).toBeNull();
+    });
+  });
 });
