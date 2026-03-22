@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 20 plan 01 complete
-last_updated: "2026-03-22T14:27:26.520Z"
+stopped_at: Phase 21 context gathered
+last_updated: "2026-03-22T14:56:49.316Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 20
+  total_phases: 21
   completed_phases: 16
   total_plans: 39
   completed_plans: 31
@@ -203,6 +203,6 @@ None — all 20 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-22T14:26:49.403Z
-Stopped at: Phase 20 plan 01 complete
-Resume file: .planning/phases/20-auto-archive-stale-channels-sessions-auto-archive-after-3-days-team-channels-archive-when-team-is-deleted/20-01-SUMMARY.md
+Last session: 2026-03-22T14:56:49.312Z
+Stopped at: Phase 21 context gathered
+Resume file: .planning/phases/21-auto-restore-archived-channels-on-new-activity-new-session-team-reappearance-or-incoming-message-unarchives-automatically/21-CONTEXT.md
