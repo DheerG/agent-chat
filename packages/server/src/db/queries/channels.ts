@@ -147,7 +147,7 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
       );
     },
 
-    /** Get non-stale, non-archived channels (hides channels with no messages or 48h+ inactive) */
+    /** Get non-stale, non-archived channels (hides stale channels: session=8h, manual/team=48h) */
     getActiveChannelsByTenant(tenantId: string): Channel[] {
       const rows = rawDb.prepare(
         `SELECT c.id, c.tenant_id, c.name, c.session_id, c.type, c.created_at, c.updated_at, c.archived_at, c.user_archived
@@ -158,13 +158,16 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
            GROUP BY channel_id
          ) m ON c.id = m.channel_id
          WHERE c.tenant_id = ? AND c.archived_at IS NULL
-           AND (m.last_activity IS NOT NULL AND m.last_activity >= datetime('now', '-48 hours'))
+           AND (m.last_activity IS NOT NULL AND m.last_activity >= CASE c.type
+             WHEN 'session' THEN datetime('now', '-8 hours')
+             ELSE datetime('now', '-48 hours')
+           END)
          ORDER BY c.name`
       ).all(tenantId) as ChannelRawRow[];
       return rows.map(rawRowToChannel);
     },
 
-    /** Get all non-archived channels with a stale indicator */
+    /** Get all non-archived channels with a stale indicator (session=8h, manual/team=48h) */
     getChannelsByTenantWithStale(tenantId: string): Array<Channel & { stale: boolean }> {
       interface ChannelWithStaleRow extends ChannelRawRow {
         is_stale: number;
@@ -173,7 +176,8 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
         `SELECT c.id, c.tenant_id, c.name, c.session_id, c.type, c.created_at, c.updated_at, c.archived_at, c.user_archived,
            CASE
              WHEN m.last_activity IS NULL THEN 1
-             WHEN m.last_activity < datetime('now', '-48 hours') THEN 1
+             WHEN c.type = 'session' AND m.last_activity < datetime('now', '-8 hours') THEN 1
+             WHEN c.type != 'session' AND m.last_activity < datetime('now', '-48 hours') THEN 1
              ELSE 0
            END as is_stale
          FROM channels c
