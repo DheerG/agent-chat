@@ -322,3 +322,13 @@ Plans:
 
 Plans:
 - [x] 19-01-PLAN.md — Type-aware stale thresholds in SQL queries, differentiated threshold tests (completed 2026-03-22)
+
+### Phase 20: Auto-archive stale channels — sessions auto-archive after 3 days, team channels archive when team is deleted
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 19
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 20 to break down) (completed 2026-03-22)
