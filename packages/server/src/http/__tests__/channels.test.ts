@@ -7,9 +7,11 @@ import type { Hono } from 'hono';
 import type { Tenant, Channel } from '@agent-chat/shared';
 
 let app: Hono;
+let testRawDb: ReturnType<typeof createDb>['rawDb'];
 
 beforeEach(() => {
   const instance = createDb(':memory:');
+  testRawDb = instance.rawDb;
   const queue = new WriteQueue();
   const services = createServices(instance, queue);
   app = createApp(services);
@@ -290,5 +292,152 @@ describe('Stale channel filtering', () => {
     const body = await res.json() as { channels: Array<Channel & { userArchived: boolean }> };
     const restored = body.channels.find(c => c.id === channel.id)!;
     expect(restored.userArchived).toBe(false);
+  });
+});
+
+describe('Differentiated stale thresholds by channel type', () => {
+  async function createTypedChannel(tenantId: string, name: string, type: 'session' | 'manual', sessionId?: string): Promise<Channel> {
+    const res = await app.request(`/api/tenants/${tenantId}/channels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type, ...(sessionId ? { sessionId } : {}) }),
+    });
+    return ((await res.json()) as { channel: Channel }).channel;
+  }
+
+  async function sendMessage(tenantId: string, channelId: string, content: string) {
+    await app.request(`/api/tenants/${tenantId}/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: 'test-agent',
+        senderName: 'Test',
+        senderType: 'agent',
+        content,
+        messageType: 'text',
+      }),
+    });
+  }
+
+  function backdateMessages(channelId: string, hoursAgo: number) {
+    // Use SQLite datetime() to set timestamp in SQLite-compatible format
+    // This ensures consistent comparison with datetime('now', '-Xh') in queries
+    testRawDb.prepare(
+      `UPDATE messages SET created_at = datetime('now', '-${hoursAgo} hours') WHERE channel_id = ?`
+    ).run(channelId);
+  }
+
+  test('session channel with 4h-old message is NOT stale (within 8h threshold)', async () => {
+    const tenant = await createTenant('/session-4h');
+    const ch = await createTypedChannel(tenant.id, 'sess-4h', 'session', 'sess-4h');
+    await sendMessage(tenant.id, ch.id, 'recent');
+    backdateMessages(ch.id, 4);
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const body = await res.json() as { channels: Array<Channel & { stale: boolean }> };
+    const found = body.channels.find(c => c.id === ch.id)!;
+    expect(found.stale).toBe(false);
+
+    // Should also appear in default (non-stale) listing
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.some(c => c.id === ch.id)).toBe(true);
+  });
+
+  test('session channel with 10h-old message IS stale (beyond 8h threshold)', async () => {
+    const tenant = await createTenant('/session-10h');
+    const ch = await createTypedChannel(tenant.id, 'sess-10h', 'session', 'sess-10h');
+    await sendMessage(tenant.id, ch.id, 'old message');
+    backdateMessages(ch.id, 10);
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const body = await res.json() as { channels: Array<Channel & { stale: boolean }> };
+    const found = body.channels.find(c => c.id === ch.id)!;
+    expect(found.stale).toBe(true);
+
+    // Should NOT appear in default listing
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.some(c => c.id === ch.id)).toBe(false);
+  });
+
+  test('manual channel with 10h-old message is NOT stale (within 48h threshold)', async () => {
+    const tenant = await createTenant('/manual-10h');
+    const ch = await createTypedChannel(tenant.id, 'team-10h', 'manual');
+    await sendMessage(tenant.id, ch.id, 'team message');
+    backdateMessages(ch.id, 10);
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const body = await res.json() as { channels: Array<Channel & { stale: boolean }> };
+    const found = body.channels.find(c => c.id === ch.id)!;
+    expect(found.stale).toBe(false);
+
+    // Should appear in default listing
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.some(c => c.id === ch.id)).toBe(true);
+  });
+
+  test('manual channel with 50h-old message IS stale (beyond 48h threshold)', async () => {
+    const tenant = await createTenant('/manual-50h');
+    const ch = await createTypedChannel(tenant.id, 'team-50h', 'manual');
+    await sendMessage(tenant.id, ch.id, 'old team message');
+    backdateMessages(ch.id, 50);
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const body = await res.json() as { channels: Array<Channel & { stale: boolean }> };
+    const found = body.channels.find(c => c.id === ch.id)!;
+    expect(found.stale).toBe(true);
+
+    // Should NOT appear in default listing
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.some(c => c.id === ch.id)).toBe(false);
+  });
+
+  test('same 10h age: session is stale, manual is not stale', async () => {
+    const tenant = await createTenant('/diff-threshold');
+    const sessionCh = await createTypedChannel(tenant.id, 'sess-diff', 'session', 'sess-diff');
+    const manualCh = await createTypedChannel(tenant.id, 'team-diff', 'manual');
+
+    await sendMessage(tenant.id, sessionCh.id, 'session msg');
+    await sendMessage(tenant.id, manualCh.id, 'team msg');
+    backdateMessages(sessionCh.id, 10);
+    backdateMessages(manualCh.id, 10);
+
+    const res = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const body = await res.json() as { channels: Array<Channel & { stale: boolean }> };
+
+    const session = body.channels.find(c => c.name === 'sess-diff')!;
+    const manual = body.channels.find(c => c.name === 'team-diff')!;
+
+    expect(session.type).toBe('session');
+    expect(manual.type).toBe('manual');
+    // 10h old: session (8h threshold) = stale, manual (48h threshold) = not stale
+    expect(session.stale).toBe(true);
+    expect(manual.stale).toBe(false);
+
+    // Default listing should only show the manual channel
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.length).toBe(1);
+    expect(defaultBody.channels[0].name).toBe('team-diff');
+  });
+
+  test('empty channels are stale regardless of type', async () => {
+    const tenant = await createTenant('/empty-types');
+    await createTypedChannel(tenant.id, 'empty-session', 'session', 'empty-s');
+    await createTypedChannel(tenant.id, 'empty-manual', 'manual');
+
+    // Default endpoint should return no channels (both empty = stale)
+    const defaultRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    const defaultBody = await defaultRes.json() as { channels: Channel[] };
+    expect(defaultBody.channels.length).toBe(0);
+
+    // include_stale should return both, marked stale
+    const allRes = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
+    const allBody = await allRes.json() as { channels: Array<Channel & { stale: boolean }> };
+    expect(allBody.channels.length).toBe(2);
+    expect(allBody.channels.every(c => c.stale)).toBe(true);
   });
 });
