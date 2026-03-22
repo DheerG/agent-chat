@@ -32,6 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 18: Auto-hide stale sessions** - Auto-hide channels inactive 48h+, persistent archive state, show/hide stale toggle (completed 2026-03-22)
 - [x] **Phase 19: Differentiated stale thresholds** - Session channels hide after 8h, team channels hide after 48h (completed 2026-03-22)
 - [x] **Phase 20: Auto-archive stale channels** - Sessions auto-archive after 3 days, team channels archive when team is deleted (completed 2026-03-22)
+- [x] **Phase 21: Auto-restore archived channels on new activity** - Auto-restore archived channels/tenants when new activity arrives, making archive/restore self-healing (completed 2026-03-22)
 
 ## Phase Details
 
@@ -145,6 +146,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 18. Auto-hide stale sessions | 2/2 | Complete    | 2026-03-22 |
 | 19. Differentiated stale thresholds | 1/1 | Complete    | 2026-03-22 |
 | 20. Auto-archive stale channels | 1/1 | Complete    | 2026-03-22 |
+| 21. Auto-restore archived channels on new activity | 1/1 | Complete    | 2026-03-22 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -343,3 +345,21 @@ Plans:
 
 Plans:
 - [x] 20-01-PLAN.md — AutoArchiveService, team channel archival, query, server lifecycle (completed 2026-03-22)
+
+### Phase 21: Auto-restore archived channels on new activity — new session, team reappearance, or incoming message unarchives automatically
+
+**Goal:** Auto-restore archived channels and tenants when new activity arrives (message POST, document POST, SessionStart hook, team reappearance, tenant upsert), making the archive/restore cycle self-healing
+**Requirements**: N/A (robustness phase)
+**Depends on:** Phase 20
+**Success Criteria** (what must be TRUE):
+  1. POST message to an archived channel auto-restores the channel and accepts the message (201, not 409)
+  2. POST document to an archived channel auto-restores the channel and accepts the document (201, not 409)
+  3. Auto-restore on message/document POST also restores the parent tenant if it is archived
+  4. SessionStart hook reuses and restores an existing archived session channel instead of creating a duplicate
+  5. TeamInboxWatcher.processTeam auto-restores channels regardless of userArchived flag
+  6. TenantService.upsertByCodebasePath auto-restores tenants regardless of userArchived flag
+  7. All existing tests pass with zero regressions
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 21-01-PLAN.md — Auto-restore logic for 5 integration points, test updates (completed 2026-03-22)

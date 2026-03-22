@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 21 context gathered
-last_updated: "2026-03-22T14:56:49.316Z"
+stopped_at: Phase 21 plan 01 complete
+last_updated: "2026-03-22T15:07:19.841Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
   total_phases: 21
-  completed_phases: 16
-  total_plans: 39
-  completed_plans: 31
-  percent: 79
+  completed_phases: 17
+  total_plans: 40
+  completed_plans: 32
+  percent: 80
 ---
 
 # Project State
@@ -150,6 +150,11 @@ Recent decisions affecting current work:
 - [Phase 20]: TeamInboxWatcher.removeTeam archives channel (system-initiated) on team directory deletion
 - [Phase 20]: getStaleSessionChannelsForArchival query scans ALL tenants (not tenant-scoped)
 - [Phase 20]: System-initiated archives (userInitiated=false) allow auto-restore when teams reappear
+- [Phase 21]: POST to archived channel auto-restores and accepts (201), replaces 409 CHANNEL_ARCHIVED rejection
+- [Phase 21]: SessionStart hook reuses existing archived session channels via findByName before creating new ones
+- [Phase 21]: Auto-restore overrides user_archived flag — real activity always wins over archive state
+- [Phase 21]: Tenant cascade: restoring a channel also restores its archived parent tenant
+- [Phase 21]: All auto-restore events logged as structured JSON with trigger type (message, document, session_start, team_reappearance, upsert)
 
 ### Roadmap Evolution
 
@@ -180,6 +185,8 @@ Recent decisions affecting current work:
 - Phase 19 completed: All 1 plan executed and verified
 - Phase 20 added: Auto-archive stale channels — sessions auto-archive after 3 days, team channels archive when team deleted
 - Phase 20 completed: All 1 plan executed and verified
+- Phase 21 added: Auto-restore archived channels on new activity — self-healing archive/restore cycle
+- Phase 21 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -203,6 +210,6 @@ None — all 20 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-22T14:56:49.312Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-auto-restore-archived-channels-on-new-activity-new-session-team-reappearance-or-incoming-message-unarchives-automatically/21-CONTEXT.md
+Last session: 2026-03-22T15:07:19.832Z
+Stopped at: Phase 21 plan 01 complete
+Resume file: .planning/phases/21-auto-restore-archived-channels-on-new-activity-new-session-team-reappearance-or-incoming-message-unarchives-automatically/21-01-SUMMARY.md
