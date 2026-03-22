@@ -1153,8 +1153,8 @@ describe('TeamInboxWatcher', () => {
       expect(services.tenants.listAll().length).toBeGreaterThanOrEqual(1);
     });
 
-    it('rediscovers team after delete and recreate', async () => {
-      writeTeamConfig(teamsDir, 'my-team');
+    it('rediscovers team after delete and recreate (different session)', async () => {
+      writeTeamConfig(teamsDir, 'my-team', { createdAt: 1000 });
 
       await watcher.start();
 
@@ -1167,8 +1167,8 @@ describe('TeamInboxWatcher', () => {
       // Delete the team directory
       rmSync(join(teamsDir, 'my-team'), { recursive: true, force: true });
 
-      // Recreate the team
-      writeTeamConfig(teamsDir, 'my-team');
+      // Recreate the team with a DIFFERENT createdAt (new session)
+      writeTeamConfig(teamsDir, 'my-team', { createdAt: 2000 });
       writeInbox(teamsDir, 'my-team', 'team-lead', [
         {
           from: 'engineer',
@@ -1186,10 +1186,16 @@ describe('TeamInboxWatcher', () => {
       expect(tenants.length).toBe(1);
       expect(tenants[0]!.id).toBe(originalTenantId);
 
-      // New message should be ingested
-      const channels = services.channels.listByTenant(originalTenantId);
-      expect(channels.length).toBeGreaterThanOrEqual(1);
-      const result = services.messages.list(originalTenantId, channels[0]!.id);
+      // New message should be ingested into disambiguated channel (different session)
+      const allChannels = [
+        ...services.channels.listByTenant(originalTenantId),
+        ...services.channels.listArchivedByTenant(originalTenantId),
+      ];
+      // Should have the original channel AND a disambiguated one
+      expect(allChannels.length).toBe(2);
+      const newChannel = allChannels.find(c => c.name === 'my-team-2');
+      expect(newChannel).toBeDefined();
+      const result = services.messages.list(originalTenantId, newChannel!.id);
       const contents = result.messages.map(m => m.content);
       expect(contents).toContain('After recreate');
     });
@@ -1352,8 +1358,9 @@ describe('TeamInboxWatcher', () => {
       expect(updatedChannel!.userArchived).toBe(false);
     });
 
-    it('system-archived team channel can be restored when team reappears', async () => {
-      writeTeamConfig(teamsDir, 'returning-team');
+    it('system-archived team channel can be restored when same session reappears', async () => {
+      const fixedCreatedAt = 9999999;
+      writeTeamConfig(teamsDir, 'returning-team', { createdAt: fixedCreatedAt });
 
       await watcher.start();
       await wait(200);
@@ -1373,15 +1380,218 @@ describe('TeamInboxWatcher', () => {
       let ch = services.channels.getById(tenant!.id, channelId);
       expect(ch!.archivedAt).not.toBeNull();
 
-      // Recreate team directory
-      writeTeamConfig(teamsDir, 'returning-team');
+      // Recreate team directory with SAME createdAt (same session)
+      writeTeamConfig(teamsDir, 'returning-team', { createdAt: fixedCreatedAt });
 
       // Process new team (simulates fs.watch detecting new config.json)
       await (watcher as any).processFileChange('returning-team/config.json');
 
-      // Channel should be auto-restored (system-initiated archive allows auto-restore)
+      // Channel should be auto-restored (same session, system-initiated archive allows auto-restore)
       ch = services.channels.getById(tenant!.id, channelId);
       expect(ch!.archivedAt).toBeNull();
+    });
+  });
+
+  describe('Session conflict detection', () => {
+    it('creates new disambiguated channel when team name reused with different createdAt', async () => {
+      // Session 1: team with createdAt = 1000
+      writeTeamConfig(teamsDir, 'conflict-team', { createdAt: 1000 });
+      writeInbox(teamsDir, 'conflict-team', 'team-lead', [
+        { from: 'engineer', text: 'Session 1 message', timestamp: '2026-03-07T10:00:00.000Z' },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenant = tenants[0]!;
+      let channels = services.channels.listByTenant(tenant.id);
+      expect(channels.length).toBe(1);
+      expect(channels[0]!.name).toBe('conflict-team');
+      expect(channels[0]!.sessionId).toBe('1000');
+
+      watcher.stop();
+
+      // Simulate team deletion and recreation with different createdAt
+      rmSync(join(teamsDir, 'conflict-team'), { recursive: true });
+
+      // Session 2: same name, different createdAt = 2000
+      writeTeamConfig(teamsDir, 'conflict-team', { createdAt: 2000 });
+      writeInbox(teamsDir, 'conflict-team', 'team-lead', [
+        { from: 'engineer', text: 'Session 2 message', timestamp: '2026-03-07T11:00:00.000Z' },
+      ]);
+
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Should have TWO channels now (original + disambiguated)
+      const allChannels = [
+        ...services.channels.listByTenant(tenant.id),
+        ...services.channels.listArchivedByTenant(tenant.id),
+      ];
+
+      const teamChannels = allChannels.filter(c => c.name.startsWith('conflict-team'));
+      expect(teamChannels.length).toBe(2);
+
+      const names = teamChannels.map(c => c.name).sort();
+      expect(names).toEqual(['conflict-team', 'conflict-team-2']);
+
+      // New channel should have the new sessionId
+      const newChannel = teamChannels.find(c => c.name === 'conflict-team-2')!;
+      expect(newChannel.sessionId).toBe('2000');
+
+      // Original channel should still have old sessionId
+      const oldChannel = teamChannels.find(c => c.name === 'conflict-team')!;
+      expect(oldChannel.sessionId).toBe('1000');
+    });
+
+    it('reuses channel when team restarts with same createdAt (same session)', async () => {
+      writeTeamConfig(teamsDir, 'same-session', { createdAt: 5000 });
+      writeInbox(teamsDir, 'same-session', 'team-lead', [
+        { from: 'engineer', text: 'First message', timestamp: '2026-03-07T10:00:00.000Z' },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenant = tenants[0]!;
+      const channels = services.channels.listByTenant(tenant.id);
+      expect(channels.length).toBe(1);
+      const channelId = channels[0]!.id;
+      expect(channels[0]!.sessionId).toBe('5000');
+
+      watcher.stop();
+
+      // Restart with same createdAt (same session)
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Should reuse the same channel, NOT create a new one
+      const channelsAfter = services.channels.listByTenant(tenant.id);
+      expect(channelsAfter.length).toBe(1);
+      expect(channelsAfter[0]!.id).toBe(channelId);
+      expect(channelsAfter[0]!.name).toBe('same-session');
+    });
+
+    it('handles legacy channels with null sessionId as different session', async () => {
+      // Create a channel manually (simulating legacy behavior with no sessionId)
+      // Use the team path as codebasePath (same as watcher fallback when no member cwd)
+      const teamPath = join(teamsDir, 'legacy-team');
+      const tenant = await services.tenants.upsertByCodebasePath('legacy-team', teamPath);
+      await services.channels.create(tenant.id, {
+        name: 'legacy-team',
+        type: 'manual',
+        // No sessionId — legacy channel
+      });
+
+      // Now a team with the same name appears
+      writeTeamConfig(teamsDir, 'legacy-team', { createdAt: 3000 });
+      writeInbox(teamsDir, 'legacy-team', 'team-lead', [
+        { from: 'engineer', text: 'New session message', timestamp: '2026-03-07T10:00:00.000Z' },
+      ]);
+
+      await watcher.start();
+
+      // Should create a disambiguated channel since legacy has null sessionId
+      const allChannels = [
+        ...services.channels.listByTenant(tenant.id),
+        ...services.channels.listArchivedByTenant(tenant.id),
+      ];
+      const teamChannels = allChannels.filter(c => c.name.startsWith('legacy-team'));
+      expect(teamChannels.length).toBe(2);
+
+      const names = teamChannels.map(c => c.name).sort();
+      expect(names).toEqual(['legacy-team', 'legacy-team-2']);
+    });
+
+    it('increments suffix correctly for multiple session conflicts', async () => {
+      // Create first session
+      writeTeamConfig(teamsDir, 'multi-team', { createdAt: 100 });
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenant = tenants[0]!;
+      watcher.stop();
+
+      // Delete and recreate with different createdAt — second session
+      rmSync(join(teamsDir, 'multi-team'), { recursive: true });
+      writeTeamConfig(teamsDir, 'multi-team', { createdAt: 200 });
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+      watcher.stop();
+
+      // Delete and recreate with different createdAt — third session
+      rmSync(join(teamsDir, 'multi-team'), { recursive: true });
+      writeTeamConfig(teamsDir, 'multi-team', { createdAt: 300 });
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Should have 3 channels: multi-team, multi-team-2, multi-team-3
+      const allChannels = [
+        ...services.channels.listByTenant(tenant.id),
+        ...services.channels.listArchivedByTenant(tenant.id),
+      ];
+      const teamChannels = allChannels.filter(c => c.name.startsWith('multi-team'));
+      expect(teamChannels.length).toBe(3);
+
+      const names = teamChannels.map(c => c.name).sort();
+      expect(names).toEqual(['multi-team', 'multi-team-2', 'multi-team-3']);
+    });
+
+    it('new session messages go to new channel, not old one', async () => {
+      // Session 1
+      writeTeamConfig(teamsDir, 'msg-test', { createdAt: 1000 });
+      writeInbox(teamsDir, 'msg-test', 'team-lead', [
+        { from: 'engineer', text: 'Old session message', timestamp: '2026-03-07T10:00:00.000Z' },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenant = tenants[0]!;
+      const oldChannels = services.channels.listByTenant(tenant.id);
+      const oldChannelId = oldChannels[0]!.id;
+
+      watcher.stop();
+
+      // Session 2 (different createdAt)
+      rmSync(join(teamsDir, 'msg-test'), { recursive: true });
+      writeTeamConfig(teamsDir, 'msg-test', { createdAt: 2000 });
+      writeInbox(teamsDir, 'msg-test', 'team-lead', [
+        { from: 'engineer', text: 'New session message', timestamp: '2026-03-07T11:00:00.000Z' },
+      ]);
+
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Find the new channel (disambiguated name)
+      const allChannels = [
+        ...services.channels.listByTenant(tenant.id),
+        ...services.channels.listArchivedByTenant(tenant.id),
+      ];
+      const newChannel = allChannels.find(c => c.name === 'msg-test-2');
+      expect(newChannel).toBeDefined();
+
+      // Old channel should have old message
+      const oldMsgs = services.messages.list(tenant.id, oldChannelId);
+      expect(oldMsgs.messages.length).toBe(1);
+      expect(oldMsgs.messages[0]!.content).toBe('Old session message');
+
+      // New channel should have new message
+      const newMsgs = services.messages.list(tenant.id, newChannel!.id);
+      expect(newMsgs.messages.length).toBe(1);
+      expect(newMsgs.messages[0]!.content).toBe('New session message');
+    });
+
+    it('stores sessionId on newly created channels', async () => {
+      writeTeamConfig(teamsDir, 'tracked-team', { createdAt: 42000 });
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      expect(channels.length).toBe(1);
+      expect(channels[0]!.sessionId).toBe('42000');
+      expect(channels[0]!.name).toBe('tracked-team');
     });
   });
 });
