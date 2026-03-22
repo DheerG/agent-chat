@@ -1256,7 +1256,7 @@ describe('TeamInboxWatcher', () => {
   });
 
   describe('User-archived channels persist across restarts', () => {
-    it('does NOT restore user-archived channel on watcher restart', async () => {
+    it('restores user-archived channel when team reappears on watcher restart', async () => {
       writeTeamConfig(teamsDir, 'my-team');
       writeInbox(teamsDir, 'my-team', 'team-lead', [
         { from: 'engineer', text: 'hello', timestamp: '2026-03-07T11:00:00.000Z' },
@@ -1277,17 +1277,19 @@ describe('TeamInboxWatcher', () => {
 
       watcher.stop();
 
-      // Restart watcher — simulates server restart
+      // Restart watcher — simulates server restart with team still present
       watcher = new TeamInboxWatcher(services, teamsDir);
       await watcher.start();
 
-      // Channel should STILL be archived — user's archive decision is respected
-      expect(services.channels.listByTenant(tenantId).length).toBe(0);
+      // Channel should be restored — new activity always overrides archive state
+      const activeChannels = services.channels.listByTenant(tenantId);
+      expect(activeChannels.length).toBe(1);
+      expect(activeChannels[0]!.id).toBe(channelId);
 
-      // But channel should exist in archived list
-      const archived = services.channels.listArchivedByTenant(tenantId);
-      expect(archived.length).toBe(1);
-      expect(archived[0]!.id).toBe(channelId);
+      // Verify userArchived is cleared
+      const restored = services.channels.getById(tenantId, channelId);
+      expect(restored!.archivedAt).toBeNull();
+      expect(restored!.userArchived).toBe(false);
     });
 
     it('DOES restore system-archived channel on watcher restart', async () => {

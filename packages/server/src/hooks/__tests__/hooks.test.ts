@@ -67,6 +67,65 @@ describe('Hook Routes', () => {
       expect(messages.messages[0].senderType).toBe('system');
       expect(messages.messages[0].content).toContain('test-session-123');
     });
+
+    it('restores and reuses an archived session channel instead of creating a new one', async () => {
+      // First SessionStart creates a channel
+      await postHook('SessionStart', basePayload);
+
+      // Verify channel exists
+      const tenantList = services.tenants.listAll();
+      const tenant = tenantList[0];
+      const channelsBefore = services.channels.listByTenant(tenant.id);
+      expect(channelsBefore.length).toBe(1);
+      const channelId = channelsBefore[0].id;
+
+      // Archive the session channel (user-initiated)
+      await services.channels.archive(tenant.id, channelId, true);
+
+      // Verify it's archived
+      const archived = services.channels.getById(tenant.id, channelId);
+      expect(archived!.archivedAt).not.toBeNull();
+      expect(archived!.userArchived).toBe(true);
+
+      // Second SessionStart with same session_id should restore, not create duplicate
+      const res = await postHook('SessionStart', basePayload);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.handled).toBe(true);
+      expect(body.action).toBe('channel_restored');
+
+      // Verify only one channel exists (no duplicate)
+      const allChannels = services.channels.listByTenant(tenant.id);
+      expect(allChannels.length).toBe(1);
+      expect(allChannels[0].id).toBe(channelId);
+
+      // Verify it's no longer archived
+      const restored = services.channels.getById(tenant.id, channelId);
+      expect(restored!.archivedAt).toBeNull();
+    });
+
+    it('reuses an existing non-archived session channel', async () => {
+      // First SessionStart creates a channel
+      await postHook('SessionStart', basePayload);
+
+      const tenantList = services.tenants.listAll();
+      const tenant = tenantList[0];
+      const channelsBefore = services.channels.listByTenant(tenant.id);
+      expect(channelsBefore.length).toBe(1);
+      const channelId = channelsBefore[0].id;
+
+      // Second SessionStart with same session_id should reuse
+      const res = await postHook('SessionStart', basePayload);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.handled).toBe(true);
+      expect(body.action).toBe('channel_reused');
+
+      // Still only one channel
+      const allChannels = services.channels.listByTenant(tenant.id);
+      expect(allChannels.length).toBe(1);
+      expect(allChannels[0].id).toBe(channelId);
+    });
   });
 
   describe('PreToolUse', () => {

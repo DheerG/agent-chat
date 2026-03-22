@@ -310,4 +310,56 @@ describe('TenantService auto-restore on upsert', () => {
     expect(same.id).toBe(tenant.id);
     expect(same.archivedAt).toBeNull();
   });
+
+  test('upsertByCodebasePath restores user-archived tenant on new activity', async () => {
+    // Create and user-archive a tenant
+    const tenant = await services.tenants.upsertByCodebasePath('my-project', '/test/user-archived-tenant');
+    await services.tenants.archive(tenant.id, true); // user-initiated
+
+    // Verify tenant is user-archived
+    const archived = services.tenants.getById(tenant.id);
+    expect(archived!.archivedAt).not.toBeNull();
+    expect(archived!.userArchived).toBe(true);
+
+    // Upsert again — should restore despite user_archived
+    const restored = await services.tenants.upsertByCodebasePath('my-project', '/test/user-archived-tenant');
+    expect(restored.archivedAt).toBeNull();
+    expect(restored.id).toBe(tenant.id);
+
+    // Verify in DB
+    const fromDb = services.tenants.getById(tenant.id);
+    expect(fromDb!.archivedAt).toBeNull();
+    expect(fromDb!.userArchived).toBe(false);
+  });
+
+  test('POST tenant via HTTP restores user-archived tenant', async () => {
+    // Create tenant
+    const createRes = await app.request('/api/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'proj', codebasePath: '/test/http-user-archived-restore' }),
+    });
+    const { tenant } = await createRes.json() as { tenant: Tenant };
+
+    // User-archive it
+    await app.request(`/api/tenants/${tenant.id}/archive`, { method: 'PATCH' });
+
+    // Verify archived
+    const archivedRes = await app.request(`/api/tenants/${tenant.id}`);
+    const archivedBody = await archivedRes.json() as { tenant: Tenant };
+    expect(archivedBody.tenant.archivedAt).not.toBeNull();
+
+    // Upsert again via POST — should restore
+    const upsertRes = await app.request('/api/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'proj', codebasePath: '/test/http-user-archived-restore' }),
+    });
+    expect(upsertRes.status).toBe(201);
+
+    // Verify restored
+    const restoredRes = await app.request(`/api/tenants/${tenant.id}`);
+    const restoredBody = await restoredRes.json() as { tenant: Tenant };
+    expect(restoredBody.tenant.archivedAt).toBeNull();
+  });
 });

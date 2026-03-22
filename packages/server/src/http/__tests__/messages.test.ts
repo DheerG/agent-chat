@@ -206,13 +206,18 @@ describe('Message routes', () => {
     expect(body.pagination.hasMore).toBe(false);
   });
 
-  test('POST message to archived channel returns 409 CHANNEL_ARCHIVED', async () => {
-    const { tenant, channel } = await seedTenantAndChannel('/msg-archived-write-test');
+  test('POST message to archived channel auto-restores and accepts message (201)', async () => {
+    const { tenant, channel } = await seedTenantAndChannel('/msg-archived-restore-test');
 
     // Archive the channel
     await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/archive`, { method: 'PATCH' });
 
-    // Try to send a message
+    // Verify it's archived
+    const archived = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}`);
+    const archivedBody = await archived.json() as { channel: Channel };
+    expect(archivedBody.channel.archivedAt).not.toBeNull();
+
+    // Send a message — should auto-restore and succeed
     const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -220,12 +225,42 @@ describe('Message routes', () => {
         senderId: 'agent-1',
         senderName: 'Agent',
         senderType: 'agent',
-        content: 'should be rejected',
+        content: 'message after archive',
       }),
     });
-    expect(res.status).toBe(409);
-    const body = await res.json() as { code: string };
-    expect(body.code).toBe('CHANNEL_ARCHIVED');
+    expect(res.status).toBe(201);
+    const body = await res.json() as { message: Message };
+    expect(body.message.content).toBe('message after archive');
+
+    // Verify channel is restored
+    const restored = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}`);
+    const restoredBody = await restored.json() as { channel: Channel };
+    expect(restoredBody.channel.archivedAt).toBeNull();
+  });
+
+  test('POST message to archived channel also restores archived tenant', async () => {
+    const { tenant, channel } = await seedTenantAndChannel('/msg-tenant-restore-test');
+
+    // Archive the tenant (cascades to channels)
+    await app.request(`/api/tenants/${tenant.id}/archive`, { method: 'PATCH' });
+
+    // Send a message — should auto-restore channel AND tenant
+    const res = await app.request(`/api/tenants/${tenant.id}/channels/${channel.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: 'agent-1',
+        senderName: 'Agent',
+        senderType: 'agent',
+        content: 'message restores tenant',
+      }),
+    });
+    expect(res.status).toBe(201);
+
+    // Verify tenant is restored
+    const tenantRes = await app.request(`/api/tenants/${tenant.id}`);
+    const tenantBody = await tenantRes.json() as { tenant: Tenant };
+    expect(tenantBody.tenant.archivedAt).toBeNull();
   });
 
   test('GET messages from archived channel still works (read-only)', async () => {
