@@ -305,3 +305,13 @@ Plans:
 Plans:
 - [x] 18-01-PLAN.md — Backend: user_archived flag, stale detection queries, API changes, watcher fix (completed 2026-03-22)
 - [x] 18-02-PLAN.md — Frontend: stale toggle in sidebar, dimmed styling, localStorage persistence (completed 2026-03-22)
+
+### Phase 19: Differentiated stale thresholds — team channels hide after 48h, session channels hide after 8h
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 18
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 19 to break down) (completed 2026-03-22)
