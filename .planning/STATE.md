@@ -146,6 +146,10 @@ Recent decisions affecting current work:
 - [Phase 19]: Stale threshold is type-aware: session channels use 8h, manual/team channels use 48h
 - [Phase 19]: SQL CASE expression on c.type in both getActiveChannelsByTenant and getChannelsByTenantWithStale
 - [Phase 19]: No schema migration, API, or UI changes — purely SQL query logic change
+- [Phase 20]: AutoArchiveService runs hourly, archives session channels inactive 72h+
+- [Phase 20]: TeamInboxWatcher.removeTeam archives channel (system-initiated) on team directory deletion
+- [Phase 20]: getStaleSessionChannelsForArchival query scans ALL tenants (not tenant-scoped)
+- [Phase 20]: System-initiated archives (userInitiated=false) allow auto-restore when teams reappear
 
 ### Roadmap Evolution
 
@@ -174,6 +178,8 @@ Recent decisions affecting current work:
 - Phase 18 completed: All 2 plans executed and verified
 - Phase 19 added: Differentiated stale thresholds — session channels hide after 8h, team channels hide after 48h
 - Phase 19 completed: All 1 plan executed and verified
+- Phase 20 added: Auto-archive stale channels — sessions auto-archive after 3 days, team channels archive when team deleted
+- Phase 20 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -181,7 +187,7 @@ None.
 
 ### Blockers/Concerns
 
-None — all 19 phases complete:
+None — all 20 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
 - 318 tests pass (183 server + 87 client + 48 MCP)
 - Setup scripts: 12 integration tests + 13 self-tests pass

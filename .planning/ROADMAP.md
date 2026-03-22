@@ -31,6 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 17: Link team channels for conversation continuity** - Channel reuse and auto-restore for sequential team sessions (completed 2026-03-09)
 - [x] **Phase 18: Auto-hide stale sessions** - Auto-hide channels inactive 48h+, persistent archive state, show/hide stale toggle (completed 2026-03-22)
 - [x] **Phase 19: Differentiated stale thresholds** - Session channels hide after 8h, team channels hide after 48h (completed 2026-03-22)
+- [x] **Phase 20: Auto-archive stale channels** - Sessions auto-archive after 3 days, team channels archive when team is deleted (completed 2026-03-22)
 
 ## Phase Details
 
@@ -143,6 +144,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 17. Link team channels for conversation continuity | 1/1 | Complete    | 2026-03-09 |
 | 18. Auto-hide stale sessions | 2/2 | Complete    | 2026-03-22 |
 | 19. Differentiated stale thresholds | 1/1 | Complete    | 2026-03-22 |
+| 20. Auto-archive stale channels | 1/1 | Complete    | 2026-03-22 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -325,10 +327,19 @@ Plans:
 
 ### Phase 20: Auto-archive stale channels — sessions auto-archive after 3 days, team channels archive when team is deleted
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Auto-archive session channels inactive for 72+ hours via periodic server-side cleanup, and archive team channels when their team directory is deleted
+**Requirements**: N/A (UX improvement phase)
 **Depends on:** Phase 19
+**Success Criteria** (what must be TRUE):
+  1. Session channels inactive 72h+ are auto-archived by periodic cleanup
+  2. Session channels with no messages created 72h+ ago are auto-archived
+  3. User-archived channels are NOT touched by auto-archive
+  4. Manual/team channels are NOT auto-archived by the periodic cleanup
+  5. Team channels are archived when team directory is deleted
+  6. Auto-archive is system-initiated (auto-restorable)
+  7. Periodic cleanup runs hourly, stops on graceful shutdown
+  8. All existing tests pass with zero regressions
 **Plans:** 1/1 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 20 to break down) (completed 2026-03-22)
+- [x] 20-01-PLAN.md — AutoArchiveService, team channel archival, query, server lifecycle (completed 2026-03-22)
