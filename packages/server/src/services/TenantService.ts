@@ -11,10 +11,15 @@ export class TenantService {
   async upsertByCodebasePath(name: string, codebasePath: string): Promise<Tenant> {
     const existing = this.q.getTenantByCodebasePath(codebasePath);
     if (existing) {
-      // Auto-restore archived tenant only if NOT manually archived by user
-      if (existing.archivedAt && !existing.userArchived) {
+      // Auto-restore: new activity always overrides archive state
+      if (existing.archivedAt) {
         await this.q.restoreTenant(existing.id);
         await this.channelQ.restoreChannelsByTenant(existing.id);
+        console.log(JSON.stringify({
+          event: 'auto_restore_tenant',
+          tenantId: existing.id,
+          trigger: 'upsert',
+        }));
       }
       if (existing.name !== name) {
         await this.q.updateTenantName(existing.id, name);

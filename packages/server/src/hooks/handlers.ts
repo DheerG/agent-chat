@@ -32,13 +32,33 @@ export async function handleSessionStart(
 ): Promise<HookResult> {
   const tenantId = await resolveTenant(services, payload.cwd);
 
-  // Create session channel (AGNT-04: auto-create channel on SessionStart)
+  // Check for existing session channel (including archived ones)
   const channelName = `session-${payload.session_id}`;
-  const channel = await services.channels.create(tenantId, {
-    name: channelName,
-    sessionId: payload.session_id,
-    type: 'session',
-  });
+  let channel = services.channels.findByName(tenantId, channelName);
+  let action = 'channel_created';
+
+  if (channel) {
+    // Existing channel found — restore if archived
+    if (channel.archivedAt) {
+      await services.channels.restore(tenantId, channel.id);
+      console.log(JSON.stringify({
+        event: 'auto_restore_channel',
+        channelId: channel.id,
+        tenantId,
+        trigger: 'session_start',
+      }));
+      action = 'channel_restored';
+    } else {
+      action = 'channel_reused';
+    }
+  } else {
+    // No existing channel — create a new one (AGNT-04)
+    channel = await services.channels.create(tenantId, {
+      name: channelName,
+      sessionId: payload.session_id,
+      type: 'session',
+    });
+  }
 
   // Update presence to active
   await services.presence.upsert(tenantId, {
@@ -57,7 +77,7 @@ export async function handleSessionStart(
     messageType: 'text',
   });
 
-  return { handled: true, action: 'channel_created' };
+  return { handled: true, action };
 }
 
 export async function handleSessionEnd(

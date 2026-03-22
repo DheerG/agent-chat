@@ -67,7 +67,21 @@ export function documentRoutes(services: Services): Hono {
       return c.json({ error: 'Channel not found', code: 'NOT_FOUND' }, 404);
     }
     if (channel.archivedAt) {
-      return c.json({ error: 'Channel is archived', code: 'CHANNEL_ARCHIVED' }, 409);
+      // Auto-restore: new activity overrides archive state
+      await services.channels.restore(tenantId, channelId);
+
+      // Also restore parent tenant if archived
+      const tenant = services.tenants.getById(tenantId);
+      if (tenant?.archivedAt) {
+        await services.tenants.restore(tenantId);
+      }
+
+      console.log(JSON.stringify({
+        event: 'auto_restore_channel',
+        channelId,
+        tenantId,
+        trigger: 'document',
+      }));
     }
 
     let body: unknown;
