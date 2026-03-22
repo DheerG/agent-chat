@@ -31,7 +31,8 @@ export function App() {
   const { tenants, loading: tenantsLoading, error: tenantsError } = useTenants(refreshKey);
 
   // Get channels for selected tenant (used to derive channel name)
-  const { channels } = useChannels(selectedTenantId, refreshKey);
+  // Include stale channels so we can find the name of any selected channel
+  const { channels } = useChannels(selectedTenantId, refreshKey, true);
 
   // Auto-select tenant from localStorage or first available
   useEffect(() => {

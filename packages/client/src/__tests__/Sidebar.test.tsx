@@ -16,17 +16,17 @@ const mockFetchArchivedTenants = vi.mocked(fetchArchivedTenants);
 const mockFetchArchivedChannels = vi.mocked(fetchArchivedChannels);
 
 const mockTenants = [
-  { id: 'tenant-1', name: 'Project Alpha', codebasePath: '/alpha', createdAt: '2026-01-01T00:00:00Z', archivedAt: null },
-  { id: 'tenant-2', name: 'Project Beta', codebasePath: '/beta', createdAt: '2026-01-01T00:00:00Z', archivedAt: null },
+  { id: 'tenant-1', name: 'Project Alpha', codebasePath: '/alpha', createdAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false },
+  { id: 'tenant-2', name: 'Project Beta', codebasePath: '/beta', createdAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false },
 ];
 
 const mockChannelsT1 = [
-  { id: 'ch-1', tenantId: 'tenant-1', name: 'general', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
-  { id: 'ch-2', tenantId: 'tenant-1', name: 'session-abc', sessionId: 'abc', type: 'session' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
+  { id: 'ch-1', tenantId: 'tenant-1', name: 'general', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false, stale: false },
+  { id: 'ch-2', tenantId: 'tenant-1', name: 'session-abc', sessionId: 'abc', type: 'session' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false, stale: false },
 ];
 
 const mockChannelsT2 = [
-  { id: 'ch-3', tenantId: 'tenant-2', name: 'dev', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null },
+  { id: 'ch-3', tenantId: 'tenant-2', name: 'dev', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false, stale: false },
 ];
 
 const defaultProps = {
@@ -209,7 +209,7 @@ describe('Sidebar archive/restore', () => {
   });
 
   test('clicking restore in archived section calls onRestoreTenant', async () => {
-    const archivedTenant = { id: 'archived-t', name: 'Old Project', codebasePath: '/old', createdAt: '2026-01-01T00:00:00Z', archivedAt: '2026-03-01T00:00:00Z' };
+    const archivedTenant = { id: 'archived-t', name: 'Old Project', codebasePath: '/old', createdAt: '2026-01-01T00:00:00Z', archivedAt: '2026-03-01T00:00:00Z', userArchived: true };
     mockFetchArchivedTenants.mockResolvedValue([archivedTenant]);
     mockFetchArchivedChannels.mockResolvedValue([]);
 
@@ -233,7 +233,7 @@ describe('Sidebar archive/restore', () => {
   });
 
   test('clicking restore channel calls onRestoreChannel', async () => {
-    const archivedChannel = { id: 'archived-ch', tenantId: 'tenant-1', name: 'old-channel', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: '2026-03-01T00:00:00Z' };
+    const archivedChannel = { id: 'archived-ch', tenantId: 'tenant-1', name: 'old-channel', sessionId: null, type: 'manual' as const, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', archivedAt: '2026-03-01T00:00:00Z', userArchived: true };
     mockFetchArchivedTenants.mockResolvedValue([]);
     mockFetchArchivedChannels.mockImplementation(async (tenantId: string) => {
       if (tenantId === 'tenant-1') return [archivedChannel];
@@ -257,5 +257,90 @@ describe('Sidebar archive/restore', () => {
     const restoreBtn = screen.getByTitle('Restore channel');
     fireEvent.click(restoreBtn);
     expect(onRestoreChannel).toHaveBeenCalledWith('tenant-1', 'archived-ch');
+  });
+});
+
+describe('Stale channel toggle', () => {
+
+  test('hides stale channels by default', async () => {
+    const channelsWithStale = [
+      { id: 'ch-1', tenantId: 'tenant-1', name: 'active', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: false },
+      { id: 'ch-2', tenantId: 'tenant-1', name: 'stale-one', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: true },
+    ];
+    mockFetchChannels.mockResolvedValue(channelsWithStale);
+
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument();
+    });
+    // Stale channel should NOT be visible by default
+    expect(screen.queryByText('stale-one')).not.toBeInTheDocument();
+    // Stale toggle should show count
+    expect(screen.getByText('+1 stale')).toBeInTheDocument();
+  });
+
+  test('shows stale channels when toggle is clicked', async () => {
+    const channelsWithStale = [
+      { id: 'ch-1', tenantId: 'tenant-1', name: 'active', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: false },
+      { id: 'ch-2', tenantId: 'tenant-1', name: 'stale-one', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: true },
+    ];
+    mockFetchChannels.mockResolvedValue(channelsWithStale);
+
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('+1 stale')).toBeInTheDocument();
+    });
+
+    // Click the stale toggle
+    fireEvent.click(screen.getByText('+1 stale'));
+
+    // Both channels should now be visible
+    expect(screen.getByText('active')).toBeInTheDocument();
+    expect(screen.getByText('stale-one')).toBeInTheDocument();
+    // Toggle should now say "Hide stale"
+    expect(screen.getByText('Hide stale')).toBeInTheDocument();
+  });
+
+  test('does not show toggle when no stale channels exist', async () => {
+    const channelsNoStale = [
+      { id: 'ch-1', tenantId: 'tenant-1', name: 'active', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: false },
+    ];
+    mockFetchChannels.mockResolvedValue(channelsNoStale);
+
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('active')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/stale/i)).not.toBeInTheDocument();
+  });
+
+  test('stale channels have dimmed styling class', async () => {
+    const channelsWithStale = [
+      { id: 'ch-1', tenantId: 'tenant-1', name: 'active', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: false },
+      { id: 'ch-2', tenantId: 'tenant-1', name: 'stale-one', sessionId: null, type: 'manual' as const, createdAt: '', updatedAt: '', archivedAt: null, userArchived: false, stale: true },
+    ];
+    mockFetchChannels.mockResolvedValue(channelsWithStale);
+
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+
+    // Click toggle to show stale channels
+    await waitFor(() => {
+      expect(screen.getByText('+1 stale')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText('+1 stale'));
+
+    await waitFor(() => {
+      expect(screen.getByText('stale-one')).toBeInTheDocument();
+    });
+
+    const staleItem = screen.getByText('stale-one').closest('.channel-item');
+    expect(staleItem).toHaveClass('channel-item--stale');
+
+    const activeItem = screen.getByText('active').closest('.channel-item');
+    expect(activeItem).not.toHaveClass('channel-item--stale');
   });
 });

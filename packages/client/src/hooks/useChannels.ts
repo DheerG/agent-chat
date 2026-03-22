@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import type { Channel } from '@agent-chat/shared';
 import { fetchChannels } from '../lib/api';
 
-export function useChannels(tenantId: string | null, refreshKey?: number) {
-  const [channels, setChannels] = useState<Channel[]>([]);
+export type ChannelWithStale = Channel & { stale?: boolean };
+
+export function useChannels(tenantId: string | null, refreshKey?: number, includeStale?: boolean) {
+  const [channels, setChannels] = useState<ChannelWithStale[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +16,7 @@ export function useChannels(tenantId: string | null, refreshKey?: number) {
     }
     let cancelled = false;
     setLoading(true);
-    fetchChannels(tenantId)
+    fetchChannels(tenantId, includeStale)
       .then((data) => {
         if (!cancelled) {
           setChannels(data);
@@ -28,7 +30,7 @@ export function useChannels(tenantId: string | null, refreshKey?: number) {
         }
       });
     return () => { cancelled = true; };
-  }, [tenantId, refreshKey]);
+  }, [tenantId, refreshKey, includeStale]);
 
   return { channels, loading, error };
 }

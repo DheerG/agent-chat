@@ -16,8 +16,9 @@ export async function fetchTenants(): Promise<Tenant[]> {
   return data.tenants;
 }
 
-export async function fetchChannels(tenantId: string): Promise<Channel[]> {
-  const data = await fetchJson<{ channels: Channel[] }>(`${BASE_URL}/tenants/${tenantId}/channels`);
+export async function fetchChannels(tenantId: string, includeStale?: boolean): Promise<Array<Channel & { stale?: boolean }>> {
+  const params = includeStale ? '?include_stale=true' : '';
+  const data = await fetchJson<{ channels: Array<Channel & { stale?: boolean }> }>(`${BASE_URL}/tenants/${tenantId}/channels${params}`);
   return data.channels;
 }
 

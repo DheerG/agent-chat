@@ -135,12 +135,48 @@
 }
 
 .channel-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-sidebar-muted);
   padding: 8px 16px 4px;
+}
+
+/* Stale toggle button in channel list header */
+.stale-toggle-btn {
+  background: none;
+  border: 1px solid var(--color-border-sidebar, #3a3a4a);
+  color: var(--color-text-sidebar-muted, #8a8a9a);
+  font-size: 0.65rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.stale-toggle-btn:hover {
+  background: var(--color-hover-sidebar, rgba(255, 255, 255, 0.08));
+  color: var(--color-text-sidebar, #e0e0e0);
+}
+
+/* Stale channel styling — dimmed appearance */
+.channel-item--stale {
+  opacity: 0.5;
+}
+
+.channel-item--stale .channel-name {
+  font-style: italic;
+}
+
+.channel-item--stale:hover {
+  opacity: 0.75;
 }
 
 .channel-item {
