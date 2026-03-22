@@ -26,6 +26,11 @@ export class ChannelService {
     return this.q.getChannelByName(tenantId, name);
   }
 
+  /** Find all channels matching a base name or its disambiguated variants (name, name-2, name-3) */
+  findByNamePrefix(tenantId: string, baseName: string): Channel[] {
+    return this.q.getChannelsByNamePrefix(tenantId, baseName);
+  }
+
   listArchivedByTenant(tenantId: string): Channel[] {
     return this.q.getArchivedChannelsByTenant(tenantId);
   }

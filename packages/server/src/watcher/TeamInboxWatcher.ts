@@ -49,6 +49,7 @@ interface TeamState {
 export class TeamInboxWatcher {
   private teams = new Map<string, TeamState>();
   private seenMessages = new Set<string>();
+  private teamDedupKeys = new Map<string, Set<string>>();
   private lastProcessedIndex = new Map<string, number>();
   private watchers: FSWatcher[] = [];
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -115,6 +116,7 @@ export class TeamInboxWatcher {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
+    this.teamDedupKeys.clear();
   }
 
   /**
@@ -167,10 +169,14 @@ export class TeamInboxWatcher {
       codebasePath,
     );
 
-    // Find existing channel by name (including archived channels for conversation continuity)
+    // Session identity: createdAt uniquely identifies each team session
+    const sessionId = config.createdAt != null ? String(config.createdAt) : null;
+
+    // Find existing channel by exact name (including archived channels for conversation continuity)
     let channel = this.services.channels.findByName(tenant.id, teamName);
-    if (channel) {
-      // Auto-restore: new team activity always overrides archive state
+
+    if (channel && sessionId && channel.sessionId === sessionId) {
+      // Same session continuing — reuse the channel (Phase 17 behavior)
       if (channel.archivedAt) {
         await this.services.channels.restore(tenant.id, channel.id);
         channel = { ...channel, archivedAt: null, userArchived: false };
@@ -181,10 +187,45 @@ export class TeamInboxWatcher {
           trigger: 'team_reappearance',
         }));
       }
+    } else if (channel && (channel.sessionId !== sessionId)) {
+      // Different session with same name (or legacy channel with null sessionId)
+      // Create a disambiguated channel
+      const oldChannelSessionId = channel.sessionId;
+
+      // Find all channels with this base name to determine the next suffix
+      const existing = this.services.channels.findByNamePrefix(tenant.id, teamName);
+      let maxSuffix = 1;
+      const escapedName = teamName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      for (const ch of existing) {
+        if (ch.name === teamName) continue;
+        const match = ch.name.match(new RegExp(`^${escapedName}-(\\d+)$`));
+        if (match) {
+          const num = parseInt(match[1]!, 10);
+          if (num > maxSuffix) maxSuffix = num;
+        }
+      }
+      const disambiguatedName = `${teamName}-${maxSuffix + 1}`;
+
+      channel = await this.services.channels.create(tenant.id, {
+        name: disambiguatedName,
+        sessionId: sessionId ?? undefined,
+        type: 'manual',
+      });
+
+      console.log(JSON.stringify({
+        event: 'team_channel_disambiguated',
+        teamName,
+        channelName: disambiguatedName,
+        channelId: channel.id,
+        tenantId: tenant.id,
+        oldSessionId: oldChannelSessionId,
+        newSessionId: sessionId,
+      }));
     } else {
-      // No existing channel — create a new one
+      // No existing channel — create a new one with session tracking
       channel = await this.services.channels.create(tenant.id, {
         name: teamName,
+        sessionId: sessionId ?? undefined,
         type: 'manual',
       });
     }
@@ -263,6 +304,12 @@ export class TeamInboxWatcher {
       }
       this.seenMessages.add(dedupKey);
 
+      // Track dedup keys per team for cleanup on removeTeam
+      if (!this.teamDedupKeys.has(teamName)) {
+        this.teamDedupKeys.set(teamName, new Set());
+      }
+      this.teamDedupKeys.get(teamName)!.add(dedupKey);
+
       // Detect structured message types (JSON in text field)
       let messageType: 'text' | 'event' = 'text';
       let originalType: string | undefined;
@@ -336,6 +383,15 @@ export class TeamInboxWatcher {
     }
 
     this.teams.delete(teamName);
+
+    // Clear seenMessages dedup keys for this team
+    const dedupKeys = this.teamDedupKeys.get(teamName);
+    if (dedupKeys) {
+      for (const key of dedupKeys) {
+        this.seenMessages.delete(key);
+      }
+      this.teamDedupKeys.delete(teamName);
+    }
 
     // Clear lastProcessedIndex entries for this team's files
     const prefix = join(this.teamsDir, teamName);

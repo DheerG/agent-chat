@@ -102,6 +102,17 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
       return row ? rawRowToChannel(row) : null;
     },
 
+    /** Find all channels with a given base name or disambiguated variants (name, name-2, name-3, etc.) */
+    getChannelsByNamePrefix(tenantId: string, baseName: string): Channel[] {
+      const rows = rawDb.prepare(
+        `SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at, user_archived
+         FROM channels
+         WHERE tenant_id = ? AND (name = ? OR name GLOB ? || '-[0-9]*')
+         ORDER BY name`
+      ).all(tenantId, baseName, baseName) as ChannelRawRow[];
+      return rows.map(rawRowToChannel);
+    },
+
     getArchivedChannelsByTenant(tenantId: string): Channel[] {
       const rows = rawDb.prepare(
         'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at, user_archived FROM channels WHERE tenant_id = ? AND archived_at IS NOT NULL'
