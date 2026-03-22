@@ -1254,4 +1254,65 @@ describe('TeamInboxWatcher', () => {
       expect(result2.messages.length).toBe(1);
     });
   });
+
+  describe('User-archived channels persist across restarts', () => {
+    it('does NOT restore user-archived channel on watcher restart', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+      writeInbox(teamsDir, 'my-team', 'team-lead', [
+        { from: 'engineer', text: 'hello', timestamp: '2026-03-07T11:00:00.000Z' },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channels = services.channels.listByTenant(tenantId);
+      const channelId = channels[0]!.id;
+
+      // User archives the channel (passing userInitiated=true)
+      await services.channels.archive(tenantId, channelId, true);
+
+      // Verify it's archived
+      expect(services.channels.listByTenant(tenantId).length).toBe(0);
+
+      watcher.stop();
+
+      // Restart watcher — simulates server restart
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Channel should STILL be archived — user's archive decision is respected
+      expect(services.channels.listByTenant(tenantId).length).toBe(0);
+
+      // But channel should exist in archived list
+      const archived = services.channels.listArchivedByTenant(tenantId);
+      expect(archived.length).toBe(1);
+      expect(archived[0]!.id).toBe(channelId);
+    });
+
+    it('DOES restore system-archived channel on watcher restart', async () => {
+      writeTeamConfig(teamsDir, 'my-team');
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const tenantId = tenants[0]!.id;
+      const channels = services.channels.listByTenant(tenantId);
+      const channelId = channels[0]!.id;
+
+      // System archives (not user-initiated — userInitiated=false default)
+      await services.channels.archive(tenantId, channelId);
+
+      watcher.stop();
+
+      // Restart watcher
+      watcher = new TeamInboxWatcher(services, teamsDir);
+      await watcher.start();
+
+      // Channel should be restored — system archives are auto-restored
+      const activeChannels = services.channels.listByTenant(tenantId);
+      expect(activeChannels.length).toBe(1);
+      expect(activeChannels[0]!.id).toBe(channelId);
+    });
+  });
 });

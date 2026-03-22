@@ -240,8 +240,8 @@ describe('Tenant archive/restore routes', () => {
     await app.request(`/api/tenants/${tenant.id}/archive`, { method: 'PATCH' });
     await app.request(`/api/tenants/${tenant.id}/restore`, { method: 'PATCH' });
 
-    // Channels should be back
-    const channelsRes = await app.request(`/api/tenants/${tenant.id}/channels`);
+    // Channels should be back (include_stale since no messages)
+    const channelsRes = await app.request(`/api/tenants/${tenant.id}/channels?include_stale=true`);
     const channelsBody = await channelsRes.json() as { channels: unknown[] };
     expect(channelsBody.channels.length).toBe(1);
   });

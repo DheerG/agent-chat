@@ -37,10 +37,10 @@ export class TenantService {
     return this.q.listArchived();
   }
 
-  async archive(id: string): Promise<boolean> {
-    const success = await this.q.archiveTenant(id, true);
+  async archive(id: string, userInitiated: boolean = false): Promise<boolean> {
+    const success = await this.q.archiveTenant(id, userInitiated);
     if (success) {
-      await this.channelQ.archiveChannelsByTenant(id, true);
+      await this.channelQ.archiveChannelsByTenant(id, userInitiated);
     }
     return success;
   }

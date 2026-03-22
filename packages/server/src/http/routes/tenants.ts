@@ -53,7 +53,7 @@ export function tenantRoutes(services: Services): Hono {
     if (!tenant) {
       return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
     }
-    const success = await services.tenants.archive(tenantId);
+    const success = await services.tenants.archive(tenantId, true);
     if (!success) {
       return c.json({ error: 'Tenant not found or already archived', code: 'NOT_FOUND' }, 404);
     }
