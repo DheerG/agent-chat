@@ -33,6 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 19: Differentiated stale thresholds** - Session channels hide after 8h, team channels hide after 48h (completed 2026-03-22)
 - [x] **Phase 20: Auto-archive stale channels** - Sessions auto-archive after 3 days, team channels archive when team is deleted (completed 2026-03-22)
 - [x] **Phase 21: Auto-restore archived channels on new activity** - Auto-restore archived channels/tenants when new activity arrives, making archive/restore self-healing (completed 2026-03-22)
+- [x] **Phase 22: Fix team channel reuse conflict** - Session identity detection and channel disambiguation when team names are reused across branches (completed 2026-03-22)
 
 ## Phase Details
 
@@ -147,6 +148,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 19. Differentiated stale thresholds | 1/1 | Complete    | 2026-03-22 |
 | 20. Auto-archive stale channels | 1/1 | Complete    | 2026-03-22 |
 | 21. Auto-restore archived channels on new activity | 1/1 | Complete    | 2026-03-22 |
+| 22. Fix team channel reuse conflict | 1/1 | Complete    | 2026-03-22 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -363,3 +365,21 @@ Plans:
 
 Plans:
 - [x] 21-01-PLAN.md — Auto-restore logic for 5 integration points, test updates (completed 2026-03-22)
+
+### Phase 22: Fix team channel reuse conflict — when a team name is reused across branches, append session ID to avoid channel name collisions and ensure new messages are ingested
+
+**Goal:** Fix the bug where reusing a team name across different branches causes channel name collisions, leading to message dedup conflicts and messages not being ingested
+**Requirements**: N/A (bugfix phase)
+**Depends on:** Phase 21
+**Success Criteria** (what must be TRUE):
+  1. When a team with the same name but different createdAt reappears, a NEW channel is created with a disambiguated name (e.g., eval-1663-2)
+  2. When a team with the same name AND same createdAt restarts, the existing channel is reused (Phase 17 behavior preserved)
+  3. New channels store the team config createdAt in the channel sessionId field
+  4. Legacy channels with null sessionId get a new disambiguated channel when a new team appears
+  5. Channel name disambiguation uses incrementing suffix pattern: name, name-2, name-3
+  6. seenMessages dedup keys for a team are cleared when removeTeam is called
+  7. All existing tests pass with zero regressions
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 22-01-PLAN.md — Session identity detection, channel disambiguation, dedup cleanup, tests (completed 2026-03-22)

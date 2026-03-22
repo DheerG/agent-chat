@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 22 context gathered
-last_updated: "2026-03-22T15:26:32.704Z"
+stopped_at: Phase 22 plan 01 complete
+last_updated: "2026-03-22T15:36:14.102Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
   total_phases: 22
-  completed_phases: 17
-  total_plans: 40
-  completed_plans: 32
+  completed_phases: 18
+  total_plans: 41
+  completed_plans: 33
   percent: 80
 ---
 
@@ -155,6 +155,13 @@ Recent decisions affecting current work:
 - [Phase 21]: Auto-restore overrides user_archived flag — real activity always wins over archive state
 - [Phase 21]: Tenant cascade: restoring a channel also restores its archived parent tenant
 - [Phase 21]: All auto-restore events logged as structured JSON with trigger type (message, document, session_start, team_reappearance, upsert)
+- [Phase 22]: processTeam compares config.createdAt vs channel.sessionId to distinguish same vs different sessions
+- [Phase 22]: Different session with same team name creates disambiguated channel (name-2, name-3, etc.)
+- [Phase 22]: Same session (same createdAt) reuses existing channel (Phase 17 behavior preserved)
+- [Phase 22]: New team channels store config.createdAt in sessionId field for future comparison
+- [Phase 22]: getChannelsByNamePrefix query uses SQLite GLOB for finding disambiguated variants
+- [Phase 22]: seenMessages dedup keys tracked per team and cleaned up on removeTeam
+- [Phase 22]: Legacy channels (null sessionId) treated as different session, get disambiguated channel
 
 ### Roadmap Evolution
 
@@ -187,6 +194,8 @@ Recent decisions affecting current work:
 - Phase 20 completed: All 1 plan executed and verified
 - Phase 21 added: Auto-restore archived channels on new activity — self-healing archive/restore cycle
 - Phase 21 completed: All 1 plan executed and verified
+- Phase 22 added: Fix team channel reuse conflict — session identity detection and channel disambiguation
+- Phase 22 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -210,6 +219,6 @@ None — all 20 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-22T15:26:32.700Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-fix-team-channel-reuse-conflict-when-a-team-name-is-reused-across-branches-append-session-id-to-avoid-channel-name-collisions-and-ensure-new-messages-are-ingested/22-CONTEXT.md
+Last session: 2026-03-22T15:36:14.096Z
+Stopped at: Phase 22 plan 01 complete
+Resume file: .planning/phases/22-fix-team-channel-reuse-conflict-when-a-team-name-is-reused-across-branches-append-session-id-to-avoid-channel-name-collisions-and-ensure-new-messages-are-ingested/22-01-SUMMARY.md
