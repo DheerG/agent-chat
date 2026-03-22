@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 19 context gathered
-last_updated: "2026-03-22T14:06:26.963Z"
+stopped_at: Phase 20 context gathered
+last_updated: "2026-03-22T14:17:10.136Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 19
+  total_phases: 20
   completed_phases: 15
   total_plans: 38
   completed_plans: 30
@@ -197,6 +197,6 @@ None — all 19 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-22T14:00:10.037Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-differentiated-stale-thresholds-team-channels-hide-after-48h-session-channels-hide-after-8h/19-CONTEXT.md
+Last session: 2026-03-22T14:17:10.126Z
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-auto-archive-stale-channels-sessions-auto-archive-after-3-days-team-channels-archive-when-team-is-deleted/20-CONTEXT.md
