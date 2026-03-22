@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 21 plan 01 complete
-last_updated: "2026-03-22T15:07:19.841Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-03-22T15:26:32.704Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 21
+  total_phases: 22
   completed_phases: 17
   total_plans: 40
   completed_plans: 32
@@ -210,6 +210,6 @@ None — all 20 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-22T15:07:19.832Z
-Stopped at: Phase 21 plan 01 complete
-Resume file: .planning/phases/21-auto-restore-archived-channels-on-new-activity-new-session-team-reappearance-or-incoming-message-unarchives-automatically/21-01-SUMMARY.md
+Last session: 2026-03-22T15:26:32.700Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-fix-team-channel-reuse-conflict-when-a-team-name-is-reused-across-branches-append-session-id-to-avoid-channel-name-collisions-and-ensure-new-messages-are-ingested/22-CONTEXT.md
