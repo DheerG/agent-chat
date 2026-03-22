@@ -38,6 +38,11 @@ export class ChannelService {
     return this.q.getChannelsByTenantWithStale(tenantId);
   }
 
+  /** Find session channels inactive 72h+ across all tenants (for auto-archive cleanup) */
+  getStaleSessionChannelsForArchival(): Array<{ id: string; tenantId: string }> {
+    return this.q.getStaleSessionChannelsForArchival();
+  }
+
   async archive(tenantId: string, channelId: string, userInitiated: boolean = false): Promise<boolean> {
     return this.q.archiveChannel(tenantId, channelId, userInitiated);
   }

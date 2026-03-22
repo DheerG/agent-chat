@@ -305,11 +305,32 @@ export class TeamInboxWatcher {
   }
 
   /**
-   * Remove a team from internal tracking.
+   * Remove a team from internal tracking and archive its channel.
    * Called when a team directory disappears.
-   * Does NOT modify the database — the tenant and channel remain for historical access.
+   * Archives the channel (system-initiated) so it can be auto-restored if the team reappears.
    */
-  private removeTeam(teamName: string): void {
+  private async removeTeam(teamName: string): Promise<void> {
+    const teamState = this.teams.get(teamName);
+
+    // Archive the channel if we have state for this team
+    if (teamState) {
+      try {
+        await this.services.channels.archive(teamState.tenantId, teamState.channelId, false);
+        console.log(JSON.stringify({
+          event: 'team_channel_archived',
+          teamName,
+          channelId: teamState.channelId,
+          tenantId: teamState.tenantId,
+        }));
+      } catch (err) {
+        console.error(JSON.stringify({
+          event: 'team_channel_archive_error',
+          teamName,
+          error: String(err),
+        }));
+      }
+    }
+
     this.teams.delete(teamName);
 
     // Clear lastProcessedIndex entries for this team's files
@@ -390,7 +411,7 @@ export class TeamInboxWatcher {
 
     // Existing team — check if directory still exists
     if (!existsSync(teamPath)) {
-      this.removeTeam(teamName);
+      await this.removeTeam(teamName);
       return;
     }
 

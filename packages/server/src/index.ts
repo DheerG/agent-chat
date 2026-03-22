@@ -13,6 +13,7 @@ import { createServices } from './services/index.js';
 import { createApp } from './http/app.js';
 import { WebSocketHub } from './ws/index.js';
 import { TeamInboxWatcher } from './watcher/index.js';
+import { AutoArchiveService } from './services/AutoArchiveService.js';
 
 const port = Number(process.env['PORT'] ?? 5555);
 
@@ -38,6 +39,11 @@ teamWatcher.start().then(() => {
 }).catch((err) => {
   console.error(JSON.stringify({ event: 'team_inbox_watcher_error', error: String(err) }));
 });
+
+// Create auto-archive service (Phase 20)
+const autoArchive = new AutoArchiveService(services);
+autoArchive.start();
+console.log(JSON.stringify({ event: 'auto_archive_service_started' }));
 
 // Start HTTP server
 const server = serve({ fetch: app.fetch, port }, (info) => {
@@ -87,9 +93,12 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 // Graceful shutdown on SIGTERM
-// Order: stop watcher → close WebSocket connections → stop accepting new HTTP → drain writes → close DB → exit
+// Order: stop auto-archive → stop watcher → close WebSocket → stop HTTP → drain writes → close DB → exit
 process.once('SIGTERM', () => {
   console.log(JSON.stringify({ event: 'graceful_shutdown_started' }));
+
+  // 0. Stop auto-archive timer (stop scheduling new cleanups)
+  autoArchive.stop();
 
   // 1. Stop team inbox watcher (stop generating new writes)
   teamWatcher.stop();

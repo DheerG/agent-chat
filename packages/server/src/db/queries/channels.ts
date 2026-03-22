@@ -167,6 +167,27 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
       return rows.map(rawRowToChannel);
     },
 
+    /** Find session channels inactive for 72+ hours across all tenants (for auto-archive) */
+    getStaleSessionChannelsForArchival(): Array<{ id: string; tenantId: string }> {
+      const rows = rawDb.prepare(
+        `SELECT c.id, c.tenant_id
+         FROM channels c
+         LEFT JOIN (
+           SELECT channel_id, MAX(created_at) as last_activity
+           FROM messages
+           GROUP BY channel_id
+         ) m ON c.id = m.channel_id
+         WHERE c.archived_at IS NULL
+           AND (c.user_archived IS NULL OR c.user_archived != '1')
+           AND c.type = 'session'
+           AND (
+             (m.last_activity IS NOT NULL AND m.last_activity < datetime('now', '-72 hours'))
+             OR (m.last_activity IS NULL AND c.created_at < datetime('now', '-72 hours'))
+           )`
+      ).all() as Array<{ id: string; tenant_id: string }>;
+      return rows.map(r => ({ id: r.id, tenantId: r.tenant_id }));
+    },
+
     /** Get all non-archived channels with a stale indicator (session=8h, manual/team=48h) */
     getChannelsByTenantWithStale(tenantId: string): Array<Channel & { stale: boolean }> {
       interface ChannelWithStaleRow extends ChannelRawRow {

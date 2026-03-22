@@ -20,6 +20,7 @@ export { MessageService } from './MessageService.js';
 export { PresenceService } from './PresenceService.js';
 export { DocumentService } from './DocumentService.js';
 export { CheckinService } from './CheckinService.js';
+export { AutoArchiveService } from './AutoArchiveService.js';
 export type { PaginatedMessages, SendMessageData } from './MessageService.js';
 export type { CreateDocumentData, UpdateDocumentData } from './DocumentService.js';
 
