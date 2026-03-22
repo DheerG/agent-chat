@@ -285,3 +285,13 @@ Plans:
 
 Plans:
 - [x] 17-01-PLAN.md — Channel reuse: getChannelByName query, findByName service, processTeam auto-restore (completed 2026-03-09)
+
+### Phase 18: Auto-hide stale sessions — channels with no activity in 48 hours are hidden by default, persistent archive state across restarts, and show/hide stale toggle in UI
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 17
+**Plans:** 0/2 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 18 to break down) (completed 2026-03-22)
