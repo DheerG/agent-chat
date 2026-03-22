@@ -288,10 +288,18 @@ Plans:
 
 ### Phase 18: Auto-hide stale sessions — channels with no activity in 48 hours are hidden by default, persistent archive state across restarts, and show/hide stale toggle in UI
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Auto-hide channels with no activity in 48 hours, persist archive state across server restarts, add show/hide stale toggle in sidebar UI
+**Requirements**: N/A (UX improvement phase)
 **Depends on:** Phase 17
-**Plans:** 0/2 plans complete
+**Success Criteria** (what must be TRUE):
+  1. Channels with no messages or 48h+ inactive are hidden by default from the channel list
+  2. GET /api/tenants/:id/channels?include_stale=true returns all channels with stale flag
+  3. User-archived channels survive server restarts (not auto-restored by TeamInboxWatcher)
+  4. Sidebar has a show/hide stale toggle that reveals hidden stale channels
+  5. Toggle state persists in localStorage
+  6. All existing tests pass with zero regressions
+**Plans:** 2/2 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 18 to break down) (completed 2026-03-22)
+- [x] 18-01-PLAN.md — Backend: user_archived flag, stale detection queries, API changes, watcher fix (completed 2026-03-22)
+- [x] 18-02-PLAN.md — Frontend: stale toggle in sidebar, dimmed styling, localStorage persistence (completed 2026-03-22)
