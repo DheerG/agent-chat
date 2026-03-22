@@ -143,6 +143,9 @@ Recent decisions affecting current work:
 - [Phase 18]: TeamInboxWatcher respects user_archived flag — does NOT auto-restore user-archived channels
 - [Phase 18]: TenantService.upsertByCodebasePath respects user_archived flag — does NOT auto-restore user-archived tenants
 - [Phase 18]: Sidebar stale toggle persists in localStorage (agentchat_show_stale key)
+- [Phase 19]: Stale threshold is type-aware: session channels use 8h, manual/team channels use 48h
+- [Phase 19]: SQL CASE expression on c.type in both getActiveChannelsByTenant and getChannelsByTenantWithStale
+- [Phase 19]: No schema migration, API, or UI changes — purely SQL query logic change
 
 ### Roadmap Evolution
 
@@ -169,6 +172,8 @@ Recent decisions affecting current work:
 - Phase 17 completed: All 1 plan executed and verified
 - Phase 18 added: Auto-hide stale sessions — channels with no activity in 48 hours are hidden by default
 - Phase 18 completed: All 2 plans executed and verified
+- Phase 19 added: Differentiated stale thresholds — session channels hide after 8h, team channels hide after 48h
+- Phase 19 completed: All 1 plan executed and verified
 
 ### Pending Todos
 
@@ -176,7 +181,7 @@ None.
 
 ### Blockers/Concerns
 
-None — all 17 phases complete:
+None — all 19 phases complete:
 - All requirements verified (INFRA, MSG, AGNT, UI, DOC, SC)
 - 318 tests pass (183 server + 87 client + 48 MCP)
 - Setup scripts: 12 integration tests + 13 self-tests pass

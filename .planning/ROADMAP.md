@@ -30,6 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 16: npx-based install and uninstall scripts** - npx agent-chat install/uninstall CLI for global and project-specific MCP and hooks config (completed 2026-03-08)
 - [x] **Phase 17: Link team channels for conversation continuity** - Channel reuse and auto-restore for sequential team sessions (completed 2026-03-09)
 - [x] **Phase 18: Auto-hide stale sessions** - Auto-hide channels inactive 48h+, persistent archive state, show/hide stale toggle (completed 2026-03-22)
+- [x] **Phase 19: Differentiated stale thresholds** - Session channels hide after 8h, team channels hide after 48h (completed 2026-03-22)
 
 ## Phase Details
 
@@ -141,6 +142,7 @@ Note: Phase 3 and Phase 4 both depend on Phase 2 and can be planned/executed in 
 | 16. npx-based install and uninstall scripts | 1/1 | Complete    | 2026-03-08 |
 | 17. Link team channels for conversation continuity | 1/1 | Complete    | 2026-03-09 |
 | 18. Auto-hide stale sessions | 2/2 | Complete    | 2026-03-22 |
+| 19. Differentiated stale thresholds | 1/1 | Complete    | 2026-03-22 |
 
 ### Phase 8: Add process and ability to add this to existing local codebases to test this.
 
@@ -308,10 +310,15 @@ Plans:
 
 ### Phase 19: Differentiated stale thresholds — team channels hide after 48h, session channels hide after 8h
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Make stale channel detection channel-type-aware: session channels (type='session') go stale after 8 hours, team channels (type='manual') go stale after 48 hours
+**Requirements**: N/A (UX refinement phase)
 **Depends on:** Phase 18
+**Success Criteria** (what must be TRUE):
+  1. Session channels with no messages or 8h+ inactive are hidden from default channel list
+  2. Manual/team channels with no messages or 48h+ inactive are hidden from default channel list
+  3. include_stale=true returns correct stale flags per channel type
+  4. All existing tests pass with zero regressions
 **Plans:** 1/1 plans complete
 
 Plans:
-- [x] TBD (run /gsd:plan-phase 19 to break down) (completed 2026-03-22)
+- [x] 19-01-PLAN.md — Type-aware stale thresholds in SQL queries, differentiated threshold tests (completed 2026-03-22)
