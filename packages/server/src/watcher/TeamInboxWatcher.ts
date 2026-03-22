@@ -170,11 +170,13 @@ export class TeamInboxWatcher {
     // Find existing channel by name (including archived channels for conversation continuity)
     let channel = this.services.channels.findByName(tenant.id, teamName);
     if (channel) {
-      // Auto-restore if archived (team was restarted after channel archival)
-      if (channel.archivedAt) {
+      // Auto-restore only if archived by system (NOT by user)
+      if (channel.archivedAt && !channel.userArchived) {
         await this.services.channels.restore(tenant.id, channel.id);
-        channel = { ...channel, archivedAt: null };
+        channel = { ...channel, archivedAt: null, userArchived: false };
       }
+      // If user-archived, still cache the channel state for tracking
+      // but don't restore it — the user explicitly archived it
     } else {
       // No existing channel — create a new one
       channel = await this.services.channels.create(tenant.id, {

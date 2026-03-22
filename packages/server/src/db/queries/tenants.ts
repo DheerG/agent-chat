@@ -12,6 +12,7 @@ function rowToTenant(row: TenantRow): Tenant {
     codebasePath: row.codebasePath,
     createdAt: row.createdAt,
     archivedAt: row.archivedAt ?? null,
+    userArchived: row.userArchived === '1',
   };
 }
 
@@ -21,6 +22,7 @@ interface TenantRawRow {
   codebase_path: string;
   created_at: string;
   archived_at: string | null;
+  user_archived: string | null;
 }
 
 function rawRowToTenant(row: TenantRawRow): Tenant {
@@ -30,6 +32,7 @@ function rawRowToTenant(row: TenantRawRow): Tenant {
     codebasePath: row.codebase_path,
     createdAt: row.created_at,
     archivedAt: row.archived_at ?? null,
+    userArchived: row.user_archived === '1',
   };
 }
 
@@ -48,7 +51,7 @@ export function createTenantQueries(instance: DbInstance, queue: WriteQueue) {
           createdAt,
         }).run()
       );
-      return { id, name: data.name, codebasePath: data.codebasePath, createdAt, archivedAt: null };
+      return { id, name: data.name, codebasePath: data.codebasePath, createdAt, archivedAt: null, userArchived: false };
     },
 
     getTenantById(id: string): Tenant | null {
@@ -63,24 +66,25 @@ export function createTenantQueries(instance: DbInstance, queue: WriteQueue) {
 
     listAll(): Tenant[] {
       const rows = rawDb.prepare(
-        'SELECT id, name, codebase_path, created_at, archived_at FROM tenants WHERE archived_at IS NULL'
+        'SELECT id, name, codebase_path, created_at, archived_at, user_archived FROM tenants WHERE archived_at IS NULL'
       ).all() as TenantRawRow[];
       return rows.map(rawRowToTenant);
     },
 
     listArchived(): Tenant[] {
       const rows = rawDb.prepare(
-        'SELECT id, name, codebase_path, created_at, archived_at FROM tenants WHERE archived_at IS NOT NULL'
+        'SELECT id, name, codebase_path, created_at, archived_at, user_archived FROM tenants WHERE archived_at IS NOT NULL'
       ).all() as TenantRawRow[];
       return rows.map(rawRowToTenant);
     },
 
-    async archiveTenant(id: string): Promise<boolean> {
+    async archiveTenant(id: string, userInitiated: boolean = false): Promise<boolean> {
       const now = new Date().toISOString();
+      const userArchivedVal = userInitiated ? '1' : null;
       const result = await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE tenants SET archived_at = ? WHERE id = ?'
-        ).run(now, id)
+          'UPDATE tenants SET archived_at = ?, user_archived = ? WHERE id = ?'
+        ).run(now, userArchivedVal, id)
       );
       return result.changes > 0;
     },
@@ -88,7 +92,7 @@ export function createTenantQueries(instance: DbInstance, queue: WriteQueue) {
     async restoreTenant(id: string): Promise<boolean> {
       const result = await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE tenants SET archived_at = NULL WHERE id = ?'
+          'UPDATE tenants SET archived_at = NULL, user_archived = NULL WHERE id = ?'
         ).run(id)
       );
       return result.changes > 0;

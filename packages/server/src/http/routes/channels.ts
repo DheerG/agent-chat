@@ -11,7 +11,7 @@ const CreateChannelSchema = z.object({
 export function channelRoutes(services: Services): Hono {
   const router = new Hono();
 
-  // GET /api/tenants/:tenantId/channels — list active channels
+  // GET /api/tenants/:tenantId/channels — list active channels (hides stale by default)
   router.get('/', (c) => {
     // Hono propagates ancestor path params; non-null assertion is safe here —
     // this route is only reachable via /api/tenants/:tenantId/channels
@@ -19,7 +19,12 @@ export function channelRoutes(services: Services): Hono {
     if (!services.tenants.getById(tenantId)) {
       return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
     }
-    const channelList = services.channels.listByTenant(tenantId);
+    const includeStale = c.req.query('include_stale') === 'true';
+    if (includeStale) {
+      const channelList = services.channels.listByTenantWithStale(tenantId);
+      return c.json({ channels: channelList });
+    }
+    const channelList = services.channels.listActiveByTenant(tenantId);
     return c.json({ channels: channelList });
   });
 
@@ -73,7 +78,7 @@ export function channelRoutes(services: Services): Hono {
     if (!services.tenants.getById(tenantId)) {
       return c.json({ error: 'Tenant not found', code: 'NOT_FOUND' }, 404);
     }
-    const success = await services.channels.archive(tenantId, channelId);
+    const success = await services.channels.archive(tenantId, channelId, true);
     if (!success) {
       return c.json({ error: 'Channel not found or already archived', code: 'NOT_FOUND' }, 404);
     }

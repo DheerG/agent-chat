@@ -30,8 +30,16 @@ export class ChannelService {
     return this.q.getArchivedChannelsByTenant(tenantId);
   }
 
-  async archive(tenantId: string, channelId: string): Promise<boolean> {
-    return this.q.archiveChannel(tenantId, channelId);
+  listActiveByTenant(tenantId: string): Channel[] {
+    return this.q.getActiveChannelsByTenant(tenantId);
+  }
+
+  listByTenantWithStale(tenantId: string): Array<Channel & { stale: boolean }> {
+    return this.q.getChannelsByTenantWithStale(tenantId);
+  }
+
+  async archive(tenantId: string, channelId: string, userInitiated: boolean = false): Promise<boolean> {
+    return this.q.archiveChannel(tenantId, channelId, userInitiated);
   }
 
   async restore(tenantId: string, channelId: string): Promise<boolean> {

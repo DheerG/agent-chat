@@ -11,8 +11,8 @@ export class TenantService {
   async upsertByCodebasePath(name: string, codebasePath: string): Promise<Tenant> {
     const existing = this.q.getTenantByCodebasePath(codebasePath);
     if (existing) {
-      // Auto-restore archived tenant (team was recreated after archival)
-      if (existing.archivedAt) {
+      // Auto-restore archived tenant only if NOT manually archived by user
+      if (existing.archivedAt && !existing.userArchived) {
         await this.q.restoreTenant(existing.id);
         await this.channelQ.restoreChannelsByTenant(existing.id);
       }
@@ -38,9 +38,9 @@ export class TenantService {
   }
 
   async archive(id: string): Promise<boolean> {
-    const success = await this.q.archiveTenant(id);
+    const success = await this.q.archiveTenant(id, true);
     if (success) {
-      await this.channelQ.archiveChannelsByTenant(id);
+      await this.channelQ.archiveChannelsByTenant(id, true);
     }
     return success;
   }

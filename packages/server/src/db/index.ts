@@ -105,6 +105,8 @@ export function createDb(dbPath: string = getDbPath()): DbInstance {
   // Idempotent migrations — SQLite does not support IF NOT EXISTS for ALTER TABLE ADD COLUMN
   try { rawDb.exec('ALTER TABLE tenants ADD COLUMN archived_at TEXT'); } catch { /* column already exists */ }
   try { rawDb.exec('ALTER TABLE channels ADD COLUMN archived_at TEXT'); } catch { /* column already exists */ }
+  try { rawDb.exec('ALTER TABLE channels ADD COLUMN user_archived TEXT'); } catch { /* column already exists */ }
+  try { rawDb.exec('ALTER TABLE tenants ADD COLUMN user_archived TEXT'); } catch { /* column already exists */ }
 
   const db = drizzle(rawDb, { schema });
 

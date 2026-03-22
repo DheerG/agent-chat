@@ -5,6 +5,7 @@ export interface Tenant {
   codebasePath: string; // unique — the project root path
   createdAt: string;   // ISO 8601
   archivedAt: string | null;  // null = active, ISO 8601 = archived
+  userArchived: boolean;  // true when user explicitly archived via UI
 }
 
 // Channel — a conversation thread within a tenant
@@ -17,6 +18,7 @@ export interface Channel {
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;  // null = active, ISO 8601 = archived
+  userArchived: boolean;  // true when user explicitly archived via UI
 }
 
 // Message — append-only, immutable after insert

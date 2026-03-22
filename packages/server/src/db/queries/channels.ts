@@ -15,6 +15,7 @@ function rowToChannel(row: ChannelRow): Channel {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     archivedAt: row.archivedAt ?? null,
+    userArchived: row.userArchived === '1',
   };
 }
 
@@ -27,6 +28,7 @@ interface ChannelRawRow {
   created_at: string;
   updated_at: string;
   archived_at: string | null;
+  user_archived: string | null;
 }
 
 function rawRowToChannel(row: ChannelRawRow): Channel {
@@ -39,6 +41,7 @@ function rawRowToChannel(row: ChannelRawRow): Channel {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at ?? null,
+    userArchived: row.user_archived === '1',
   };
 }
 
@@ -73,12 +76,13 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
         createdAt: now,
         updatedAt: now,
         archivedAt: null,
+        userArchived: false,
       };
     },
 
     getChannelsByTenant(tenantId: string): Channel[] {
       const rows = rawDb.prepare(
-        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at FROM channels WHERE tenant_id = ? AND archived_at IS NULL'
+        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at, user_archived FROM channels WHERE tenant_id = ? AND archived_at IS NULL'
       ).all(tenantId) as ChannelRawRow[];
       return rows.map(rawRowToChannel);
     },
@@ -93,24 +97,25 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
     /** Find a channel by name within a tenant, including archived channels */
     getChannelByName(tenantId: string, name: string): Channel | null {
       const row = rawDb.prepare(
-        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at FROM channels WHERE tenant_id = ? AND name = ? LIMIT 1'
+        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at, user_archived FROM channels WHERE tenant_id = ? AND name = ? LIMIT 1'
       ).get(tenantId, name) as ChannelRawRow | undefined;
       return row ? rawRowToChannel(row) : null;
     },
 
     getArchivedChannelsByTenant(tenantId: string): Channel[] {
       const rows = rawDb.prepare(
-        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at FROM channels WHERE tenant_id = ? AND archived_at IS NOT NULL'
+        'SELECT id, tenant_id, name, session_id, type, created_at, updated_at, archived_at, user_archived FROM channels WHERE tenant_id = ? AND archived_at IS NOT NULL'
       ).all(tenantId) as ChannelRawRow[];
       return rows.map(rawRowToChannel);
     },
 
-    async archiveChannel(tenantId: string, channelId: string): Promise<boolean> {
+    async archiveChannel(tenantId: string, channelId: string, userInitiated: boolean = false): Promise<boolean> {
       const now = new Date().toISOString();
+      const userArchivedVal = userInitiated ? '1' : null;
       const result = await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE channels SET archived_at = ? WHERE id = ? AND tenant_id = ? AND archived_at IS NULL'
-        ).run(now, channelId, tenantId)
+          'UPDATE channels SET archived_at = ?, user_archived = ? WHERE id = ? AND tenant_id = ? AND archived_at IS NULL'
+        ).run(now, userArchivedVal, channelId, tenantId)
       );
       return result.changes > 0;
     },
@@ -118,27 +123,72 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
     async restoreChannel(tenantId: string, channelId: string): Promise<boolean> {
       const result = await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE channels SET archived_at = NULL WHERE id = ? AND tenant_id = ? AND archived_at IS NOT NULL'
+          'UPDATE channels SET archived_at = NULL, user_archived = NULL WHERE id = ? AND tenant_id = ? AND archived_at IS NOT NULL'
         ).run(channelId, tenantId)
       );
       return result.changes > 0;
     },
 
-    async archiveChannelsByTenant(tenantId: string): Promise<void> {
+    async archiveChannelsByTenant(tenantId: string, userInitiated: boolean = false): Promise<void> {
       const now = new Date().toISOString();
+      const userArchivedVal = userInitiated ? '1' : null;
       await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE channels SET archived_at = ? WHERE tenant_id = ?'
-        ).run(now, tenantId)
+          'UPDATE channels SET archived_at = ?, user_archived = ? WHERE tenant_id = ?'
+        ).run(now, userArchivedVal, tenantId)
       );
     },
 
     async restoreChannelsByTenant(tenantId: string): Promise<void> {
       await queue.enqueue(() =>
         rawDb.prepare(
-          'UPDATE channels SET archived_at = NULL WHERE tenant_id = ?'
+          'UPDATE channels SET archived_at = NULL, user_archived = NULL WHERE tenant_id = ?'
         ).run(tenantId)
       );
+    },
+
+    /** Get non-stale, non-archived channels (hides channels with no messages or 48h+ inactive) */
+    getActiveChannelsByTenant(tenantId: string): Channel[] {
+      const rows = rawDb.prepare(
+        `SELECT c.id, c.tenant_id, c.name, c.session_id, c.type, c.created_at, c.updated_at, c.archived_at, c.user_archived
+         FROM channels c
+         LEFT JOIN (
+           SELECT channel_id, MAX(created_at) as last_activity
+           FROM messages
+           GROUP BY channel_id
+         ) m ON c.id = m.channel_id
+         WHERE c.tenant_id = ? AND c.archived_at IS NULL
+           AND (m.last_activity IS NOT NULL AND m.last_activity >= datetime('now', '-48 hours'))
+         ORDER BY c.name`
+      ).all(tenantId) as ChannelRawRow[];
+      return rows.map(rawRowToChannel);
+    },
+
+    /** Get all non-archived channels with a stale indicator */
+    getChannelsByTenantWithStale(tenantId: string): Array<Channel & { stale: boolean }> {
+      interface ChannelWithStaleRow extends ChannelRawRow {
+        is_stale: number;
+      }
+      const rows = rawDb.prepare(
+        `SELECT c.id, c.tenant_id, c.name, c.session_id, c.type, c.created_at, c.updated_at, c.archived_at, c.user_archived,
+           CASE
+             WHEN m.last_activity IS NULL THEN 1
+             WHEN m.last_activity < datetime('now', '-48 hours') THEN 1
+             ELSE 0
+           END as is_stale
+         FROM channels c
+         LEFT JOIN (
+           SELECT channel_id, MAX(created_at) as last_activity
+           FROM messages
+           GROUP BY channel_id
+         ) m ON c.id = m.channel_id
+         WHERE c.tenant_id = ? AND c.archived_at IS NULL
+         ORDER BY c.name`
+      ).all(tenantId) as ChannelWithStaleRow[];
+      return rows.map(row => ({
+        ...rawRowToChannel(row),
+        stale: row.is_stale === 1,
+      }));
     },
   };
 }
