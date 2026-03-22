@@ -137,6 +137,12 @@ Recent decisions affecting current work:
 - [Phase 17]: getChannelByName query finds channels regardless of archive status for conversation continuity
 - [Phase 17]: ChannelService.findByName returns any channel (active or archived) by name within a tenant
 - [Phase 17]: TeamInboxWatcher.processTeam uses findByName + auto-restore pattern (mirrors TenantService upsert)
+- [Phase 18]: user_archived TEXT column on channels and tenants distinguishes user-initiated from system archives
+- [Phase 18]: Stale detection via LEFT JOIN with MAX(messages.created_at) and 48-hour threshold
+- [Phase 18]: GET /channels defaults to hiding stale (no messages or 48h+ inactive); include_stale=true shows all with stale boolean
+- [Phase 18]: TeamInboxWatcher respects user_archived flag — does NOT auto-restore user-archived channels
+- [Phase 18]: TenantService.upsertByCodebasePath respects user_archived flag — does NOT auto-restore user-archived tenants
+- [Phase 18]: Sidebar stale toggle persists in localStorage (agentchat_show_stale key)
 
 ### Roadmap Evolution
 
@@ -161,6 +167,8 @@ Recent decisions affecting current work:
 - Phase 16 completed: All 1 plan executed and verified
 - Phase 17 added: Link team channels for conversation continuity
 - Phase 17 completed: All 1 plan executed and verified
+- Phase 18 added: Auto-hide stale sessions — channels with no activity in 48 hours are hidden by default
+- Phase 18 completed: All 2 plans executed and verified
 
 ### Pending Todos
 
