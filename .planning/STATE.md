@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 17 complete
-last_updated: "2026-03-09T11:48:10.235Z"
+stopped_at: Phase 18 context gathered
+last_updated: "2026-03-22T13:17:33.581Z"
 last_activity: "2026-03-08 - Completed Phase 16: npx-based install and uninstall scripts"
 progress:
-  total_phases: 17
+  total_phases: 18
   completed_phases: 14
   total_plans: 35
   completed_plans: 29
@@ -184,6 +184,6 @@ None — all 17 phases complete:
 
 ## Session Continuity
 
-Last session: 2026-03-09T11:48:10.232Z
-Stopped at: Phase 17 complete
-Resume file: .planning/phases/17-link-team-channels-for-conversation-continuity-sequential-team-sessions-should-share-or-link-channels-instead-of-creating-disjointed-conversations/17-01-SUMMARY.md
+Last session: 2026-03-22T13:17:33.576Z
+Stopped at: Phase 18 context gathered
+Resume file: .planning/phases/18-auto-hide-stale-sessions-channels-with-no-activity-in-48-hours-are-hidden-by-default-persistent-archive-state-across-restarts-and-show-hide-stale-toggle-in-ui/18-CONTEXT.md
