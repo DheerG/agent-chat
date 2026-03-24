@@ -162,6 +162,10 @@ Recent decisions affecting current work:
 - [Phase 22]: getChannelsByNamePrefix query uses SQLite GLOB for finding disambiguated variants
 - [Phase 22]: seenMessages dedup keys tracked per team and cleaned up on removeTeam
 - [Phase 22]: Legacy channels (null sessionId) treated as different session, get disambiguated channel
+- [Phase 23]: TeamInboxWatcher polls for new team directories every 5 seconds via setInterval
+- [Phase 23]: pollForNewTeams() detects both new teams (calls processTeam) and removed teams (calls removeTeam)
+- [Phase 23]: Poll timer cleared in stop() for clean shutdown
+- [Phase 23]: Existing fs.watch recursive watcher retained for file-level inbox changes
 
 ### Roadmap Evolution
 
@@ -196,6 +200,8 @@ Recent decisions affecting current work:
 - Phase 21 completed: All 1 plan executed and verified
 - Phase 22 added: Fix team channel reuse conflict — session identity detection and channel disambiguation
 - Phase 22 completed: All 1 plan executed and verified
+- Phase 23 added: Live team discovery — TeamInboxWatcher detects new team directories at runtime without server restart
+- Phase 23 completed: All 1 plan executed and verified
 
 ### Pending Todos
 

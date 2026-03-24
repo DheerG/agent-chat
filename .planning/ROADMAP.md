@@ -34,6 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 20: Auto-archive stale channels** - Sessions auto-archive after 3 days, team channels archive when team is deleted (completed 2026-03-22)
 - [x] **Phase 21: Auto-restore archived channels on new activity** - Auto-restore archived channels/tenants when new activity arrives, making archive/restore self-healing (completed 2026-03-22)
 - [x] **Phase 22: Fix team channel reuse conflict** - Session identity detection and channel disambiguation when team names are reused across branches (completed 2026-03-22)
+- [x] **Phase 23: Live team discovery** - TeamInboxWatcher detects new team directories at runtime via periodic polling without server restart (completed 2026-03-24)
 
 ## Phase Details
 
@@ -392,4 +393,4 @@ Plans:
 **Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 23-01-PLAN.md — Add periodic poll scan, detect new/removed teams, tests
+- [x] 23-01-PLAN.md — Add periodic poll scan, detect new/removed teams, tests (completed 2026-03-24)
