@@ -389,7 +389,7 @@ Plans:
 **Goal:** TeamInboxWatcher discovers new team directories at runtime via periodic polling, eliminating the need for server restart when new Claude Code teams are created
 **Requirements**: TBD
 **Depends on:** Phase 22
-**Plans:** 0/1 plans complete
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 23-01-PLAN.md — Add periodic poll scan, detect new/removed teams, tests
