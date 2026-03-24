@@ -383,3 +383,13 @@ Plans:
 
 Plans:
 - [x] 22-01-PLAN.md — Session identity detection, channel disambiguation, dedup cleanup, tests (completed 2026-03-22)
+
+### Phase 23: Live team discovery — TeamInboxWatcher detects new team directories at runtime without server restart
+
+**Goal:** TeamInboxWatcher discovers new team directories at runtime via periodic polling, eliminating the need for server restart when new Claude Code teams are created
+**Requirements**: TBD
+**Depends on:** Phase 22
+**Plans:** 0/1 plans complete
+
+Plans:
+- [ ] 23-01-PLAN.md — Add periodic poll scan, detect new/removed teams, tests
