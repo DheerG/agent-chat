@@ -1594,4 +1594,139 @@ describe('TeamInboxWatcher', () => {
       expect(channels[0]!.name).toBe('tracked-team');
     });
   });
+
+  describe('Live team discovery (polling)', () => {
+    it('discovers a new team created after watcher start', async () => {
+      // Start watcher with empty teams directory
+      await watcher.start();
+
+      // No tenants yet
+      expect(services.tenants.listAll().length).toBe(0);
+
+      // Create a new team directory AFTER watcher has started
+      writeTeamConfig(teamsDir, 'late-team');
+      writeInbox(teamsDir, 'late-team', 'team-lead', [
+        { from: 'engineer', text: 'Hello from late team', timestamp: new Date().toISOString() },
+      ]);
+
+      // Trigger poll manually (instead of waiting for 5s interval)
+      await (watcher as any).pollForNewTeams();
+
+      // Team should now be discovered
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      expect(channels.length).toBe(1);
+      expect(channels[0]!.name).toBe('late-team');
+
+      // Messages should be processed (backlog)
+      const msgs = services.messages.list(tenants[0]!.id, channels[0]!.id);
+      expect(msgs.messages.length).toBe(1);
+      expect(msgs.messages[0]!.content).toBe('Hello from late team');
+    });
+
+    it('detects removed team directory via polling', async () => {
+      // Create a team and start
+      writeTeamConfig(teamsDir, 'ephemeral-team');
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      expect(channels.length).toBe(1);
+
+      // Remove the team directory
+      rmSync(join(teamsDir, 'ephemeral-team'), { recursive: true, force: true });
+
+      // Trigger poll
+      await (watcher as any).pollForNewTeams();
+
+      // Channel should be archived (system-initiated)
+      const archived = services.channels.listArchivedByTenant(tenants[0]!.id);
+      expect(archived.length).toBe(1);
+      expect(archived[0]!.name).toBe('ephemeral-team');
+
+      // Active channels should be empty
+      const active = services.channels.listByTenant(tenants[0]!.id);
+      expect(active.length).toBe(0);
+    });
+
+    it('does not re-process already known teams on poll', async () => {
+      writeTeamConfig(teamsDir, 'stable-team');
+      writeInbox(teamsDir, 'stable-team', 'team-lead', [
+        { from: 'engineer', text: 'Message 1', timestamp: new Date().toISOString() },
+      ]);
+
+      await watcher.start();
+
+      const tenants = services.tenants.listAll();
+      const channels = services.channels.listByTenant(tenants[0]!.id);
+      const msgs1 = services.messages.list(tenants[0]!.id, channels[0]!.id);
+      expect(msgs1.messages.length).toBe(1);
+
+      // Poll should not duplicate the team or messages
+      await (watcher as any).pollForNewTeams();
+
+      const tenantsAfter = services.tenants.listAll();
+      expect(tenantsAfter.length).toBe(1);
+
+      const channelsAfter = services.channels.listByTenant(tenants[0]!.id);
+      expect(channelsAfter.length).toBe(1);
+
+      const msgs2 = services.messages.list(tenants[0]!.id, channels[0]!.id);
+      expect(msgs2.messages.length).toBe(1);
+    });
+
+    it('discovers multiple new teams in a single poll cycle', async () => {
+      await watcher.start();
+
+      // Create multiple teams after start
+      writeTeamConfig(teamsDir, 'team-alpha');
+      writeTeamConfig(teamsDir, 'team-beta');
+      writeTeamConfig(teamsDir, 'team-gamma');
+
+      await (watcher as any).pollForNewTeams();
+
+      // Count total channels across all tenants
+      const tenants = services.tenants.listAll();
+      let totalChannels = 0;
+      for (const t of tenants) {
+        totalChannels += services.channels.listByTenant(t.id).length;
+      }
+      expect(totalChannels).toBe(3);
+    });
+
+    it('skips new directories without config.json', async () => {
+      await watcher.start();
+
+      // Create a directory without config.json (not a valid team)
+      mkdirSync(join(teamsDir, 'not-a-team'), { recursive: true });
+
+      await (watcher as any).pollForNewTeams();
+
+      // Should not create any tenants
+      expect(services.tenants.listAll().length).toBe(0);
+    });
+
+    it('handles team appearing then disappearing across poll cycles', async () => {
+      await watcher.start();
+
+      // Team appears
+      writeTeamConfig(teamsDir, 'transient-team');
+      await (watcher as any).pollForNewTeams();
+
+      const tenants = services.tenants.listAll();
+      expect(tenants.length).toBe(1);
+      expect(services.channels.listByTenant(tenants[0]!.id).length).toBe(1);
+
+      // Team disappears
+      rmSync(join(teamsDir, 'transient-team'), { recursive: true, force: true });
+      await (watcher as any).pollForNewTeams();
+
+      // Channel should be archived
+      expect(services.channels.listByTenant(tenants[0]!.id).length).toBe(0);
+      expect(services.channels.listArchivedByTenant(tenants[0]!.id).length).toBe(1);
+    });
+  });
 });
