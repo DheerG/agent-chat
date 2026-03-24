@@ -36,6 +36,9 @@ interface TeamState {
   config: TeamConfig;
 }
 
+/** How often to poll for new team directories (ms) */
+const POLL_INTERVAL_MS = 5_000;
+
 /**
  * TeamInboxWatcher — watches ~/.claude/teams/ for inbox file changes
  * and syncs messages into AgentChat channels in real-time.
@@ -43,8 +46,9 @@ interface TeamState {
  * Architecture:
  * 1. Scans teamsDir for existing teams on start
  * 2. Watches for file changes using fs.watch (recursive on macOS/Windows)
- * 3. Reads inbox JSON files, deduplicates, and posts to MessageService
- * 4. MessageService emits events → WebSocketHub broadcasts to UI
+ * 3. Polls for new/removed team directories every 5 seconds (Phase 23)
+ * 4. Reads inbox JSON files, deduplicates, and posts to MessageService
+ * 5. MessageService emits events → WebSocketHub broadcasts to UI
  */
 export class TeamInboxWatcher {
   private teams = new Map<string, TeamState>();
@@ -53,6 +57,7 @@ export class TeamInboxWatcher {
   private lastProcessedIndex = new Map<string, number>();
   private watchers: FSWatcher[] = [];
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
 
   constructor(
@@ -93,6 +98,12 @@ export class TeamInboxWatcher {
     } catch (err) {
       console.error(JSON.stringify({ event: 'team_watcher_watch_error', error: String(err) }));
     }
+
+    // Poll for new team directories periodically (Phase 23)
+    // Catches teams that fs.watch might miss (race conditions, platform differences)
+    this.pollTimer = setInterval(() => {
+      void this.pollForNewTeams();
+    }, POLL_INTERVAL_MS);
   }
 
   /**
@@ -100,6 +111,12 @@ export class TeamInboxWatcher {
    */
   stop(): void {
     this.started = false;
+
+    // Clear poll timer
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
 
     // Close all watchers
     for (const w of this.watchers) {
@@ -133,6 +150,52 @@ export class TeamInboxWatcher {
     for (const entry of entries) {
       const teamPath = join(this.teamsDir, entry);
       await this.processTeam(entry, teamPath);
+    }
+  }
+
+  /**
+   * Poll for new or removed team directories.
+   * Runs periodically to catch teams that fs.watch might miss.
+   */
+  private async pollForNewTeams(): Promise<void> {
+    if (!this.started) return;
+
+    let entries: string[];
+    try {
+      entries = readdirSync(this.teamsDir);
+    } catch {
+      return;
+    }
+
+    // Detect new teams
+    for (const entry of entries) {
+      if (!this.teams.has(entry)) {
+        const teamPath = join(this.teamsDir, entry);
+        const configPath = join(teamPath, 'config.json');
+        if (existsSync(configPath)) {
+          try {
+            await this.processTeam(entry, teamPath);
+            console.log(JSON.stringify({
+              event: 'team_discovered_by_poll',
+              teamName: entry,
+            }));
+          } catch (err) {
+            console.error(JSON.stringify({
+              event: 'team_poll_discovery_error',
+              teamName: entry,
+              error: String(err),
+            }));
+          }
+        }
+      }
+    }
+
+    // Detect removed teams
+    const currentTeamNames = new Set(entries);
+    for (const teamName of this.teams.keys()) {
+      if (!currentTeamNames.has(teamName)) {
+        await this.removeTeam(teamName);
+      }
     }
   }
 
