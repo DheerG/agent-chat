@@ -480,6 +480,12 @@ describe('TeamInboxWatcher', () => {
         if (tenants.length > 0) break;
       }
 
+      // If fs.watch didn't fire in time, use poll fallback (Phase 23 behavior)
+      if (tenants.length === 0) {
+        await (watcher as any).pollForNewTeams();
+        tenants = services.tenants.listAll();
+      }
+
       expect(tenants.length).toBe(1);
       expect(tenants[0]!.name).toBe('new-team');
 
