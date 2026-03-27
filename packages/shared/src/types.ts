@@ -21,6 +21,12 @@ export interface Channel {
   userArchived: boolean;  // true when user explicitly archived via UI
 }
 
+// RecentChannel — channel with cross-tenant context for "All Chats" view
+export interface RecentChannel extends Channel {
+  tenantName: string;        // tenant name for display in cross-tenant views
+  lastActivity: string | null;  // ISO 8601 timestamp of last message, null if no messages
+}
+
 // Message — append-only, immutable after insert
 export interface Message {
   id: string;          // ULID

@@ -9,6 +9,7 @@ import { messageRoutes } from './routes/messages.js';
 import { hookRoutes } from './routes/hooks.js';
 import { presenceRoutes } from './routes/presence.js';
 import { documentRoutes } from './routes/documents.js';
+import { allChannelRoutes } from './routes/allChannels.js';
 
 export function createApp(services: Services): Hono {
   const app = new Hono();
@@ -20,6 +21,9 @@ export function createApp(services: Services): Hono {
   // Routes
   app.route('/health', healthRoutes());
   app.route('/api/tenants', tenantRoutes(services));
+
+  // Cross-tenant channel routes (not tenant-scoped)
+  app.route('/api/channels', allChannelRoutes(services));
 
   // Channel routes nested under tenants
   // Hono propagates :tenantId param to nested routers when mounted at parameterized paths

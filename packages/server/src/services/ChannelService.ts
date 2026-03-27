@@ -1,4 +1,4 @@
-import type { Channel } from '@agent-chat/shared';
+import type { Channel, RecentChannel } from '@agent-chat/shared';
 import type { createChannelQueries } from '../db/queries/channels.js';
 
 type ChannelQueries = ReturnType<typeof createChannelQueries>;
@@ -41,6 +41,11 @@ export class ChannelService {
 
   listByTenantWithStale(tenantId: string): Array<Channel & { stale: boolean }> {
     return this.q.getChannelsByTenantWithStale(tenantId);
+  }
+
+  /** List recent channels across all tenants, sorted by last activity */
+  listRecentAcrossTenants(limit?: number): RecentChannel[] {
+    return this.q.getRecentChannelsAcrossTenants(limit);
   }
 
   /** Find session channels inactive 72h+ across all tenants (for auto-archive cleanup) */

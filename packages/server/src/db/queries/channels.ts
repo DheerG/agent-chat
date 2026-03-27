@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { ulid } from 'ulid';
 import type { DbInstance } from '../index.js';
 import { channels } from '@agent-chat/shared';
-import type { Channel, ChannelRow } from '@agent-chat/shared';
+import type { Channel, ChannelRow, RecentChannel } from '@agent-chat/shared';
 import type { WriteQueue } from '../queue.js';
 
 function rowToChannel(row: ChannelRow): Channel {
@@ -29,6 +29,11 @@ interface ChannelRawRow {
   updated_at: string;
   archived_at: string | null;
   user_archived: string | null;
+}
+
+interface RecentChannelRawRow extends ChannelRawRow {
+  tenant_name: string;
+  last_activity: string | null;
 }
 
 function rawRowToChannel(row: ChannelRawRow): Channel {
@@ -197,6 +202,29 @@ export function createChannelQueries(instance: DbInstance, queue: WriteQueue) {
            )`
       ).all() as Array<{ id: string; tenant_id: string }>;
       return rows.map(r => ({ id: r.id, tenantId: r.tenant_id }));
+    },
+
+    /** Get recent channels across ALL tenants, sorted by last activity descending */
+    getRecentChannelsAcrossTenants(limit: number = 100): RecentChannel[] {
+      const rows = rawDb.prepare(
+        `SELECT c.id, c.tenant_id, c.name, c.session_id, c.type, c.created_at, c.updated_at, c.archived_at, c.user_archived,
+           t.name as tenant_name,
+           m.last_activity
+         FROM channels c
+         JOIN tenants t ON c.tenant_id = t.id
+         LEFT JOIN (
+           SELECT channel_id, MAX(created_at) as last_activity
+           FROM messages
+           GROUP BY channel_id
+         ) m ON c.id = m.channel_id
+         ORDER BY COALESCE(m.last_activity, c.created_at) DESC
+         LIMIT ?`
+      ).all(limit) as RecentChannelRawRow[];
+      return rows.map(row => ({
+        ...rawRowToChannel(row),
+        tenantName: row.tenant_name,
+        lastActivity: row.last_activity ?? null,
+      }));
     },
 
     /** Get all non-archived channels with a stale indicator (session=8h, manual/team=48h) */
