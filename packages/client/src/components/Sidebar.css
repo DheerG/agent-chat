@@ -327,3 +327,71 @@
   font-size: 0.8rem;
   color: var(--color-text-sidebar-muted);
 }
+
+/* All Chats Toggle */
+.all-chats-toggle {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-sidebar);
+}
+
+.all-chats-btn {
+  width: 100%;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-sidebar-muted);
+  border: 1px solid var(--color-border-sidebar);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  text-align: left;
+}
+
+.all-chats-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-sidebar);
+}
+
+.all-chats-btn--active {
+  background: var(--color-active-sidebar);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+/* All Chats channel info layout */
+.channel-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.channel-tenant-label {
+  font-size: 0.7rem;
+  color: var(--color-text-sidebar-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-time {
+  font-size: 0.7rem;
+  color: var(--color-text-sidebar-muted);
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+/* Archived channel styling in All Chats */
+.channel-item--archived {
+  opacity: 0.45;
+}
+
+.channel-item--archived .channel-name {
+  text-decoration: line-through;
+}
+
+.channel-item--archived:hover {
+  opacity: 0.65;
+}

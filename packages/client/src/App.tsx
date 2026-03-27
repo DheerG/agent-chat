@@ -26,6 +26,7 @@ export function App() {
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [allChatsMode, setAllChatsMode] = useState(false);
 
   // Lift tenants to App level for coordination
   const { tenants, loading: tenantsLoading, error: tenantsError } = useTenants(refreshKey);
@@ -149,6 +150,10 @@ export function App() {
     setRefreshKey(k => k + 1);
   }, []);
 
+  const handleToggleAllChats = useCallback(() => {
+    setAllChatsMode(prev => !prev);
+  }, []);
+
   // Derive current tenant and channel names
   const currentTenant = tenants.find(t => t.id === selectedTenantId);
   const currentChannel = channels.find(c => c.id === selectedChannelId);
@@ -168,6 +173,8 @@ export function App() {
         onRestoreChannel={handleRestoreChannel}
         onRestoreTenant={handleRestoreTenant}
         refreshKey={refreshKey}
+        allChatsMode={allChatsMode}
+        onToggleAllChats={handleToggleAllChats}
       />
       <main className={`main-content ${selectedThread ? 'main-content--with-thread' : ''}`} aria-label="Message area">
         {selectedTenantId && selectedChannelId ? (

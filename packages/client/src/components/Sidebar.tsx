@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useChannels, type ChannelWithStale } from '../hooks/useChannels';
+import { useRecentChannels } from '../hooks/useRecentChannels';
 import { fetchArchivedTenants, fetchArchivedChannels } from '../lib/api';
+import { formatRelativeTime } from '../lib/timeUtils';
 import { ConfirmDialog } from './ConfirmDialog';
-import type { Tenant, Channel } from '@agent-chat/shared';
+import type { Tenant, Channel, RecentChannel } from '@agent-chat/shared';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -18,6 +20,8 @@ interface SidebarProps {
   onRestoreChannel: (tenantId: string, channelId: string) => void;
   onRestoreTenant: (tenantId: string) => void;
   refreshKey: number;
+  allChatsMode: boolean;
+  onToggleAllChats: () => void;
 }
 
 interface PendingArchive {
@@ -145,9 +149,12 @@ export function Sidebar({
   onRestoreChannel,
   onRestoreTenant,
   refreshKey,
+  allChatsMode,
+  onToggleAllChats,
 }: SidebarProps) {
   // Always fetch with stale flag so we can filter client-side
   const { channels, loading: channelsLoading } = useChannels(selectedTenantId, refreshKey, true);
+  const { channels: recentChannels, loading: recentLoading } = useRecentChannels(refreshKey);
   const [pendingArchive, setPendingArchive] = useState<PendingArchive | null>(null);
   const [showStale, setShowStale] = useState<boolean>(() => {
     try {
@@ -222,65 +229,111 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="sidebar-content">
-        {tenantsLoading && <div className="sidebar-loading">Loading tenants...</div>}
-        {tenantsError && <div className="sidebar-error">{tenantsError}</div>}
+      {/* All Chats Toggle */}
+      <div className="all-chats-toggle">
+        <button
+          className={`all-chats-btn ${allChatsMode ? 'all-chats-btn--active' : ''}`}
+          onClick={onToggleAllChats}
+          aria-pressed={allChatsMode}
+        >
+          All Chats
+        </button>
+      </div>
 
-        {/* Channel list for selected tenant */}
-        {selectedTenantId && (
-          <div className="channel-list">
+      <div className="sidebar-content">
+        {allChatsMode && (
+          <div className="all-chats-list">
             <div className="channel-list-header">
-              <span>Channels</span>
-              {hiddenStaleCount > 0 && (
-                <button
-                  className="stale-toggle-btn"
-                  onClick={handleToggleStale}
-                  title={showStale ? 'Hide stale channels' : `Show ${hiddenStaleCount} stale channel${hiddenStaleCount === 1 ? '' : 's'}`}
-                  aria-label={showStale ? 'Hide stale channels' : `Show ${hiddenStaleCount} stale channels`}
-                >
-                  {showStale ? 'Hide stale' : `+${hiddenStaleCount} stale`}
-                </button>
-              )}
+              <span>Recent Chats</span>
             </div>
-            {channelsLoading && <div className="channel-loading">Loading...</div>}
-            {visibleChannels.map((channel) => {
-              const isStale = (channel as ChannelWithStale).stale;
-              return (
-                <div
-                  key={channel.id}
-                  className={`channel-item ${selectedChannelId === channel.id ? 'channel-item--active' : ''} ${isStale ? 'channel-item--stale' : ''}`}
-                  onClick={() => onChannelSelect(selectedTenantId!, channel.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChannelSelect(selectedTenantId!, channel.id); } }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="channel-hash">#</span>
+            {recentLoading && <div className="channel-loading">Loading...</div>}
+            {!recentLoading && recentChannels.length === 0 && (
+              <div className="channel-empty">No chats yet</div>
+            )}
+            {recentChannels.map((channel: RecentChannel) => (
+              <div
+                key={channel.id}
+                className={`channel-item ${selectedChannelId === channel.id ? 'channel-item--active' : ''} ${channel.archivedAt ? 'channel-item--archived' : ''}`}
+                onClick={() => onChannelSelect(channel.tenantId, channel.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChannelSelect(channel.tenantId, channel.id); } }}
+                role="button"
+                tabIndex={0}
+              >
+                <span className="channel-hash">#</span>
+                <div className="channel-info">
                   <span className="channel-name">{channel.name}</span>
-                  <button
-                    className="channel-archive-btn"
-                    title="Archive channel"
-                    aria-label={`Archive #${channel.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPendingArchive({ type: 'channel', tenantId: selectedTenantId!, channelId: channel.id, name: channel.name });
-                    }}
-                  >
-                    &#x2715;
-                  </button>
+                  <span className="channel-tenant-label">{channel.tenantName}</span>
                 </div>
-              );
-            })}
-            {!channelsLoading && visibleChannels.length === 0 && hiddenStaleCount === 0 && (
-              <div className="channel-empty">No channels</div>
-            )}
-            {!channelsLoading && visibleChannels.length === 0 && hiddenStaleCount > 0 && (
-              <div className="channel-empty">All channels are stale</div>
-            )}
+                <span className="channel-time">
+                  {formatRelativeTime(channel.lastActivity ?? channel.createdAt)}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
-        {!tenantsLoading && !tenantsError && tenants.length === 0 && (
-          <div className="sidebar-empty">No tenants found</div>
+        {!allChatsMode && (
+          <>
+            {tenantsLoading && <div className="sidebar-loading">Loading tenants...</div>}
+            {tenantsError && <div className="sidebar-error">{tenantsError}</div>}
+
+            {/* Channel list for selected tenant */}
+            {selectedTenantId && (
+              <div className="channel-list">
+                <div className="channel-list-header">
+                  <span>Channels</span>
+                  {hiddenStaleCount > 0 && (
+                    <button
+                      className="stale-toggle-btn"
+                      onClick={handleToggleStale}
+                      title={showStale ? 'Hide stale channels' : `Show ${hiddenStaleCount} stale channel${hiddenStaleCount === 1 ? '' : 's'}`}
+                      aria-label={showStale ? 'Hide stale channels' : `Show ${hiddenStaleCount} stale channels`}
+                    >
+                      {showStale ? 'Hide stale' : `+${hiddenStaleCount} stale`}
+                    </button>
+                  )}
+                </div>
+                {channelsLoading && <div className="channel-loading">Loading...</div>}
+                {visibleChannels.map((channel) => {
+                  const isStale = (channel as ChannelWithStale).stale;
+                  return (
+                    <div
+                      key={channel.id}
+                      className={`channel-item ${selectedChannelId === channel.id ? 'channel-item--active' : ''} ${isStale ? 'channel-item--stale' : ''}`}
+                      onClick={() => onChannelSelect(selectedTenantId!, channel.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChannelSelect(selectedTenantId!, channel.id); } }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <span className="channel-hash">#</span>
+                      <span className="channel-name">{channel.name}</span>
+                      <button
+                        className="channel-archive-btn"
+                        title="Archive channel"
+                        aria-label={`Archive #${channel.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingArchive({ type: 'channel', tenantId: selectedTenantId!, channelId: channel.id, name: channel.name });
+                        }}
+                      >
+                        &#x2715;
+                      </button>
+                    </div>
+                  );
+                })}
+                {!channelsLoading && visibleChannels.length === 0 && hiddenStaleCount === 0 && (
+                  <div className="channel-empty">No channels</div>
+                )}
+                {!channelsLoading && visibleChannels.length === 0 && hiddenStaleCount > 0 && (
+                  <div className="channel-empty">All channels are stale</div>
+                )}
+              </div>
+            )}
+
+            {!tenantsLoading && !tenantsError && tenants.length === 0 && (
+              <div className="sidebar-empty">No tenants found</div>
+            )}
+          </>
         )}
       </div>
 

@@ -64,6 +64,7 @@ vi.mock('../hooks/useDocuments', () => ({
 vi.mock('../lib/api', () => ({
   fetchArchivedTenants: vi.fn().mockResolvedValue([]),
   fetchArchivedChannels: vi.fn().mockResolvedValue([]),
+  fetchRecentChannels: vi.fn().mockResolvedValue([]),
   archiveChannel: vi.fn(),
   archiveTenant: vi.fn(),
   restoreChannel: vi.fn(),

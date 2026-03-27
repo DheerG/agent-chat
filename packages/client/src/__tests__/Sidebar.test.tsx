@@ -7,13 +7,15 @@ vi.mock('../lib/api', () => ({
   fetchChannels: vi.fn(),
   fetchArchivedTenants: vi.fn(),
   fetchArchivedChannels: vi.fn(),
+  fetchRecentChannels: vi.fn(),
 }));
 
-import { fetchChannels, fetchArchivedTenants, fetchArchivedChannels } from '../lib/api';
+import { fetchChannels, fetchArchivedTenants, fetchArchivedChannels, fetchRecentChannels } from '../lib/api';
 
 const mockFetchChannels = vi.mocked(fetchChannels);
 const mockFetchArchivedTenants = vi.mocked(fetchArchivedTenants);
 const mockFetchArchivedChannels = vi.mocked(fetchArchivedChannels);
+const mockFetchRecentChannels = vi.mocked(fetchRecentChannels);
 
 const mockTenants = [
   { id: 'tenant-1', name: 'Project Alpha', codebasePath: '/alpha', createdAt: '2026-01-01T00:00:00Z', archivedAt: null, userArchived: false },
@@ -42,6 +44,8 @@ const defaultProps = {
   onRestoreChannel: vi.fn(),
   onRestoreTenant: vi.fn(),
   refreshKey: 0,
+  allChatsMode: false,
+  onToggleAllChats: vi.fn(),
 };
 
 beforeEach(() => {
@@ -53,6 +57,7 @@ beforeEach(() => {
   });
   mockFetchArchivedTenants.mockResolvedValue([]);
   mockFetchArchivedChannels.mockResolvedValue([]);
+  mockFetchRecentChannels.mockResolvedValue([]);
 });
 
 describe('Sidebar', () => {
@@ -309,13 +314,15 @@ describe('Stale channel toggle', () => {
     ];
     mockFetchChannels.mockResolvedValue(channelsNoStale);
 
-    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" />);
+    render(<Sidebar {...defaultProps} selectedTenantId="tenant-1" allChatsMode={false} />);
 
     await waitFor(() => {
       expect(screen.getByText('active')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText(/stale/i)).not.toBeInTheDocument();
+    // The "All Chats" button will match /stale/i pattern, so be more specific
+    expect(screen.queryByText('+1 stale')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hide stale')).not.toBeInTheDocument();
   });
 
   test('stale channels have dimmed styling class', async () => {
@@ -342,5 +349,118 @@ describe('Stale channel toggle', () => {
 
     const activeItem = screen.getByText('active').closest('.channel-item');
     expect(activeItem).not.toHaveClass('channel-item--stale');
+  });
+});
+
+describe('All Chats mode', () => {
+  const mockRecentChannels = [
+    {
+      id: 'ch-r1',
+      tenantId: 't-1',
+      name: 'session-alpha',
+      sessionId: null,
+      type: 'manual' as const,
+      createdAt: '2026-03-27T10:00:00Z',
+      updatedAt: '2026-03-27T10:00:00Z',
+      archivedAt: null,
+      userArchived: false,
+      tenantName: 'Project Alpha',
+      lastActivity: '2026-03-27T12:00:00Z',
+    },
+    {
+      id: 'ch-r2',
+      tenantId: 't-2',
+      name: 'archived-chat',
+      sessionId: null,
+      type: 'manual' as const,
+      createdAt: '2026-03-26T08:00:00Z',
+      updatedAt: '2026-03-26T08:00:00Z',
+      archivedAt: '2026-03-27T00:00:00Z',
+      userArchived: true,
+      tenantName: 'Project Beta',
+      lastActivity: '2026-03-26T18:00:00Z',
+    },
+  ];
+
+  test('renders All Chats button', () => {
+    render(<Sidebar {...defaultProps} allChatsMode={false} />);
+    expect(screen.getByRole('button', { name: /all chats/i })).toBeInTheDocument();
+  });
+
+  test('All Chats button calls onToggleAllChats when clicked', () => {
+    const onToggle = vi.fn();
+    render(<Sidebar {...defaultProps} allChatsMode={false} onToggleAllChats={onToggle} />);
+    fireEvent.click(screen.getByRole('button', { name: /all chats/i }));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  test('in All Chats mode, shows channel names with tenant labels', async () => {
+    mockFetchRecentChannels.mockResolvedValue(mockRecentChannels);
+
+    render(<Sidebar {...defaultProps} allChatsMode={true} onToggleAllChats={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('session-alpha')).toBeInTheDocument();
+    });
+
+    // Check that the all-chats list contains tenant labels
+    const allChatsSection = screen.getByText('Recent Chats').closest('.all-chats-list')!;
+    const tenantLabels = allChatsSection.querySelectorAll('.channel-tenant-label');
+    expect(tenantLabels.length).toBe(2);
+    expect(tenantLabels[0]).toHaveTextContent('Project Alpha');
+    expect(tenantLabels[1]).toHaveTextContent('Project Beta');
+
+    // Both channels should appear
+    expect(screen.getByText('session-alpha')).toBeInTheDocument();
+    expect(screen.getByText('archived-chat')).toBeInTheDocument();
+  });
+
+  test('clicking a channel in All Chats calls onChannelSelect with tenantId', async () => {
+    mockFetchRecentChannels.mockResolvedValue(mockRecentChannels);
+    const onChannelSelect = vi.fn();
+
+    render(<Sidebar {...defaultProps} allChatsMode={true} onToggleAllChats={vi.fn()} onChannelSelect={onChannelSelect} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('session-alpha')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('session-alpha'));
+    expect(onChannelSelect).toHaveBeenCalledWith('t-1', 'ch-r1');
+  });
+
+  test('archived channels have archived styling class', async () => {
+    mockFetchRecentChannels.mockResolvedValue(mockRecentChannels);
+
+    render(<Sidebar {...defaultProps} allChatsMode={true} onToggleAllChats={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('archived-chat')).toBeInTheDocument();
+    });
+
+    const archivedItem = screen.getByText('archived-chat').closest('.channel-item');
+    expect(archivedItem).toHaveClass('channel-item--archived');
+  });
+
+  test('All Chats mode hides per-tenant channel list', async () => {
+    mockFetchRecentChannels.mockResolvedValue(mockRecentChannels);
+
+    render(<Sidebar {...defaultProps} allChatsMode={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('session-alpha')).toBeInTheDocument();
+    });
+
+    // Per-tenant "Channels" header should NOT be visible
+    expect(screen.queryByText('Channels')).not.toBeInTheDocument();
+    // "Recent Chats" header should be visible
+    expect(screen.getByText('Recent Chats')).toBeInTheDocument();
+  });
+
+  test('All Chats button has active class when mode is on', () => {
+    mockFetchRecentChannels.mockResolvedValue([]);
+    render(<Sidebar {...defaultProps} allChatsMode={true} />);
+    const btn = screen.getByRole('button', { name: /all chats/i });
+    expect(btn).toHaveClass('all-chats-btn--active');
   });
 });

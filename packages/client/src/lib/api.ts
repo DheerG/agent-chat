@@ -1,4 +1,4 @@
-import type { Tenant, Channel, Message, Presence, PaginationOpts, Document } from '@agent-chat/shared';
+import type { Tenant, Channel, Message, Presence, PaginationOpts, Document, RecentChannel } from '@agent-chat/shared';
 
 const BASE_URL = '/api';
 
@@ -103,5 +103,11 @@ export async function fetchArchivedTenants(): Promise<Tenant[]> {
 
 export async function fetchArchivedChannels(tenantId: string): Promise<Channel[]> {
   const data = await fetchJson<{ channels: Channel[] }>(`${BASE_URL}/tenants/${tenantId}/channels/archived`);
+  return data.channels;
+}
+
+export async function fetchRecentChannels(limit?: number): Promise<RecentChannel[]> {
+  const params = limit ? `?limit=${limit}` : '';
+  const data = await fetchJson<{ channels: RecentChannel[] }>(`${BASE_URL}/channels/recent${params}`);
   return data.channels;
 }
