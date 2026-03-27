@@ -394,3 +394,13 @@ Plans:
 
 Plans:
 - [x] 23-01-PLAN.md — Add periodic poll scan, detect new/removed teams, tests (completed 2026-03-24)
+
+### Phase 24: All Chats view — cross-tenant recent channels list showing all chats (active, stale, archived) in one place sorted by last activity
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 23
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] TBD (run /gsd:plan-phase 24 to break down) (completed 2026-03-27)
