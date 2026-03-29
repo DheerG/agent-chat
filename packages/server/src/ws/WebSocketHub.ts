@@ -1,245 +1,264 @@
 import type { EventEmitter } from 'events';
 import type { WebSocket } from 'ws';
-import type { Message, Document } from '@agent-chat/shared';
+import type { Message, Document, ActivityEvent, WsServerMessage } from '@agent-chat/shared';
 import type { Services } from '../services/index.js';
 
-// Wire protocol types — client → server
-export interface WsSubscribeMessage {
-  type: 'subscribe';
-  channelId: string;
-  lastSeenId?: string;
-}
-
-export interface WsUnsubscribeMessage {
-  type: 'unsubscribe';
-  channelId: string;
-}
-
-export interface WsPingMessage {
-  type: 'ping';
-}
-
-export type WsClientMessage = WsSubscribeMessage | WsUnsubscribeMessage | WsPingMessage;
-
-// Wire protocol types — server → client
-export interface WsServerMessage {
-  type: 'message' | 'catchup' | 'subscribed' | 'unsubscribed' | 'error' | 'pong' | 'document_created' | 'document_updated';
-  [key: string]: unknown;
-}
-
 interface ClientState {
-  tenantId: string;
-  subscribedChannels: Set<string>;
+  subscribedConversations: Set<string>;
+  subscribedAll: boolean;
 }
 
-/**
- * WebSocketHub manages WebSocket subscriptions and broadcasts messages
- * to connected clients. It listens for 'message:created' events on the
- * provided EventEmitter and delivers messages to all clients subscribed
- * to the relevant channel, with tenant isolation enforced at every level.
- */
+// Activity batch buffer for 1-second flush
+interface ActivityBuffer {
+  sessionId: string;
+  eventCount: number;
+  toolsUsed: Set<string>;
+  errorCount: number;
+  lastTool: string | null;
+  filesTouched: Set<string>;
+}
+
 export class WebSocketHub {
-  // channelId → set of subscribed WebSocket clients
-  private channels = new Map<string, Set<WebSocket>>();
-  // WebSocket client → connection metadata
+  private conversations = new Map<string, Set<WebSocket>>();
   private clients = new Map<WebSocket, ClientState>();
+  private allSubscribers = new Set<WebSocket>();
+  private activityBuffers = new Map<string, ActivityBuffer>(); // conversationId -> buffer
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private services: Services,
     emitter: EventEmitter,
   ) {
     emitter.on('message:created', (msg: Message) => {
-      this.broadcastToChannel(msg);
+      this.broadcastToConversation(msg.conversationId, {
+        type: 'message',
+        conversationId: msg.conversationId,
+        message: msg,
+      });
+
+      // Also update summary for sidebar
+      const summary = this.services.conversations.getSummary(msg.conversationId);
+      this.broadcastToAll({
+        type: 'summary_update',
+        conversationId: msg.conversationId,
+        summary,
+      });
+    });
+
+    emitter.on('activity:created', (event: ActivityEvent) => {
+      this.bufferActivity(event);
     });
 
     emitter.on('document:created', (doc: Document) => {
-      this.broadcastDocumentEvent('document_created', doc);
+      this.broadcastToConversation(doc.conversationId, {
+        type: 'message',
+        conversationId: doc.conversationId,
+        message: { type: 'document_created', document: doc } as unknown as Message,
+      });
     });
 
     emitter.on('document:updated', (doc: Document) => {
-      this.broadcastDocumentEvent('document_updated', doc);
+      this.broadcastToConversation(doc.conversationId, {
+        type: 'message',
+        conversationId: doc.conversationId,
+        message: { type: 'document_updated', document: doc } as unknown as Message,
+      });
     });
+
+    // Flush activity buffers every 1 second
+    this.flushTimer = setInterval(() => this.flushActivityBuffers(), 1000);
   }
 
-  /**
-   * Register a new WebSocket connection with its tenant context.
-   */
-  addClient(ws: WebSocket, tenantId: string): void {
+  addClient(ws: WebSocket): void {
     this.clients.set(ws, {
-      tenantId,
-      subscribedChannels: new Set(),
+      subscribedConversations: new Set(),
+      subscribedAll: false,
     });
   }
 
-  /**
-   * Handle an incoming text message from a client.
-   */
-  handleMessage(ws: WebSocket, data: string): void {
-    let parsed: WsClientMessage;
-    try {
-      parsed = JSON.parse(data) as WsClientMessage;
-    } catch {
-      this.sendJson(ws, { type: 'error', error: 'Invalid JSON', code: 'PARSE_ERROR' });
-      return;
-    }
-
-    switch (parsed.type) {
-      case 'subscribe':
-        this.handleSubscribe(ws, parsed);
-        break;
-      case 'unsubscribe':
-        this.handleUnsubscribe(ws, parsed);
-        break;
-      case 'ping':
-        this.sendJson(ws, { type: 'pong' });
-        break;
-      default:
-        this.sendJson(ws, {
-          type: 'error',
-          error: `Unknown message type: ${(parsed as { type: string }).type}`,
-          code: 'UNKNOWN_TYPE',
-        });
-    }
-  }
-
-  /**
-   * Clean up when a client disconnects.
-   */
-  handleDisconnect(ws: WebSocket): void {
+  handleMessage(ws: WebSocket, raw: string): void {
     const state = this.clients.get(ws);
     if (!state) return;
 
-    // Remove from all channel subscription sets
-    for (const channelId of state.subscribedChannels) {
-      const subs = this.channels.get(channelId);
-      if (subs) {
-        subs.delete(ws);
-        if (subs.size === 0) {
-          this.channels.delete(channelId);
-        }
-      }
+    let msg: { type: string; conversationIds?: string[]; lastSeenId?: string };
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      this.send(ws, { type: 'error', error: 'Invalid JSON' } as unknown as WsServerMessage);
+      return;
     }
 
+    switch (msg.type) {
+      case 'subscribe': {
+        const ids = msg.conversationIds ?? [];
+        for (const id of ids) {
+          state.subscribedConversations.add(id);
+          if (!this.conversations.has(id)) this.conversations.set(id, new Set());
+          this.conversations.get(id)!.add(ws);
+        }
+        this.send(ws, { type: 'subscribed', conversationIds: ids } as unknown as WsServerMessage);
+
+        // Send catchup if lastSeenId provided
+        if (msg.lastSeenId && ids.length === 1) {
+          const conversationId = ids[0]!;
+          const messages = this.services.messages.list(conversationId, { after: msg.lastSeenId, limit: 100 });
+          for (const m of messages.messages) {
+            this.send(ws, { type: 'message', conversationId, message: m });
+          }
+        }
+        break;
+      }
+
+      case 'subscribe_all': {
+        state.subscribedAll = true;
+        this.allSubscribers.add(ws);
+        this.send(ws, { type: 'subscribed_all' } as unknown as WsServerMessage);
+        break;
+      }
+
+      case 'unsubscribe': {
+        const ids = msg.conversationIds ?? [];
+        for (const id of ids) {
+          state.subscribedConversations.delete(id);
+          this.conversations.get(id)?.delete(ws);
+        }
+        break;
+      }
+
+      case 'ping': {
+        this.send(ws, { type: 'pong' } as unknown as WsServerMessage);
+        break;
+      }
+    }
+  }
+
+  handleDisconnect(ws: WebSocket): void {
+    const state = this.clients.get(ws);
+    if (state) {
+      for (const id of state.subscribedConversations) {
+        this.conversations.get(id)?.delete(ws);
+      }
+    }
+    this.allSubscribers.delete(ws);
     this.clients.delete(ws);
   }
 
-  /**
-   * Close all connections (for graceful shutdown).
-   */
+  broadcastToConversation(conversationId: string, msg: WsServerMessage): void {
+    const subscribers = this.conversations.get(conversationId);
+    if (subscribers) {
+      const payload = JSON.stringify(msg);
+      for (const ws of subscribers) {
+        this.sendRaw(ws, payload);
+      }
+    }
+
+    // Also send to subscribe_all clients
+    const payload = JSON.stringify(msg);
+    for (const ws of this.allSubscribers) {
+      // Don't double-send to clients that are also specifically subscribed
+      if (!subscribers?.has(ws)) {
+        this.sendRaw(ws, payload);
+      }
+    }
+  }
+
+  broadcastToAll(msg: WsServerMessage): void {
+    const payload = JSON.stringify(msg);
+    for (const ws of this.clients.keys()) {
+      this.sendRaw(ws, payload);
+    }
+  }
+
+  broadcastStatusChange(conversationId: string, status: string, previousStatus: string): void {
+    this.broadcastToAll({
+      type: 'status_change',
+      conversationId,
+      status,
+      previousStatus,
+    });
+  }
+
+  broadcastConversationCreated(conversation: unknown): void {
+    this.broadcastToAll({
+      type: 'conversation_created',
+      conversation,
+    } as WsServerMessage);
+  }
+
+  broadcastAttentionNeeded(conversationId: string, sessionId: string, agentName: string, question: string, options?: string[]): void {
+    this.broadcastToAll({
+      type: 'attention_needed',
+      conversationId,
+      sessionId,
+      agentName,
+      question,
+      options,
+    });
+  }
+
+  private bufferActivity(event: ActivityEvent): void {
+    let buffer = this.activityBuffers.get(event.conversationId);
+    if (!buffer) {
+      buffer = {
+        sessionId: event.sessionId,
+        eventCount: 0,
+        toolsUsed: new Set(),
+        errorCount: 0,
+        lastTool: null,
+        filesTouched: new Set(),
+      };
+      this.activityBuffers.set(event.conversationId, buffer);
+    }
+
+    buffer.eventCount++;
+    if (event.toolName) {
+      buffer.toolsUsed.add(event.toolName);
+      buffer.lastTool = event.toolName;
+    }
+    if (event.isError) buffer.errorCount++;
+    if (event.filePaths) {
+      for (const p of event.filePaths) buffer.filesTouched.add(p);
+    }
+  }
+
+  private flushActivityBuffers(): void {
+    for (const [conversationId, buffer] of this.activityBuffers) {
+      this.broadcastToConversation(conversationId, {
+        type: 'activity',
+        conversationId,
+        summary: {
+          sessionId: buffer.sessionId,
+          eventCount: buffer.eventCount,
+          toolsUsed: [...buffer.toolsUsed],
+          errorCount: buffer.errorCount,
+          lastTool: buffer.lastTool,
+          filesTouched: [...buffer.filesTouched],
+        },
+      });
+    }
+    this.activityBuffers.clear();
+  }
+
   closeAll(): void {
-    for (const [ws] of this.clients) {
-      try {
-        ws.close(1001, 'Server shutting down');
-      } catch {
-        // Ignore errors during shutdown
-      }
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
     }
-    this.channels.clear();
+    for (const ws of this.clients.keys()) {
+      try { ws.close(); } catch { /* ignore */ }
+    }
     this.clients.clear();
+    this.conversations.clear();
+    this.allSubscribers.clear();
   }
 
-  get clientCount(): number {
-    return this.clients.size;
+  private send(ws: WebSocket, msg: WsServerMessage): void {
+    this.sendRaw(ws, JSON.stringify(msg));
   }
 
-  private handleSubscribe(ws: WebSocket, msg: WsSubscribeMessage): void {
-    const state = this.clients.get(ws);
-    if (!state) {
-      this.sendJson(ws, { type: 'error', error: 'Connection not registered', code: 'NOT_REGISTERED' });
-      return;
-    }
-
-    // Tenant isolation: verify channel belongs to this tenant
-    const channel = this.services.channels.getById(state.tenantId, msg.channelId);
-    if (!channel) {
-      this.sendJson(ws, {
-        type: 'error',
-        error: 'Channel not found or not in your tenant',
-        code: 'CHANNEL_NOT_FOUND',
-      });
-      return;
-    }
-
-    // Add to subscription set
-    state.subscribedChannels.add(msg.channelId);
-    if (!this.channels.has(msg.channelId)) {
-      this.channels.set(msg.channelId, new Set());
-    }
-    this.channels.get(msg.channelId)!.add(ws);
-
-    // Handle reconnect catch-up if lastSeenId provided
-    if (msg.lastSeenId) {
-      const result = this.services.messages.list(state.tenantId, msg.channelId, {
-        after: msg.lastSeenId,
-      });
-      this.sendJson(ws, {
-        type: 'catchup',
-        messages: result.messages,
-        hasMore: result.pagination.hasMore,
-      });
-    }
-
-    this.sendJson(ws, { type: 'subscribed', channelId: msg.channelId });
-  }
-
-  private handleUnsubscribe(ws: WebSocket, msg: WsUnsubscribeMessage): void {
-    const state = this.clients.get(ws);
-    if (!state) return;
-
-    state.subscribedChannels.delete(msg.channelId);
-    const subs = this.channels.get(msg.channelId);
-    if (subs) {
-      subs.delete(ws);
-      if (subs.size === 0) {
-        this.channels.delete(msg.channelId);
-      }
-    }
-
-    this.sendJson(ws, { type: 'unsubscribed', channelId: msg.channelId });
-  }
-
-  private broadcastToChannel(message: Message): void {
-    const subs = this.channels.get(message.channelId);
-    if (!subs || subs.size === 0) return;
-
-    const frame = JSON.stringify({ type: 'message', message });
-
-    for (const ws of subs) {
-      const state = this.clients.get(ws);
-      // Double-check tenant isolation on broadcast
-      if (state && state.tenantId === message.tenantId) {
-        try {
-          ws.send(frame);
-        } catch {
-          // Client may have disconnected — cleanup happens in handleDisconnect
-        }
-      }
-    }
-  }
-
-  private broadcastDocumentEvent(type: 'document_created' | 'document_updated', document: Document): void {
-    const subs = this.channels.get(document.channelId);
-    if (!subs || subs.size === 0) return;
-
-    const frame = JSON.stringify({ type, document });
-
-    for (const ws of subs) {
-      const state = this.clients.get(ws);
-      if (state && state.tenantId === document.tenantId) {
-        try {
-          ws.send(frame);
-        } catch {
-          // Client may have disconnected
-        }
-      }
-    }
-  }
-
-  private sendJson(ws: WebSocket, data: WsServerMessage): void {
+  private sendRaw(ws: WebSocket, payload: string): void {
     try {
-      ws.send(JSON.stringify(data));
-    } catch {
-      // Client may have disconnected
-    }
+      if (ws.readyState === 1) ws.send(payload);
+    } catch { /* client gone */ }
   }
 }

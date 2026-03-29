@@ -1,224 +1,159 @@
-import { useState, useCallback, useEffect } from 'react';
-import type { Message, Document } from '@agent-chat/shared';
-import { Sidebar } from './components/Sidebar';
-import { ChannelHeader } from './components/ChannelHeader';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import type { Message, WsServerMessage, Session, ConversationListItem } from '@agent-chat/shared';
+import { ConversationList } from './components/ConversationList';
+import { ConversationHeader } from './components/ConversationHeader';
 import { MessageFeed } from './components/MessageFeed';
-import { ThreadPanel } from './components/ThreadPanel';
-import { DocumentPanel } from './components/DocumentPanel';
-import { usePresence } from './hooks/usePresence';
-import { useMessages } from './hooks/useMessages';
-import { useDocuments } from './hooks/useDocuments';
+import { useConversations } from './hooks/useConversations';
+import { useFeed } from './hooks/useFeed';
 import { useWebSocket } from './hooks/useWebSocket';
-import { useTenants } from './hooks/useTenants';
-import { useChannels } from './hooks/useChannels';
-import {
-  archiveChannel as apiArchiveChannel,
-  archiveTenant as apiArchiveTenant,
-  restoreChannel as apiRestoreChannel,
-  restoreTenant as apiRestoreTenant,
-} from './lib/api';
+import { fetchConversation } from './lib/api';
 import './App.css';
 
-const TENANT_STORAGE_KEY = 'agentchat_selected_tenant';
-
 export function App() {
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
-  const [selectedThread, setSelectedThread] = useState<Message | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'active' | 'recent' | 'all'>('active');
   const [refreshKey, setRefreshKey] = useState(0);
-  const [allChatsMode, setAllChatsMode] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
 
-  // Lift tenants to App level for coordination
-  const { tenants, loading: tenantsLoading, error: tenantsError } = useTenants(refreshKey);
+  const { conversations, loading, error, updateConversation, addConversation, reSort } = useConversations(tab, refreshKey);
+  const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
-  // Get channels for selected tenant (used to derive channel name)
-  // Include stale channels so we can find the name of any selected channel
-  const { channels } = useChannels(selectedTenantId, refreshKey, true);
-
-  // Auto-select tenant from localStorage or first available
+  // Load conversation details when selected
   useEffect(() => {
-    if (tenantsLoading || tenants.length === 0) return;
-    // Already selected and valid — skip
-    if (selectedTenantId && tenants.find(t => t.id === selectedTenantId)) return;
+    if (!selectedId) { setSessions([]); setSelectedConversation(null); return; }
+    // Clear unread count for selected conversation
+    setUnreadCounts(prev => { const next = new Map(prev); next.delete(selectedId); return next; });
+    fetchConversation(selectedId).then(data => {
+      setSessions(data.sessions);
+      setSelectedConversation({
+        ...data.conversation,
+        summary: data.summary,
+      } as ConversationListItem);
+    }).catch(() => {});
+  }, [selectedId]);
 
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem(TENANT_STORAGE_KEY);
-    } catch {
-      // localStorage may not be available in test environments
+  // WebSocket handler
+  const handleWsMessage = useCallback((msg: WsServerMessage) => {
+    switch (msg.type) {
+      case 'message': {
+        const wsMsg = msg as { conversationId: string; message: Message };
+        if (wsMsg.conversationId === selectedIdRef.current) {
+          addMessage(wsMsg.message);
+        } else {
+          // Track unread for non-selected conversations
+          setUnreadCounts(prev => {
+            const next = new Map(prev);
+            next.set(wsMsg.conversationId, (prev.get(wsMsg.conversationId) ?? 0) + 1);
+            return next;
+          });
+        }
+        break;
+      }
+      case 'activity': {
+        // Activity batch — trigger re-sort on activity
+        reSort();
+        break;
+      }
+      case 'summary_update': {
+        const upd = msg as { conversationId: string; summary: unknown };
+        updateConversation(upd.conversationId, { summary: upd.summary } as Partial<ConversationListItem>);
+        reSort();
+        break;
+      }
+      case 'status_change': {
+        const sc = msg as { conversationId: string; status: string };
+        updateConversation(sc.conversationId, { status: sc.status } as Partial<ConversationListItem>);
+        reSort();
+        break;
+      }
+      case 'conversation_created': {
+        const cc = msg as { conversation: ConversationListItem };
+        addConversation(cc.conversation);
+        break;
+      }
+      case 'conversation_lifecycle': {
+        // Conversation archived/restored — refresh the list
+        setRefreshKey(k => k + 1);
+        break;
+      }
+      case 'session_event': {
+        // Agent session started/stopped/idle — refresh sessions for selected conversation
+        const se = msg as { conversationId: string; sessionId: string; event: string; agentName?: string };
+        if (se.conversationId === selectedIdRef.current) {
+          setSessions(prev => prev.map(s =>
+            s.id === se.sessionId
+              ? { ...s, status: se.event === 'started' ? 'active' : se.event === 'stopped' ? 'stopped' : 'idle' as Session['status'] }
+              : s
+          ));
+        }
+        break;
+      }
+      case 'attention_needed': {
+        const an = msg as { conversationId: string };
+        updateConversation(an.conversationId, { attentionNeeded: true } as Partial<ConversationListItem>);
+        break;
+      }
     }
-    if (saved && tenants.find(t => t.id === saved)) {
-      setSelectedTenantId(saved);
+  }, [addMessage, updateConversation, addConversation, reSort]);
+
+  useWebSocket(handleWsMessage);
+
+  // Update tab title
+  useEffect(() => {
+    const needsAttention = conversations.some(c => c.attentionNeeded);
+    const totalUnread = Array.from(unreadCounts.values()).reduce((sum, n) => sum + n, 0);
+    if (needsAttention) {
+      document.title = '(!) AgentChat';
+    } else if (totalUnread > 0) {
+      document.title = `(${totalUnread}) AgentChat`;
     } else {
-      setSelectedTenantId(tenants[0]!.id);
+      document.title = 'AgentChat';
     }
-  }, [tenants, tenantsLoading, selectedTenantId]);
+  }, [conversations, unreadCounts]);
 
-  const { getStatus } = usePresence(selectedTenantId, selectedChannelId);
-  const { messages, loading, error, sendMessage, addMessage, lastSeenId } = useMessages(selectedTenantId, selectedChannelId);
-  const { documents, loading: docsLoading, error: docsError, addDocument, updateDocument: updateDoc } = useDocuments(selectedTenantId, selectedChannelId);
-
-  // WebSocket message handler
-  const handleWsMessage = useCallback((msg: Message) => {
-    if (selectedChannelId && msg.channelId === selectedChannelId) {
-      addMessage(msg);
-    }
-  }, [selectedChannelId, addMessage]);
-
-  // WebSocket document handlers
-  const handleDocCreated = useCallback((doc: Document) => {
-    if (selectedChannelId && doc.channelId === selectedChannelId) {
-      addDocument(doc);
-    }
-  }, [selectedChannelId, addDocument]);
-
-  const handleDocUpdated = useCallback((doc: Document) => {
-    if (selectedChannelId && doc.channelId === selectedChannelId) {
-      updateDoc(doc);
-    }
-  }, [selectedChannelId, updateDoc]);
-
-  const { subscribe, unsubscribe } = useWebSocket(selectedTenantId, handleWsMessage, handleDocCreated, handleDocUpdated);
-
-  const handleTenantSelect = useCallback((tenantId: string) => {
-    // Unsubscribe from old channel
-    if (selectedChannelId) unsubscribe(selectedChannelId);
-    setSelectedTenantId(tenantId);
-    setSelectedChannelId(null);
-    setSelectedThread(null);
-    try {
-      localStorage.setItem(TENANT_STORAGE_KEY, tenantId);
-    } catch {
-      // localStorage may not be available
-    }
-  }, [selectedChannelId, unsubscribe]);
-
-  const handleChannelSelect = useCallback((tenantId: string, channelId: string) => {
-    // Unsubscribe from old channel
-    if (selectedChannelId) {
-      unsubscribe(selectedChannelId);
-    }
-    setSelectedTenantId(tenantId);
-    setSelectedChannelId(channelId);
-    setSelectedThread(null);
-    // Subscribe to new channel
-    subscribe(channelId);
-  }, [selectedChannelId, subscribe, unsubscribe]);
-
-  const handleThreadOpen = useCallback((parentMessage: Message) => {
-    setSelectedThread(parentMessage);
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
   }, []);
-
-  const handleThreadClose = useCallback(() => {
-    setSelectedThread(null);
-  }, []);
-
-  const handleSend = useCallback((content: string) => {
-    void sendMessage(content);
-  }, [sendMessage]);
-
-  const handleArchiveChannel = useCallback(async (tenantId: string, channelId: string) => {
-    await apiArchiveChannel(tenantId, channelId);
-    // If archiving the currently-viewed channel, deselect it
-    if (channelId === selectedChannelId) {
-      if (selectedChannelId) unsubscribe(selectedChannelId);
-      setSelectedChannelId(null);
-      setSelectedThread(null);
-    }
-    setRefreshKey(k => k + 1);
-  }, [selectedChannelId, unsubscribe]);
-
-  const handleArchiveTenant = useCallback(async (tenantId: string) => {
-    await apiArchiveTenant(tenantId);
-    // If currently viewing a channel in this tenant, deselect
-    if (tenantId === selectedTenantId) {
-      if (selectedChannelId) unsubscribe(selectedChannelId);
-      setSelectedChannelId(null);
-      setSelectedTenantId(null);
-      setSelectedThread(null);
-    }
-    setRefreshKey(k => k + 1);
-  }, [selectedTenantId, selectedChannelId, unsubscribe]);
-
-  const handleRestoreChannel = useCallback(async (tenantId: string, channelId: string) => {
-    await apiRestoreChannel(tenantId, channelId);
-    setRefreshKey(k => k + 1);
-  }, []);
-
-  const handleRestoreTenant = useCallback(async (tenantId: string) => {
-    await apiRestoreTenant(tenantId);
-    setRefreshKey(k => k + 1);
-  }, []);
-
-  const handleToggleAllChats = useCallback(() => {
-    setAllChatsMode(prev => !prev);
-  }, []);
-
-  // Derive current tenant and channel names
-  const currentTenant = tenants.find(t => t.id === selectedTenantId);
-  const currentChannel = channels.find(c => c.id === selectedChannelId);
 
   return (
     <div className="app">
-      <Sidebar
-        selectedTenantId={selectedTenantId}
-        selectedChannelId={selectedChannelId}
-        tenants={tenants}
-        tenantsLoading={tenantsLoading}
-        tenantsError={tenantsError}
-        onTenantSelect={handleTenantSelect}
-        onChannelSelect={handleChannelSelect}
-        onArchiveChannel={handleArchiveChannel}
-        onArchiveTenant={handleArchiveTenant}
-        onRestoreChannel={handleRestoreChannel}
-        onRestoreTenant={handleRestoreTenant}
-        refreshKey={refreshKey}
-        allChatsMode={allChatsMode}
-        onToggleAllChats={handleToggleAllChats}
+      <ConversationList
+        conversations={conversations}
+        loading={loading}
+        error={error}
+        selectedId={selectedId}
+        tab={tab}
+        onTabChange={setTab}
+        onSelect={handleSelect}
+        unreadCounts={unreadCounts}
       />
-      <main className={`main-content ${selectedThread ? 'main-content--with-thread' : ''}`} aria-label="Message area">
-        {selectedTenantId && selectedChannelId ? (
+
+      <main className="main-content" aria-label="Conversation">
+        {selectedId && selectedConversation ? (
           <>
-            <ChannelHeader
-              channelName={currentChannel?.name ?? ''}
-              tenantName={currentTenant?.name ?? ''}
+            <ConversationHeader
+              conversation={selectedConversation}
+              sessions={sessions}
             />
             <MessageFeed
-              tenantId={selectedTenantId}
-              channelId={selectedChannelId}
-              getPresenceStatus={getStatus}
-              onThreadOpen={handleThreadOpen}
-              messages={messages}
-              loading={loading}
-              error={error}
-              onSend={handleSend}
-              lastSeenId={lastSeenId}
-            />
-            <DocumentPanel
-              documents={documents}
-              loading={docsLoading}
-              error={docsError}
+              items={items}
+              loading={feedLoading}
+              error={feedError}
             />
           </>
         ) : (
           <div className="placeholder">
             <div className="placeholder-content">
-              <h2 className="placeholder-title">Welcome to AgentChat</h2>
-              <p className="placeholder-text">Select a channel from the sidebar to view messages</p>
+              <h2 className="placeholder-title">Welcome to AgentChat v2</h2>
+              <p className="placeholder-text">Select a conversation to view agent activity</p>
             </div>
           </div>
         )}
       </main>
-      {selectedThread && selectedTenantId && selectedChannelId && (
-        <ThreadPanel
-          tenantId={selectedTenantId}
-          channelId={selectedChannelId}
-          parentMessage={selectedThread}
-          allMessages={messages}
-          onClose={handleThreadClose}
-          getPresenceStatus={getStatus}
-        />
-      )}
     </div>
   );
 }

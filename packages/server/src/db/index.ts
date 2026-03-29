@@ -5,33 +5,38 @@ import * as path from 'path';
 import * as schema from '@agent-chat/shared';
 import { getDbPath } from './config.js';
 
-// Raw SQL DDL — applied at startup to ensure tables exist.
-// Using raw SQL instead of drizzle-kit push (which is a CLI tool, not a runtime API).
 const CREATE_TABLES_SQL = `
-  CREATE TABLE IF NOT EXISTS tenants (
+  CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    codebase_path TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS channels (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL REFERENCES tenants(id),
-    name TEXT NOT NULL,
-    session_id TEXT,
-    type TEXT NOT NULL DEFAULT 'manual',
+    workspace_path TEXT,
+    workspace_name TEXT,
+    type TEXT NOT NULL DEFAULT 'team',
+    status TEXT NOT NULL DEFAULT 'active',
+    attention_needed INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    archived_at TEXT
   );
 
-  CREATE INDEX IF NOT EXISTS idx_channels_tenant ON channels(tenant_id);
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT REFERENCES conversations(id),
+    agent_name TEXT,
+    agent_type TEXT,
+    model TEXT,
+    cwd TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    parent_session_id TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_conversation ON sessions(conversation_id);
 
   CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
-    channel_id TEXT NOT NULL REFERENCES channels(id),
-    tenant_id TEXT NOT NULL REFERENCES tenants(id),
-    parent_message_id TEXT REFERENCES messages(id),
+    conversation_id TEXT NOT NULL REFERENCES conversations(id),
+    parent_message_id TEXT,
     sender_id TEXT NOT NULL,
     sender_name TEXT NOT NULL,
     sender_type TEXT NOT NULL,
@@ -40,43 +45,56 @@ const CREATE_TABLES_SQL = `
     metadata TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL
   );
-
-  CREATE INDEX IF NOT EXISTS idx_messages_tenant_channel ON messages(tenant_id, channel_id, id);
+  CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
   CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
 
-  CREATE TABLE IF NOT EXISTS presence (
-    agent_id TEXT NOT NULL,
-    tenant_id TEXT NOT NULL REFERENCES tenants(id),
-    channel_id TEXT NOT NULL REFERENCES channels(id),
-    status TEXT NOT NULL DEFAULT 'active',
-    last_seen_at TEXT NOT NULL,
-    PRIMARY KEY (agent_id, tenant_id, channel_id)
+  CREATE TABLE IF NOT EXISTS activity_events (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id),
+    session_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    tool_name TEXT,
+    file_paths TEXT,
+    is_error INTEGER NOT NULL DEFAULT 0,
+    summary TEXT,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_activity_conversation ON activity_events(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_events(session_id, created_at);
 
-  CREATE INDEX IF NOT EXISTS idx_presence_tenant ON presence(tenant_id);
+  CREATE TABLE IF NOT EXISTS conversation_summaries (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
+    total_events INTEGER NOT NULL DEFAULT 0,
+    total_errors INTEGER NOT NULL DEFAULT 0,
+    files_touched_count INTEGER NOT NULL DEFAULT 0,
+    last_event_at TEXT,
+    total_messages INTEGER NOT NULL DEFAULT 0,
+    last_message_at TEXT,
+    last_message_preview TEXT,
+    last_message_sender TEXT,
+    active_session_count INTEGER NOT NULL DEFAULT 0,
+    total_session_count INTEGER NOT NULL DEFAULT 0,
+    has_stop_event INTEGER NOT NULL DEFAULT 0,
+    has_error INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT,
+    ended_at TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    updated_at TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
-    channel_id TEXT NOT NULL REFERENCES channels(id),
-    tenant_id TEXT NOT NULL REFERENCES tenants(id),
+    conversation_id TEXT NOT NULL REFERENCES conversations(id),
     title TEXT NOT NULL,
     content TEXT NOT NULL DEFAULT '',
     content_type TEXT NOT NULL DEFAULT 'text',
     created_by_id TEXT NOT NULL,
     created_by_name TEXT NOT NULL,
-    created_by_type TEXT NOT NULL DEFAULT 'agent',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
-
-  CREATE INDEX IF NOT EXISTS idx_documents_tenant_channel ON documents(tenant_id, channel_id);
-
-  CREATE TABLE IF NOT EXISTS checkins (
-    agent_id TEXT NOT NULL,
-    tenant_id TEXT NOT NULL REFERENCES tenants(id),
-    last_checkin_at TEXT NOT NULL,
-    PRIMARY KEY (agent_id, tenant_id)
-  );
+  CREATE INDEX IF NOT EXISTS idx_documents_conversation ON documents(conversation_id);
 `;
 
 export interface DbInstance {
@@ -86,27 +104,18 @@ export interface DbInstance {
 }
 
 export function createDb(dbPath: string = getDbPath()): DbInstance {
-  // Ensure parent directory exists (skip for in-memory DB)
   if (dbPath !== ':memory:') {
     mkdirSync(path.dirname(dbPath), { recursive: true });
   }
 
   const rawDb = new Database(dbPath);
 
-  // Configure SQLite pragmas — WAL mode MUST come first
   rawDb.pragma('journal_mode = WAL');
   rawDb.pragma('busy_timeout = 5000');
   rawDb.pragma('synchronous = NORMAL');
   rawDb.pragma('foreign_keys = ON');
 
-  // Apply schema DDL
   rawDb.exec(CREATE_TABLES_SQL);
-
-  // Idempotent migrations — SQLite does not support IF NOT EXISTS for ALTER TABLE ADD COLUMN
-  try { rawDb.exec('ALTER TABLE tenants ADD COLUMN archived_at TEXT'); } catch { /* column already exists */ }
-  try { rawDb.exec('ALTER TABLE channels ADD COLUMN archived_at TEXT'); } catch { /* column already exists */ }
-  try { rawDb.exec('ALTER TABLE channels ADD COLUMN user_archived TEXT'); } catch { /* column already exists */ }
-  try { rawDb.exec('ALTER TABLE tenants ADD COLUMN user_archived TEXT'); } catch { /* column already exists */ }
 
   const db = drizzle(rawDb, { schema });
 
@@ -117,7 +126,6 @@ export function createDb(dbPath: string = getDbPath()): DbInstance {
   };
 }
 
-// Production singleton — lazily initialized
 let _instance: DbInstance | null = null;
 
 export function getDb(): DbInstance {

@@ -1,30 +1,18 @@
-// packages/server/src/lib.ts — library exports for MCP and other consumers
-// This file provides side-effect-free access to the server's data layer.
-// Use this instead of index.ts which starts the HTTP server.
-
+// Library exports for MCP and other consumers
 export { createDb, getDb, closeDb } from './db/index.js';
 export type { DbInstance } from './db/index.js';
 export { WriteQueue } from './db/queue.js';
 export { createServices } from './services/index.js';
 export type { Services } from './services/index.js';
-export { TenantService } from './services/TenantService.js';
-export { ChannelService } from './services/ChannelService.js';
+export { ConversationService } from './services/ConversationService.js';
+export { SessionService } from './services/SessionService.js';
 export { MessageService } from './services/MessageService.js';
-export { PresenceService } from './services/PresenceService.js';
+export { ActivityEventService } from './services/ActivityEventService.js';
 export { DocumentService } from './services/DocumentService.js';
-export { CheckinService } from './services/CheckinService.js';
-export { AutoArchiveService } from './services/AutoArchiveService.js';
 export type { PaginatedMessages, SendMessageData } from './services/MessageService.js';
 export type { CreateDocumentData, UpdateDocumentData } from './services/DocumentService.js';
 export { createApp } from './http/app.js';
-export { dispatchHookEvent } from './hooks/handlers.js';
+export { dispatchHookEvent, getPendingSessions } from './hooks/handlers.js';
 export type { HookPayload, HookResult } from './hooks/handlers.js';
 export { WebSocketHub } from './ws/index.js';
-export type {
-  WsClientMessage,
-  WsServerMessage,
-  WsSubscribeMessage,
-  WsUnsubscribeMessage,
-  WsPingMessage,
-} from './ws/index.js';
 export { TeamInboxWatcher } from './watcher/index.js';

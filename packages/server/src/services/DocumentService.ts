@@ -1,17 +1,15 @@
+import type { EventEmitter } from 'events';
 import type { Document } from '@agent-chat/shared';
 import type { createDocumentQueries } from '../db/queries/documents.js';
-import type { EventEmitter } from 'events';
 
 type DocumentQueries = ReturnType<typeof createDocumentQueries>;
 
 export interface CreateDocumentData {
-  channelId: string;
   title: string;
   content: string;
   contentType?: 'text' | 'markdown' | 'json';
   createdById: string;
   createdByName: string;
-  createdByType: 'agent' | 'human';
 }
 
 export interface UpdateDocumentData {
@@ -25,27 +23,23 @@ export class DocumentService {
     private emitter?: EventEmitter,
   ) {}
 
-  async create(tenantId: string, data: CreateDocumentData): Promise<Document> {
-    const document = await this.q.insertDocument(tenantId, data);
-    if (this.emitter) {
-      this.emitter.emit('document:created', document);
-    }
+  async create(conversationId: string, data: CreateDocumentData): Promise<Document> {
+    const document = await this.q.insertDocument(conversationId, data);
+    this.emitter?.emit('document:created', document);
     return document;
   }
 
-  getById(tenantId: string, documentId: string): Document | null {
-    return this.q.getDocumentById(tenantId, documentId);
+  getById(conversationId: string, documentId: string): Document | null {
+    return this.q.getDocumentById(conversationId, documentId);
   }
 
-  listByChannel(tenantId: string, channelId: string): Document[] {
-    return this.q.getDocumentsByChannel(tenantId, channelId);
+  listByConversation(conversationId: string): Document[] {
+    return this.q.getDocumentsByConversation(conversationId);
   }
 
-  async update(tenantId: string, documentId: string, data: UpdateDocumentData): Promise<Document | null> {
-    const document = await this.q.updateDocument(tenantId, documentId, data);
-    if (document && this.emitter) {
-      this.emitter.emit('document:updated', document);
-    }
+  async update(conversationId: string, documentId: string, data: UpdateDocumentData): Promise<Document | null> {
+    const document = await this.q.updateDocument(conversationId, documentId, data);
+    if (document) this.emitter?.emit('document:updated', document);
     return document;
   }
 }

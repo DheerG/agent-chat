@@ -8,14 +8,12 @@ import type { WriteQueue } from '../queue.js';
 function rowToDocument(row: DocumentRow): Document {
   return {
     id: row.id,
-    channelId: row.channelId,
-    tenantId: row.tenantId,
+    conversationId: row.conversationId,
     title: row.title,
     content: row.content,
     contentType: row.contentType,
     createdById: row.createdById,
     createdByName: row.createdByName,
-    createdByType: row.createdByType,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -26,15 +24,13 @@ export function createDocumentQueries(instance: DbInstance, queue: WriteQueue) {
 
   return {
     async insertDocument(
-      tenantId: string,
+      conversationId: string,
       data: {
-        channelId: string;
         title: string;
         content: string;
         contentType?: 'text' | 'markdown' | 'json';
         createdById: string;
         createdByName: string;
-        createdByType: 'agent' | 'human';
       }
     ): Promise<Document> {
       const id = ulid();
@@ -43,14 +39,12 @@ export function createDocumentQueries(instance: DbInstance, queue: WriteQueue) {
       await queue.enqueue(() =>
         db.insert(documents).values({
           id,
-          channelId: data.channelId,
-          tenantId,
+          conversationId,
           title: data.title,
           content: data.content,
           contentType: data.contentType ?? 'text',
           createdById: data.createdById,
           createdByName: data.createdByName,
-          createdByType: data.createdByType,
           createdAt: now,
           updatedAt: now,
         }).run()
@@ -58,42 +52,39 @@ export function createDocumentQueries(instance: DbInstance, queue: WriteQueue) {
 
       return {
         id,
-        channelId: data.channelId,
-        tenantId,
+        conversationId,
         title: data.title,
         content: data.content,
         contentType: data.contentType ?? 'text',
         createdById: data.createdById,
         createdByName: data.createdByName,
-        createdByType: data.createdByType,
         createdAt: now,
         updatedAt: now,
       };
     },
 
-    // tenantId is FIRST argument — cross-tenant queries structurally impossible
-    getDocumentById(tenantId: string, documentId: string): Document | null {
+    getDocumentById(conversationId: string, documentId: string): Document | null {
       const row = db.select().from(documents)
-        .where(and(eq(documents.tenantId, tenantId), eq(documents.id, documentId)))
+        .where(and(eq(documents.conversationId, conversationId), eq(documents.id, documentId)))
         .get();
       return row ? rowToDocument(row) : null;
     },
 
-    getDocumentsByChannel(tenantId: string, channelId: string): Document[] {
+    getDocumentsByConversation(conversationId: string): Document[] {
       return db.select().from(documents)
-        .where(and(eq(documents.tenantId, tenantId), eq(documents.channelId, channelId)))
+        .where(eq(documents.conversationId, conversationId))
         .orderBy(asc(documents.updatedAt))
         .all()
         .map(rowToDocument);
     },
 
     async updateDocument(
-      tenantId: string,
+      conversationId: string,
       documentId: string,
       data: { title?: string; content?: string }
     ): Promise<Document | null> {
       const existing = db.select().from(documents)
-        .where(and(eq(documents.tenantId, tenantId), eq(documents.id, documentId)))
+        .where(and(eq(documents.conversationId, conversationId), eq(documents.id, documentId)))
         .get();
 
       if (!existing) return null;
@@ -106,13 +97,12 @@ export function createDocumentQueries(instance: DbInstance, queue: WriteQueue) {
       await queue.enqueue(() =>
         db.update(documents)
           .set(updates)
-          .where(and(eq(documents.tenantId, tenantId), eq(documents.id, documentId)))
+          .where(and(eq(documents.conversationId, conversationId), eq(documents.id, documentId)))
           .run()
       );
 
-      // Re-read to get the full updated row
       const updated = db.select().from(documents)
-        .where(and(eq(documents.tenantId, tenantId), eq(documents.id, documentId)))
+        .where(and(eq(documents.conversationId, conversationId), eq(documents.id, documentId)))
         .get();
 
       return updated ? rowToDocument(updated) : null;

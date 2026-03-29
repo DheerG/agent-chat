@@ -3,42 +3,20 @@ import type { Services } from '../services/index.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { healthRoutes } from './routes/health.js';
-import { tenantRoutes } from './routes/tenants.js';
-import { channelRoutes } from './routes/channels.js';
-import { messageRoutes } from './routes/messages.js';
+import { conversationRoutes } from './routes/conversations.js';
 import { hookRoutes } from './routes/hooks.js';
-import { presenceRoutes } from './routes/presence.js';
-import { documentRoutes } from './routes/documents.js';
-import { allChannelRoutes } from './routes/allChannels.js';
 
 export function createApp(services: Services): Hono {
   const app = new Hono();
 
-  // Middleware
   app.use('*', requestLogger());
   app.onError(errorHandler);
 
-  // Routes
   app.route('/health', healthRoutes());
-  app.route('/api/tenants', tenantRoutes(services));
+  app.route('/api/conversations', conversationRoutes(services));
+  app.route('/api/events', hookRoutes(services));
 
-  // Cross-tenant channel routes (not tenant-scoped)
-  app.route('/api/channels', allChannelRoutes(services));
-
-  // Channel routes nested under tenants
-  // Hono propagates :tenantId param to nested routers when mounted at parameterized paths
-  app.route('/api/tenants/:tenantId/channels', channelRoutes(services));
-
-  // Message routes nested under channels
-  app.route('/api/tenants/:tenantId/channels/:channelId/messages', messageRoutes(services));
-
-  // Presence routes nested under channels
-  app.route('/api/tenants/:tenantId/channels/:channelId/presence', presenceRoutes(services));
-
-  // Document routes nested under channels
-  app.route('/api/tenants/:tenantId/channels/:channelId/documents', documentRoutes(services));
-
-  // Hook receiver routes (Claude Code hooks POST here)
+  // Backward compat: v1 hooks endpoint
   app.route('/api/hooks', hookRoutes(services));
 
   return app;
