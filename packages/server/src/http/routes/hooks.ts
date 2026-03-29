@@ -10,12 +10,14 @@ const HookPayloadSchema = z.object({
   tool_name: z.string().optional(),
   tool_input: z.record(z.string(), z.unknown()).optional(),
   tool_output: z.unknown().optional(),
-}).passthrough();  // Allow additional unknown fields from Claude Code
+  stop_reason: z.string().optional(),
+  parent_session_id: z.string().optional(),
+}).passthrough();
 
 export function hookRoutes(services: Services): Hono {
   const router = new Hono();
 
-  // POST /api/hooks/:eventType
+  // POST /api/events/:eventType
   router.post('/:eventType', async (c) => {
     const eventType = c.req.param('eventType');
 

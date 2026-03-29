@@ -1,36 +1,31 @@
 import type { EventEmitter } from 'events';
 import type { DbInstance } from '../db/index.js';
 import type { WriteQueue } from '../db/queue.js';
-import { createTenantQueries } from '../db/queries/tenants.js';
-import { createChannelQueries } from '../db/queries/channels.js';
+import { createConversationQueries } from '../db/queries/conversations.js';
+import { createSessionQueries } from '../db/queries/sessions.js';
 import { createMessageQueries } from '../db/queries/messages.js';
-import { createPresenceQueries } from '../db/queries/presence.js';
+import { createActivityEventQueries } from '../db/queries/activity-events.js';
 import { createDocumentQueries } from '../db/queries/documents.js';
-import { createCheckinQueries } from '../db/queries/checkins.js';
-import { TenantService } from './TenantService.js';
-import { ChannelService } from './ChannelService.js';
+import { ConversationService } from './ConversationService.js';
+import { SessionService } from './SessionService.js';
 import { MessageService } from './MessageService.js';
-import { PresenceService } from './PresenceService.js';
+import { ActivityEventService } from './ActivityEventService.js';
 import { DocumentService } from './DocumentService.js';
-import { CheckinService } from './CheckinService.js';
 
-export { TenantService } from './TenantService.js';
-export { ChannelService } from './ChannelService.js';
+export { ConversationService } from './ConversationService.js';
+export { SessionService } from './SessionService.js';
 export { MessageService } from './MessageService.js';
-export { PresenceService } from './PresenceService.js';
+export { ActivityEventService } from './ActivityEventService.js';
 export { DocumentService } from './DocumentService.js';
-export { CheckinService } from './CheckinService.js';
-export { AutoArchiveService } from './AutoArchiveService.js';
-export type { PaginatedMessages, SendMessageData } from './MessageService.js';
+export type { SendMessageData, PaginatedMessages } from './MessageService.js';
 export type { CreateDocumentData, UpdateDocumentData } from './DocumentService.js';
 
 export interface Services {
-  tenants: TenantService;
-  channels: ChannelService;
+  conversations: ConversationService;
+  sessions: SessionService;
   messages: MessageService;
-  presence: PresenceService;
+  activityEvents: ActivityEventService;
   documents: DocumentService;
-  checkins: CheckinService;
 }
 
 export function createServices(
@@ -38,18 +33,17 @@ export function createServices(
   queue: WriteQueue,
   emitter?: EventEmitter,
 ): Services {
-  const tenantQ = createTenantQueries(instance, queue);
-  const channelQ = createChannelQueries(instance, queue);
+  const conversationQ = createConversationQueries(instance, queue);
+  const sessionQ = createSessionQueries(instance, queue);
   const messageQ = createMessageQueries(instance, queue);
-  const presenceQ = createPresenceQueries(instance, queue);
+  const activityQ = createActivityEventQueries(instance, queue);
   const documentQ = createDocumentQueries(instance, queue);
-  const checkinQ = createCheckinQueries(instance, queue);
+
   return {
-    tenants: new TenantService(tenantQ, channelQ),
-    channels: new ChannelService(channelQ),
+    conversations: new ConversationService(conversationQ),
+    sessions: new SessionService(sessionQ),
     messages: new MessageService(messageQ, emitter),
-    presence: new PresenceService(presenceQ),
+    activityEvents: new ActivityEventService(activityQ, emitter),
     documents: new DocumentService(documentQ, emitter),
-    checkins: new CheckinService(checkinQ),
   };
 }

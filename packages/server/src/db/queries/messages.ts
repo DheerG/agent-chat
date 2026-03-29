@@ -8,8 +8,7 @@ import type { WriteQueue } from '../queue.js';
 function rowToMessage(row: MessageRow): Message {
   return {
     id: row.id,
-    channelId: row.channelId,
-    tenantId: row.tenantId,
+    conversationId: row.conversationId,
     parentMessageId: row.parentMessageId,
     senderId: row.senderId,
     senderName: row.senderName,
@@ -21,50 +20,18 @@ function rowToMessage(row: MessageRow): Message {
   };
 }
 
-interface MessageRawRow {
-  id: string;
-  channel_id: string;
-  tenant_id: string;
-  parent_message_id: string | null;
-  sender_id: string;
-  sender_name: string;
-  sender_type: string;
-  content: string;
-  message_type: string;
-  metadata: string;
-  created_at: string;
-}
-
-function rawRowToMessage(row: MessageRawRow): Message {
-  return {
-    id: row.id,
-    channelId: row.channel_id,
-    tenantId: row.tenant_id,
-    parentMessageId: row.parent_message_id,
-    senderId: row.sender_id,
-    senderName: row.sender_name,
-    senderType: row.sender_type as Message['senderType'],
-    content: row.content,
-    messageType: row.message_type as Message['messageType'],
-    metadata: JSON.parse(row.metadata) as Record<string, unknown>,
-    createdAt: row.created_at,
-  };
-}
-
 export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
   const { db, rawDb } = instance;
 
   return {
-    // Messages are APPEND-ONLY — no updateMessage or deleteMessage exported
     async insertMessage(
-      tenantId: string,
+      conversationId: string,
       data: {
-        channelId: string;
         senderId: string;
         senderName: string;
-        senderType: 'agent' | 'human' | 'system' | 'hook';
+        senderType: 'agent' | 'human' | 'system';
         content: string;
-        messageType?: 'text' | 'event' | 'hook';
+        messageType?: 'text' | 'status' | 'error' | 'input_request' | 'system';
         parentMessageId?: string;
         metadata?: Record<string, unknown>;
       }
@@ -76,8 +43,7 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
       await queue.enqueue(() =>
         db.insert(messages).values({
           id,
-          channelId: data.channelId,
-          tenantId,
+          conversationId,
           parentMessageId: data.parentMessageId ?? null,
           senderId: data.senderId,
           senderName: data.senderName,
@@ -91,8 +57,7 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
 
       return {
         id,
-        channelId: data.channelId,
-        tenantId,
+        conversationId,
         parentMessageId: data.parentMessageId ?? null,
         senderId: data.senderId,
         senderName: data.senderName,
@@ -104,41 +69,32 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
       };
     },
 
-    // tenantId is FIRST argument — cross-tenant queries structurally impossible
-    getMessages(
-      tenantId: string,
-      channelId: string,
-      opts: PaginationOpts = {}
-    ): Message[] {
+    getMessages(conversationId: string, opts: PaginationOpts = {}): Message[] {
       const limit = opts.limit ?? 50;
-      const conditions = [
-        eq(messages.tenantId, tenantId),
-        eq(messages.channelId, channelId),
-      ];
+      const conditions = [eq(messages.conversationId, conversationId)];
 
-      // Cursor-based pagination: before/after are ULID strings (URL-safe, lexicographic)
       if (opts.before) conditions.push(lt(messages.id, opts.before));
       if (opts.after) conditions.push(gt(messages.id, opts.after));
 
       return db.select().from(messages)
         .where(and(...conditions))
-        .orderBy(asc(messages.id))  // ULID lexicographic = chronological order
+        .orderBy(asc(messages.id))
         .limit(limit)
         .all()
         .map(rowToMessage);
     },
 
-    getMessageById(tenantId: string, messageId: string): Message | null {
+    getMessageById(conversationId: string, messageId: string): Message | null {
       const row = db.select().from(messages)
-        .where(and(eq(messages.tenantId, tenantId), eq(messages.id, messageId)))
+        .where(and(eq(messages.conversationId, conversationId), eq(messages.id, messageId)))
         .get();
       return row ? rowToMessage(row) : null;
     },
 
-    getThreadReplies(tenantId: string, parentMessageId: string): Message[] {
+    getThreadReplies(conversationId: string, parentMessageId: string): Message[] {
       return db.select().from(messages)
         .where(and(
-          eq(messages.tenantId, tenantId),
+          eq(messages.conversationId, conversationId),
           eq(messages.parentMessageId, parentMessageId)
         ))
         .orderBy(asc(messages.id))
@@ -146,68 +102,36 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
         .map(rowToMessage);
     },
 
-    // Extended queries for Phase 13 — context persistence and recovery
-
-    getMessagesSince(
-      tenantId: string,
-      channelId: string,
-      since: string,
-      limit: number = 200,
-    ): Message[] {
+    getMessagesSince(conversationId: string, since: string, limit = 200): Message[] {
+      interface RawRow {
+        id: string; conversation_id: string; parent_message_id: string | null;
+        sender_id: string; sender_name: string; sender_type: string;
+        content: string; message_type: string; metadata: string; created_at: string;
+      }
       const rows = rawDb.prepare(`
-        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
-               sender_type, content, message_type, metadata, created_at
-        FROM messages
-        WHERE tenant_id = ? AND channel_id = ? AND created_at > ?
-        ORDER BY id ASC
-        LIMIT ?
-      `).all(tenantId, channelId, since, limit) as MessageRawRow[];
-      return rows.map(rawRowToMessage);
+        SELECT * FROM messages
+        WHERE conversation_id = ? AND created_at > ?
+        ORDER BY id ASC LIMIT ?
+      `).all(conversationId, since, limit) as RawRow[];
+      return rows.map(r => ({
+        id: r.id,
+        conversationId: r.conversation_id,
+        parentMessageId: r.parent_message_id,
+        senderId: r.sender_id,
+        senderName: r.sender_name,
+        senderType: r.sender_type as Message['senderType'],
+        content: r.content,
+        messageType: r.message_type as Message['messageType'],
+        metadata: JSON.parse(r.metadata) as Record<string, unknown>,
+        createdAt: r.created_at,
+      }));
     },
 
-    getMessagesByTenantSince(
-      tenantId: string,
-      since: string,
-      limit: number = 200,
-    ): Message[] {
-      const rows = rawDb.prepare(`
-        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
-               sender_type, content, message_type, metadata, created_at
-        FROM messages
-        WHERE tenant_id = ? AND created_at > ?
-        ORDER BY id ASC
-        LIMIT ?
-      `).all(tenantId, since, limit) as MessageRawRow[];
-      return rows.map(rawRowToMessage);
-    },
-
-    getMessagesBySender(
-      tenantId: string,
-      senderId: string,
-      opts: { since?: string; channelId?: string; limit?: number } = {},
-    ): Message[] {
-      const limit = opts.limit ?? 100;
-      let sql = `
-        SELECT id, channel_id, tenant_id, parent_message_id, sender_id, sender_name,
-               sender_type, content, message_type, metadata, created_at
-        FROM messages
-        WHERE tenant_id = ? AND sender_id = ?
-      `;
-      const params: (string | number)[] = [tenantId, senderId];
-
-      if (opts.channelId) {
-        sql += ' AND channel_id = ?';
-        params.push(opts.channelId);
-      }
-      if (opts.since) {
-        sql += ' AND created_at > ?';
-        params.push(opts.since);
-      }
-      sql += ' ORDER BY id ASC LIMIT ?';
-      params.push(limit);
-
-      const rows = rawDb.prepare(sql).all(...params) as MessageRawRow[];
-      return rows.map(rawRowToMessage);
+    getMessageCount(conversationId: string): number {
+      const result = rawDb.prepare(
+        `SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?`
+      ).get(conversationId) as { cnt: number };
+      return result.cnt;
     },
   };
 }

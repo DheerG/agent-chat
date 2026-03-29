@@ -1,81 +1,172 @@
-// Tenant — represents one codebase/project workspace
-export interface Tenant {
-  id: string;          // ULID
-  name: string;
-  codebasePath: string; // unique — the project root path
-  createdAt: string;   // ISO 8601
-  archivedAt: string | null;  // null = active, ISO 8601 = archived
-  userArchived: boolean;  // true when user explicitly archived via UI
-}
+// ─── Conversation ───────────────────────────────────────────────────
 
-// Channel — a conversation thread within a tenant
-export interface Channel {
-  id: string;          // ULID
-  tenantId: string;
+export interface Conversation {
+  id: string;
   name: string;
-  sessionId: string | null;  // nullable — null for manual channels
-  type: 'session' | 'manual';
+  workspacePath: string | null;
+  workspaceName: string | null;
+  type: 'team' | 'solo';
+  status: 'active' | 'idle' | 'completed' | 'inactive' | 'error';
+  attentionNeeded: boolean;
   createdAt: string;
   updatedAt: string;
-  archivedAt: string | null;  // null = active, ISO 8601 = archived
-  userArchived: boolean;  // true when user explicitly archived via UI
+  archivedAt: string | null;
 }
 
-// RecentChannel — channel with cross-tenant context for "All Chats" view
-export interface RecentChannel extends Channel {
-  tenantName: string;        // tenant name for display in cross-tenant views
-  lastActivity: string | null;  // ISO 8601 timestamp of last message, null if no messages
+export interface ConversationSummary {
+  conversationId: string;
+  totalEvents: number;
+  totalErrors: number;
+  filesTouchedCount: number;
+  lastEventAt: string | null;
+  totalMessages: number;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  lastMessageSender: string | null;
+  activeSessionCount: number;
+  totalSessionCount: number;
+  hasStopEvent: boolean;
+  hasError: boolean;
+  startedAt: string | null;
+  endedAt: string | null;
+  status: string;
 }
 
-// Message — append-only, immutable after insert
+export interface ConversationListItem extends Conversation {
+  summary: ConversationSummary;
+}
+
+// ─── Session ────────────────────────────────────────────────────────
+
+export interface Session {
+  id: string;
+  conversationId: string | null;
+  agentName: string | null;
+  agentType: 'leader' | 'teammate' | 'sub-agent' | 'solo' | null;
+  model: string | null;
+  cwd: string | null;
+  status: 'pending' | 'active' | 'idle' | 'stopped';
+  startedAt: string;
+  endedAt: string | null;
+  parentSessionId: string | null;
+}
+
+// ─── Message ────────────────────────────────────────────────────────
+
 export interface Message {
-  id: string;          // ULID
-  channelId: string;
-  tenantId: string;    // denormalized for query efficiency
-  parentMessageId: string | null;  // null = top-level, non-null = thread reply
+  id: string;
+  conversationId: string;
+  parentMessageId: string | null;
   senderId: string;
   senderName: string;
-  senderType: 'agent' | 'human' | 'system' | 'hook';
+  senderType: 'agent' | 'human' | 'system';
   content: string;
-  messageType: 'text' | 'event' | 'hook';
-  metadata: Record<string, unknown>;  // parsed from JSON TEXT
-  createdAt: string;   // ISO 8601
+  messageType: 'text' | 'status' | 'error' | 'input_request' | 'system';
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
-// Presence — current agent status in a channel
-export interface Presence {
-  agentId: string;
-  tenantId: string;
-  channelId: string;
-  status: 'active' | 'idle';
-  lastSeenAt: string;  // ISO 8601
+// ─── Activity Event ─────────────────────────────────────────────────
+
+export interface ActivityEvent {
+  id: string;
+  conversationId: string;
+  sessionId: string;
+  eventType: 'tool_use' | 'session_start' | 'session_end' | 'stop' | 'subagent_start' | 'subagent_stop' | 'user_prompt';
+  toolName: string | null;
+  filePaths: string[] | null;
+  isError: boolean;
+  summary: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
-// Document — persistent shared artifact pinned to a channel
+// ─── Document ───────────────────────────────────────────────────────
+
 export interface Document {
-  id: string;          // ULID
-  channelId: string;
-  tenantId: string;    // denormalized for query efficiency
+  id: string;
+  conversationId: string;
   title: string;
   content: string;
   contentType: 'text' | 'markdown' | 'json';
   createdById: string;
   createdByName: string;
-  createdByType: 'agent' | 'human';
-  createdAt: string;   // ISO 8601
-  updatedAt: string;   // ISO 8601
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Checkin — agent context recovery watermark
-export interface Checkin {
-  agentId: string;
-  tenantId: string;
-  lastCheckinAt: string;  // ISO 8601
+// ─── Feed Items ─────────────────────────────────────────────────────
+
+export interface FeedMessage {
+  type: 'message';
+  id: string;
+  conversationId: string;
+  parentMessageId: string | null;
+  senderId: string;
+  senderName: string;
+  senderType: 'agent' | 'human' | 'system';
+  content: string;
+  messageType: 'text' | 'status' | 'error' | 'input_request' | 'system';
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
-// Query options
+export interface FeedEventBatch {
+  type: 'event_batch';
+  id: string;
+  conversationId: string;
+  sessionId: string;
+  count: number;
+  toolNames: string[];
+  startTime: string;
+  endTime: string;
+  firstEventId: string;
+  lastEventId: string;
+  errorCount: number;
+}
+
+export type FeedItem = FeedMessage | FeedEventBatch;
+
+// ─── WebSocket Protocol ─────────────────────────────────────────────
+
+// Client -> Server
+export type WsClientMessage =
+  | { type: 'subscribe'; conversationIds: string[] }
+  | { type: 'subscribe_all' }
+  | { type: 'unsubscribe'; conversationIds: string[] };
+
+// Server -> Client
+export type WsServerMessage =
+  | { type: 'message'; conversationId: string; message: Message }
+  | { type: 'activity'; conversationId: string; summary: ActivityBatchSummary }
+  | { type: 'summary_update'; conversationId: string; summary: ConversationSummary }
+  | { type: 'status_change'; conversationId: string; status: string; previousStatus: string }
+  | { type: 'conversation_created'; conversation: ConversationListItem }
+  | { type: 'conversation_lifecycle'; conversationId: string; action: 'archived' | 'restored' }
+  | { type: 'session_event'; conversationId: string; sessionId: string; event: 'started' | 'stopped' | 'idle'; agentName?: string }
+  | { type: 'attention_needed'; conversationId: string; sessionId: string; agentName: string; question: string; options?: string[] };
+
+export interface ActivityBatchSummary {
+  sessionId: string;
+  eventCount: number;
+  toolsUsed: string[];
+  errorCount: number;
+  lastTool: string | null;
+  filesTouched: string[];
+}
+
+// ─── Pagination ─────────────────────────────────────────────────────
+
 export interface PaginationOpts {
-  limit?: number;     // default 50
-  before?: string;    // cursor (message ULID) for pagination
-  after?: string;     // cursor (message ULID) for pagination
+  limit?: number;
+  before?: string;
+  after?: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pagination: {
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
 }

@@ -1,326 +1,372 @@
 #!/usr/bin/env node
-// MCP Server for AgentChat — stdio transport
-// CRITICAL: Never use console.log() — it corrupts JSON-RPC messages on stdout.
-// Use console.error() for all logging (writes to stderr).
+// MCP Server for AgentChat v2 — session-scoped, stdio transport
+// CRITICAL: Never use console.log() — it corrupts JSON-RPC on stdout.
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { createDb, WriteQueue, createServices } from '@agent-chat/server';
 import { loadConfig } from './config.js';
-import { handleSendMessage } from './tools/send-message.js';
-import { handleReadChannel } from './tools/read-channel.js';
-import { handleListChannels } from './tools/list-channels.js';
-import { handleCreateDocument } from './tools/create-document.js';
-import { handleReadDocument } from './tools/read-document.js';
-import { handleUpdateDocument } from './tools/update-document.js';
-import { handleListDocuments } from './tools/list-documents.js';
-import { handleGetTeamContext } from './tools/get-team-context.js';
-import { handleGetAgentActivity } from './tools/get-agent-activity.js';
-import { handleCheckin } from './tools/checkin.js';
-import { handleGetTeamMembers } from './tools/get-team-members.js';
 
 const config = loadConfig();
 
-// Initialize data layer — shares SQLite DB with HTTP server via WAL mode
 const instance = createDb(config.dbPath);
 const queue = new WriteQueue();
 const services = createServices(instance, queue);
 
-// Resolve tenant ID
-let tenantId: string;
-if (config.tenantId === 'auto') {
-  // Auto-create tenant from working directory
-  const cwd = process.env['AGENT_CHAT_CWD'] ?? process.cwd();
-  const name = cwd.split('/').filter(Boolean).pop() ?? 'unknown';
-  const tenant = await services.tenants.upsertByCodebasePath(name, cwd);
-  tenantId = tenant.id;
-} else {
-  tenantId = config.tenantId;
+// Resolve conversation from session
+function getConversationId(): string | null {
+  const session = services.sessions.getById(config.sessionId);
+  return session?.conversationId ?? null;
 }
 
 const server = new McpServer({
   name: 'agent-chat',
-  version: '1.0.0',
+  version: '2.0.0',
 });
 
-// Register tools
+// ─── send_message ───────────────────────────────────────────────────
 server.tool(
   'send_message',
-  'Send a message to a channel in AgentChat',
+  'Send a message to your conversation in AgentChat',
   {
-    channel_id: z.string().describe('Channel ID to send message to'),
     content: z.string().describe('Message content'),
     parent_message_id: z.string().optional().describe('Thread parent message ID for replies'),
     metadata: z.record(z.string(), z.unknown()).optional().describe('Optional metadata JSON'),
   },
-  async ({ channel_id, content, parent_message_id, metadata }) => {
+  async ({ content, parent_message_id, metadata }) => {
     try {
-      const result = await handleSendMessage(services, config, tenantId, {
-        channel_id,
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const message = await services.messages.send(conversationId, {
+        senderId: config.sessionId,
+        senderName: config.agentName,
+        senderType: 'agent',
         content,
-        parent_message_id,
+        parentMessageId: parent_message_id,
         metadata,
       });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+
+      await services.conversations.incrementMessages(conversationId, content, config.agentName);
+      return ok(message);
+    } catch (e) { return err(e); }
   }
 );
 
+// ─── read_conversation ──────────────────────────────────────────────
 server.tool(
-  'read_channel',
-  'Read messages from a channel (excludes your own messages)',
+  'read_conversation',
+  'Read messages from your conversation (excludes your own messages)',
   {
-    channel_id: z.string().describe('Channel ID to read from'),
     limit: z.number().optional().describe('Max messages to return (default 50)'),
     after: z.string().optional().describe('ULID cursor — return messages after this ID'),
   },
-  async ({ channel_id, limit, after }) => {
+  async ({ limit, after }) => {
     try {
-      const result = handleReadChannel(services, config, tenantId, {
-        channel_id,
-        limit,
-        after,
-      });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const { messages } = services.messages.list(conversationId, { limit, after });
+      const filtered = messages.filter(m => m.senderId !== config.sessionId);
+      return ok({ messages: filtered, count: filtered.length });
+    } catch (e) { return err(e); }
   }
 );
 
+// ─── list_conversations ─────────────────────────────────────────────
 server.tool(
-  'list_channels',
-  'List all channels available in your tenant',
+  'list_conversations',
+  'List all conversations available',
   {},
   async () => {
     try {
-      const result = handleListChannels(services, tenantId);
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversations = services.conversations.listWithSummaries('recent', 20);
+      return ok({ conversations: conversations.map(c => ({ id: c.id, name: c.name, status: c.status, type: c.type })) });
+    } catch (e) { return err(e); }
   }
 );
 
+// ─── report_status ──────────────────────────────────────────────────
+server.tool(
+  'report_status',
+  'Report your current work status. Shown in the AgentChat dashboard.',
+  {
+    status: z.string().describe('What you are working on right now'),
+    progress: z.number().min(0).max(1).optional().describe('Progress from 0.0 to 1.0'),
+  },
+  async ({ status, progress }) => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const message = await services.messages.send(conversationId, {
+        senderId: config.sessionId,
+        senderName: config.agentName,
+        senderType: 'agent',
+        content: status,
+        messageType: 'status',
+        metadata: progress != null ? { progress } : {},
+      });
+
+      await services.conversations.incrementMessages(conversationId, status, config.agentName);
+      return ok({ reported: true, messageId: message.id });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── report_error ───────────────────────────────────────────────────
+server.tool(
+  'report_error',
+  'Report an error you encountered. Surfaces prominently in the dashboard.',
+  {
+    error: z.string().describe('Error description'),
+    action: z.string().optional().describe('How you are handling it'),
+  },
+  async ({ error, action }) => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const content = action ? `${error}\nAction: ${action}` : error;
+      const message = await services.messages.send(conversationId, {
+        senderId: config.sessionId,
+        senderName: config.agentName,
+        senderType: 'agent',
+        content,
+        messageType: 'error',
+        metadata: { error, action },
+      });
+
+      await services.conversations.incrementMessages(conversationId, content, config.agentName);
+      await services.conversations.updateStatus(conversationId, 'error');
+      return ok({ reported: true, messageId: message.id });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── request_input ──────────────────────────────────────────────────
+server.tool(
+  'request_input',
+  'Ask the human for a decision. Creates a persistent alert in AgentChat.',
+  {
+    question: z.string().describe('Your question for the human'),
+    options: z.array(z.string()).optional().describe('Optional list of choices'),
+  },
+  async ({ question, options }) => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const message = await services.messages.send(conversationId, {
+        senderId: config.sessionId,
+        senderName: config.agentName,
+        senderType: 'agent',
+        content: question,
+        messageType: 'input_request',
+        metadata: options ? { options } : {},
+      });
+
+      await services.conversations.setAttentionNeeded(conversationId, true);
+      await services.conversations.incrementMessages(conversationId, question, config.agentName);
+      return ok({ requested: true, messageId: message.id });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── Document tools ─────────────────────────────────────────────────
 server.tool(
   'create_document',
-  'Create a new document pinned to a channel',
+  'Create a new document pinned to your conversation',
   {
-    channel_id: z.string().describe('Channel ID to pin document to'),
     title: z.string().describe('Document title'),
     content: z.string().describe('Document content'),
     content_type: z.enum(['text', 'markdown', 'json']).optional().describe('Content type (default: text)'),
   },
-  async ({ channel_id, title, content, content_type }) => {
+  async ({ title, content, content_type }) => {
     try {
-      const result = await handleCreateDocument(services, config, tenantId, {
-        channel_id, title, content, content_type,
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const doc = await services.documents.create(conversationId, {
+        title, content, contentType: content_type,
+        createdById: config.sessionId, createdByName: config.agentName,
       });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      return ok(doc);
+    } catch (e) { return err(e); }
   }
 );
 
 server.tool(
   'read_document',
   'Read a document by its ID',
-  {
-    document_id: z.string().describe('Document ID to read'),
-  },
+  { document_id: z.string().describe('Document ID to read') },
   async ({ document_id }) => {
     try {
-      const result = handleReadDocument(services, tenantId, { document_id });
-      if (!result) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Document not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+      const doc = services.documents.getById(conversationId, document_id);
+      if (!doc) return err('Document not found');
+      return ok(doc);
+    } catch (e) { return err(e); }
   }
 );
 
 server.tool(
   'update_document',
-  'Update an existing document (title and/or content)',
+  'Update an existing document',
   {
     document_id: z.string().describe('Document ID to update'),
-    title: z.string().optional().describe('New title (omit to keep current)'),
-    content: z.string().optional().describe('New content (omit to keep current)'),
+    title: z.string().optional().describe('New title'),
+    content: z.string().optional().describe('New content'),
   },
   async ({ document_id, title, content }) => {
     try {
-      const result = await handleUpdateDocument(services, tenantId, {
-        document_id, title, content,
-      });
-      if (!result) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Document not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+      const doc = await services.documents.update(conversationId, document_id, { title, content });
+      if (!doc) return err('Document not found');
+      return ok(doc);
+    } catch (e) { return err(e); }
   }
 );
 
 server.tool(
   'list_documents',
-  'List all documents pinned to a channel',
-  {
-    channel_id: z.string().describe('Channel ID to list documents for'),
-  },
-  async ({ channel_id }) => {
-    try {
-      const result = handleListDocuments(services, tenantId, { channel_id });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Context persistence and recovery tools (Phase 13)
-server.tool(
-  'get_team_context',
-  'Get summary of recent team activity. Use since="last_checkin" to get updates since your last check-in.',
-  {
-    since: z.string().optional().describe('ISO timestamp or "last_checkin" — filter messages after this time'),
-    channel_id: z.string().optional().describe('Scope to a specific channel (omit for all channels)'),
-    include_full_messages: z.boolean().optional().describe('If true, return full messages instead of summary (default: false)'),
-  },
-  async ({ since, channel_id, include_full_messages }) => {
-    try {
-      const result = await handleGetTeamContext(services, config, tenantId, {
-        since, channel_id, include_full_messages,
-      });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
-  }
-);
-
-server.tool(
-  'get_agent_activity',
-  'Get messages sent by a specific agent. Defaults to your own activity.',
-  {
-    agent_name: z.string().optional().describe('Agent name to query (defaults to you)'),
-    since: z.string().optional().describe('ISO timestamp or "last_checkin" — filter messages after this time'),
-    channel_id: z.string().optional().describe('Scope to a specific channel (omit for all channels)'),
-  },
-  async ({ agent_name, since, channel_id }) => {
-    try {
-      const result = await handleGetAgentActivity(services, config, tenantId, {
-        agent_name, since, channel_id,
-      });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
-  }
-);
-
-server.tool(
-  'checkin',
-  'Record a check-in timestamp. Use this after consuming context to set your "last_checkin" watermark.',
+  'List all documents in your conversation',
   {},
   async () => {
     try {
-      const result = await handleCheckin(services, config, tenantId);
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+      const docs = services.documents.listByConversation(conversationId);
+      return ok({ documents: docs });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── Context tools ──────────────────────────────────────────────────
+server.tool(
+  'get_team_context',
+  'Get summary of recent team activity',
+  {
+    since: z.string().optional().describe('ISO timestamp — filter messages after this time'),
+  },
+  async ({ since }) => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      const summary = services.conversations.getSummary(conversationId);
+      const sessions = services.sessions.getByConversation(conversationId);
+
+      let recentMessages;
+      if (since) {
+        recentMessages = services.messages.getMessagesSince(conversationId, since, 50);
+      } else {
+        recentMessages = services.messages.list(conversationId, { limit: 20 }).messages;
+      }
+
+      return ok({ summary, sessions, recentMessages });
+    } catch (e) { return err(e); }
   }
 );
 
 server.tool(
   'get_team_members',
-  'Get information about team members (names, roles, types).',
+  'Get information about team members',
   {},
   async () => {
     try {
-      const result = handleGetTeamMembers(services, config, tenantId);
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
-    } catch (err) {
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ error: String(err) }) }],
-        isError: true,
-      };
-    }
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+      const sessions = services.sessions.getByConversation(conversationId);
+      return ok({ members: sessions.map(s => ({ id: s.id, name: s.agentName, type: s.agentType, model: s.model, status: s.status })) });
+    } catch (e) { return err(e); }
   }
 );
 
-// Connect via stdio transport
+// ─── checkin ────────────────────────────────────────────────────────
+server.tool(
+  'checkin',
+  'Record a check-in timestamp. Sets your "last seen" watermark for get_team_context since=last_checkin.',
+  {},
+  async () => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      // Store checkin as a status message with checkin metadata
+      const now = new Date().toISOString();
+      await services.messages.send(conversationId, {
+        senderId: config.sessionId,
+        senderName: config.agentName,
+        senderType: 'agent',
+        content: `Checked in at ${now}`,
+        messageType: 'status',
+        metadata: { checkin: true, timestamp: now },
+      });
+
+      return ok({ checkedIn: true, timestamp: now });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── get_agent_activity ─────────────────────────────────────────────
+server.tool(
+  'get_agent_activity',
+  'Get activity events for a specific agent. Defaults to your own activity.',
+  {
+    agent_name: z.string().optional().describe('Agent name to query (defaults to you)'),
+    since: z.string().optional().describe('ISO timestamp — filter events after this time'),
+  },
+  async ({ agent_name, since }) => {
+    try {
+      const conversationId = getConversationId();
+      if (!conversationId) return err('No conversation found for this session');
+
+      // Find the session for the requested agent
+      const allSessions = services.sessions.getByConversation(conversationId);
+      const targetName = agent_name ?? config.agentName;
+      const targetSession = allSessions.find(s => s.agentName === targetName);
+      const sessionId = targetSession?.id ?? config.sessionId;
+
+      const events = services.activityEvents.getBySession(sessionId, {
+        after: since ?? undefined,
+        limit: 50,
+      });
+
+      return ok({
+        agent: targetName,
+        sessionId,
+        events: events.map(e => ({
+          type: e.eventType,
+          tool: e.toolName,
+          summary: e.summary,
+          isError: e.isError,
+          time: e.createdAt,
+        })),
+      });
+    } catch (e) { return err(e); }
+  }
+);
+
+// ─── Helpers ────────────────────────────────────────────────────────
+function ok(data: unknown) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+}
+
+function err(e: unknown) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify({ error: String(e) }) }], isError: true };
+}
+
+// Connect
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
 console.error(JSON.stringify({
   event: 'mcp_server_started',
-  agentId: config.agentId,
+  sessionId: config.sessionId,
   agentName: config.agentName,
-  tenantId,
+  version: '2.0.0',
 }));

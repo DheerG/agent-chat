@@ -32,12 +32,12 @@ function parseArgs(argv) {
 // AgentChat configuration builders
 // ---------------------------------------------------------------------------
 
-const AGENT_CHAT_MARKER = 'localhost:5555/api/hooks';
+const AGENT_CHAT_MARKER = 'localhost:5555/api/';
 const AGENT_CHAT_MCP_KEY = 'agent-chat';
 const PORT = 5555;
 
 function buildHookCommand(eventType) {
-  return `curl -s -X POST http://localhost:${PORT}/api/hooks/${eventType} -H 'Content-Type: application/json' -d "$(cat)" 2>/dev/null || true`;
+  return `curl -s -X POST http://localhost:${PORT}/api/events/${eventType} -H 'Content-Type: application/json' -d "$(cat)" 2>/dev/null || true`;
 }
 
 function buildHookEntry(eventType) {
@@ -60,9 +60,8 @@ function buildMcpEntry(agentChatDir, projectDir) {
     args: [path.join(agentChatDir, 'packages', 'mcp', 'dist', 'index.js')],
     env: {
       AGENT_CHAT_DB_PATH: dbPath,
-      AGENT_CHAT_TENANT_ID: 'auto',
+      AGENT_CHAT_SESSION_ID: 'auto',
       AGENT_CHAT_AGENT_NAME: 'claude-agent',
-      AGENT_CHAT_CWD: projectDir,
     },
   };
 }
@@ -74,13 +73,16 @@ function buildMcpEntryGlobal(agentChatDir) {
     args: [path.join(agentChatDir, 'packages', 'mcp', 'dist', 'index.js')],
     env: {
       AGENT_CHAT_DB_PATH: dbPath,
-      AGENT_CHAT_TENANT_ID: 'auto',
+      AGENT_CHAT_SESSION_ID: 'auto',
       AGENT_CHAT_AGENT_NAME: 'claude-agent',
     },
   };
 }
 
-const HOOK_EVENTS = ['SessionStart', 'SessionEnd', 'PreToolUse', 'PostToolUse'];
+const HOOK_EVENTS = [
+  'SessionStart', 'SessionEnd', 'PreToolUse', 'PostToolUse',
+  'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit', 'Notification',
+];
 
 // ---------------------------------------------------------------------------
 // Merge logic
@@ -405,7 +407,7 @@ function runTests() {
       entry.command === 'node' &&
         entry.env &&
         entry.env.AGENT_CHAT_DB_PATH &&
-        entry.env.AGENT_CHAT_TENANT_ID === 'auto' &&
+        entry.env.AGENT_CHAT_SESSION_ID === 'auto' &&
         !('AGENT_CHAT_CWD' in entry.env),
       'buildMcpEntryGlobal includes AGENT_CHAT_CWD or missing fields'
     );

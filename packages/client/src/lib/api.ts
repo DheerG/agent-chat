@@ -1,4 +1,4 @@
-import type { Tenant, Channel, Message, Presence, PaginationOpts, Document, RecentChannel } from '@agent-chat/shared';
+import type { ConversationListItem, Message, FeedItem, Document, Session, ConversationSummary } from '@agent-chat/shared';
 
 const BASE_URL = '/api';
 
@@ -11,103 +11,67 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchTenants(): Promise<Tenant[]> {
-  const data = await fetchJson<{ tenants: Tenant[] }>(`${BASE_URL}/tenants`);
-  return data.tenants;
+// Conversations
+export async function fetchConversations(tab: 'active' | 'recent' | 'all' = 'active', limit = 50): Promise<ConversationListItem[]> {
+  const data = await fetchJson<{ conversations: ConversationListItem[] }>(
+    `${BASE_URL}/conversations?tab=${tab}&limit=${limit}`
+  );
+  return data.conversations;
 }
 
-export async function fetchChannels(tenantId: string, includeStale?: boolean): Promise<Array<Channel & { stale?: boolean }>> {
-  const params = includeStale ? '?include_stale=true' : '';
-  const data = await fetchJson<{ channels: Array<Channel & { stale?: boolean }> }>(`${BASE_URL}/tenants/${tenantId}/channels${params}`);
-  return data.channels;
+export async function fetchConversation(id: string): Promise<{
+  conversation: ConversationListItem;
+  summary: ConversationSummary;
+  sessions: Session[];
+}> {
+  return fetchJson(`${BASE_URL}/conversations/${id}`);
 }
 
-export async function fetchMessages(
-  tenantId: string,
-  channelId: string,
-  opts?: PaginationOpts
-): Promise<{ messages: Message[]; pagination: { hasMore: boolean; nextCursor?: string; prevCursor?: string } }> {
+// Feed (interleaved messages + event batches)
+export async function fetchFeed(conversationId: string, opts?: { limit?: number; after?: string }): Promise<{
+  items: FeedItem[];
+  pagination: { hasMore: boolean; nextCursor: string | null };
+}> {
   const params = new URLSearchParams();
   if (opts?.limit) params.set('limit', String(opts.limit));
-  if (opts?.before) params.set('before', opts.before);
   if (opts?.after) params.set('after', opts.after);
   const qs = params.toString();
-  return fetchJson(`${BASE_URL}/tenants/${tenantId}/channels/${channelId}/messages${qs ? `?${qs}` : ''}`);
+  return fetchJson(`${BASE_URL}/conversations/${conversationId}/feed${qs ? `?${qs}` : ''}`);
 }
 
-export async function sendMessage(
-  tenantId: string,
-  channelId: string,
-  content: string,
-  parentMessageId?: string
-): Promise<Message> {
-  const data = await fetchJson<{ message: Message }>(
-    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/messages`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        senderId: 'human-user',
-        senderName: 'Human',
-        senderType: 'human' as const,
-        content,
-        messageType: 'text' as const,
-        ...(parentMessageId ? { parentMessageId } : {}),
-      }),
-    }
-  );
+// Events (for expanding batches)
+export async function fetchEvents(conversationId: string, opts?: { after?: string; before?: string; limit?: number }): Promise<{
+  events: Array<{ id: string; eventType: string; toolName: string | null; summary: string | null; isError: boolean; createdAt: string; metadata: Record<string, unknown> }>;
+}> {
+  const params = new URLSearchParams();
+  if (opts?.after) params.set('after', opts.after);
+  if (opts?.before) params.set('before', opts.before);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return fetchJson(`${BASE_URL}/conversations/${conversationId}/events${qs ? `?${qs}` : ''}`);
+}
+
+// Messages
+export async function sendMessage(conversationId: string, content: string, parentMessageId?: string): Promise<Message> {
+  const data = await fetchJson<{ message: Message }>(`${BASE_URL}/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, parentMessageId }),
+  });
   return data.message;
 }
 
-export async function fetchDocuments(tenantId: string, channelId: string): Promise<Document[]> {
-  const data = await fetchJson<{ documents: Document[] }>(
-    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/documents`
-  );
+// Documents
+export async function fetchDocuments(conversationId: string): Promise<Document[]> {
+  const data = await fetchJson<{ documents: Document[] }>(`${BASE_URL}/conversations/${conversationId}/documents`);
   return data.documents;
 }
 
-export async function fetchDocument(tenantId: string, channelId: string, documentId: string): Promise<Document> {
-  const data = await fetchJson<{ document: Document }>(
-    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/documents/${documentId}`
-  );
-  return data.document;
+// Archive/Restore
+export async function archiveConversation(id: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/conversations/${id}/archive`, { method: 'PATCH' });
 }
 
-export async function fetchPresence(tenantId: string, channelId: string): Promise<Presence[]> {
-  const data = await fetchJson<{ presence: Presence[] }>(
-    `${BASE_URL}/tenants/${tenantId}/channels/${channelId}/presence`
-  );
-  return data.presence;
-}
-
-export async function archiveChannel(tenantId: string, channelId: string): Promise<void> {
-  await fetchJson(`${BASE_URL}/tenants/${tenantId}/channels/${channelId}/archive`, { method: 'PATCH' });
-}
-
-export async function restoreChannel(tenantId: string, channelId: string): Promise<void> {
-  await fetchJson(`${BASE_URL}/tenants/${tenantId}/channels/${channelId}/restore`, { method: 'PATCH' });
-}
-
-export async function archiveTenant(tenantId: string): Promise<void> {
-  await fetchJson(`${BASE_URL}/tenants/${tenantId}/archive`, { method: 'PATCH' });
-}
-
-export async function restoreTenant(tenantId: string): Promise<void> {
-  await fetchJson(`${BASE_URL}/tenants/${tenantId}/restore`, { method: 'PATCH' });
-}
-
-export async function fetchArchivedTenants(): Promise<Tenant[]> {
-  const data = await fetchJson<{ tenants: Tenant[] }>(`${BASE_URL}/tenants/archived`);
-  return data.tenants;
-}
-
-export async function fetchArchivedChannels(tenantId: string): Promise<Channel[]> {
-  const data = await fetchJson<{ channels: Channel[] }>(`${BASE_URL}/tenants/${tenantId}/channels/archived`);
-  return data.channels;
-}
-
-export async function fetchRecentChannels(limit?: number): Promise<RecentChannel[]> {
-  const params = limit ? `?limit=${limit}` : '';
-  const data = await fetchJson<{ channels: RecentChannel[] }>(`${BASE_URL}/channels/recent${params}`);
-  return data.channels;
+export async function restoreConversation(id: string): Promise<void> {
+  await fetchJson(`${BASE_URL}/conversations/${id}/restore`, { method: 'PATCH' });
 }
