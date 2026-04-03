@@ -17,12 +17,22 @@ export function App() {
   const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [showAll, setShowAll] = useState(false);
+  const [refreshCountdown, setRefreshCountdown] = useState(60);
 
   const { conversations, loading, error, updateConversation, addConversation, reSort } = useConversations(tab, refreshKey);
 
-  // Poll for new conversations every 60 seconds
+  // Poll for new conversations every 60 seconds with visible countdown
   useEffect(() => {
-    const id = setInterval(() => setRefreshKey(k => k + 1), 60_000);
+    setRefreshCountdown(60);
+    const id = setInterval(() => {
+      setRefreshCountdown(prev => {
+        if (prev <= 1) {
+          setRefreshKey(k => k + 1);
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1_000);
     return () => clearInterval(id);
   }, []);
   const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId);
@@ -135,6 +145,7 @@ export function App() {
         selectedId={selectedId}
         tab={tab}
         showAll={showAll}
+        refreshCountdown={refreshCountdown}
         onTabChange={setTab}
         onShowAllChange={setShowAll}
         onSelect={handleSelect}

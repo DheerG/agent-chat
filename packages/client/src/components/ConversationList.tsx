@@ -9,13 +9,14 @@ interface Props {
   selectedId: string | null;
   tab: 'active' | 'recent' | 'all';
   showAll: boolean;
+  refreshCountdown: number;
   onTabChange: (tab: 'active' | 'recent' | 'all') => void;
   onShowAllChange: (showAll: boolean) => void;
   onSelect: (id: string) => void;
   unreadCounts?: Map<string, number>;
 }
 
-export function ConversationList({ conversations, loading, error, selectedId, tab, showAll, onTabChange, onShowAllChange, onSelect, unreadCounts }: Props) {
+export function ConversationList({ conversations, loading, error, selectedId, tab, showAll, refreshCountdown, onTabChange, onShowAllChange, onSelect, unreadCounts }: Props) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -50,18 +51,6 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
         />
       </div>
 
-      <div className="left-panel__toggle">
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={showAll}
-            onChange={(e) => onShowAllChange(e.target.checked)}
-          />
-          <span className="toggle__slider" />
-        </label>
-        <span className="toggle__label">Show all</span>
-      </div>
-
       <div className="left-panel__tabs" role="tablist">
         {(['active', 'recent', 'all'] as const).map(t => (
           <button
@@ -94,6 +83,21 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
             onClick={() => onSelect(c.id)}
           />
         ))}
+      </div>
+
+      <div className="left-panel__footer">
+        <div className="left-panel__footer-left">
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={showAll}
+              onChange={(e) => onShowAllChange(e.target.checked)}
+            />
+            <span className="toggle__slider" />
+          </label>
+          <span className="toggle__label">Show all</span>
+        </div>
+        <span className="left-panel__countdown">{refreshCountdown}s</span>
       </div>
     </nav>
   );
