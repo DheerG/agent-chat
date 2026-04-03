@@ -260,17 +260,37 @@ export class TeamInboxWatcher {
       this.teamDedupKeys.get(teamName)!.add(dedupKey);
 
       try {
+        // Detect idle_notification JSON and classify it properly
+        let content = msg.text;
+        let messageType: 'text' | 'status' = 'text';
+        let extraMeta: Record<string, unknown> = {};
+
+        if (content.startsWith('{"type":"idle_notification"')) {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed?.type === 'idle_notification') {
+              messageType = 'status';
+              extraMeta = {
+                original_type: 'idle_notification',
+                idle_reason: parsed.idleReason,
+                ...(parsed.summary != null ? { summary: parsed.summary } : {}),
+              };
+            }
+          } catch { /* not valid JSON, store as-is */ }
+        }
+
         const sentMsg = await this.services.messages.send(teamState.conversationId, {
           senderId: `${msg.from}@${teamName}`,
           senderName: msg.from,
           senderType: 'agent',
-          content: msg.text,
-          messageType: 'text',
+          content,
+          messageType,
           metadata: {
             recipient: recipientName,
             ...(msg.color != null ? { color: msg.color } : {}),
             ...(msg.summary != null ? { summary: msg.summary } : {}),
             source: 'team_inbox',
+            ...extraMeta,
           },
         });
 

@@ -480,6 +480,61 @@
 }
 .message-item__text a:hover { text-decoration: underline; }
 
+/* ─── Idle Notification ─────────────────────────────────────────── */
+
+.idle-notification {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  margin: 1px 0;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.idle-notification__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  flex-shrink: 0;
+}
+.idle-notification__dot[data-reason="blocked"],
+.idle-notification__dot[data-reason="waiting"] {
+  background: var(--color-warning);
+}
+
+.idle-notification__name {
+  font-weight: 600;
+  color: var(--color-text-body);
+  white-space: nowrap;
+}
+
+.idle-notification__reason {
+  white-space: nowrap;
+}
+
+.idle-notification__summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-body);
+  font-style: italic;
+}
+.idle-notification__summary::before {
+  content: '\2014\00a0';
+  color: var(--color-text-muted);
+}
+
+.idle-notification__time {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--color-text-timestamp);
+}
+
 /* ─── Date Separator ─────────────────────────────────────────────── */
 
 .date-separator {

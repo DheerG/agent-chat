@@ -11,6 +11,25 @@ function renderMarkdown(content: string): string {
   return DOMPurify.sanitize(raw);
 }
 
+interface IdleNotification {
+  type: 'idle_notification';
+  from: string;
+  timestamp: string;
+  idleReason?: string;
+  summary?: string;
+}
+
+function tryParseIdleNotification(content: string): IdleNotification | null {
+  if (!content.startsWith('{"type":"idle_notification"')) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed?.type === 'idle_notification' && typeof parsed.from === 'string') {
+      return parsed as IdleNotification;
+    }
+  } catch { /* not JSON */ }
+  return null;
+}
+
 interface Props {
   message: FeedMessage;
 }
@@ -22,7 +41,38 @@ export function MessageItem({ message }: Props) {
   const isInputRequest = message.messageType === 'input_request';
   const isHuman = message.senderType === 'human';
 
-  const html = useMemo(() => renderMarkdown(message.content), [message.content]);
+  const idleNotification = useMemo(
+    () => tryParseIdleNotification(message.content),
+    [message.content],
+  );
+  const html = useMemo(
+    () => (idleNotification ? '' : renderMarkdown(message.content)),
+    [message.content, idleNotification],
+  );
+
+  // Also check metadata for server-classified idle notifications
+  const metaIdle = !idleNotification && message.metadata?.original_type === 'idle_notification';
+
+  if (idleNotification || metaIdle) {
+    const from = idleNotification?.from ?? message.senderName;
+    const summary = idleNotification?.summary ?? (message.metadata?.summary as string | undefined);
+    const ts = idleNotification?.timestamp ?? message.createdAt;
+    const reason = idleNotification?.idleReason ?? (message.metadata?.idle_reason as string | undefined);
+
+    return (
+      <div className="idle-notification">
+        <span className="idle-notification__dot" data-reason={reason ?? 'available'} />
+        <span className="idle-notification__name">{from}</span>
+        <span className="idle-notification__reason">
+          {reason === 'available' || !reason ? 'is available' : reason}
+        </span>
+        {summary && <span className="idle-notification__summary">{summary}</span>}
+        <span className="idle-notification__time">
+          {new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        </span>
+      </div>
+    );
+  }
 
   if (isSystem) {
     return (
