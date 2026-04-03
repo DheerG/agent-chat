@@ -277,6 +277,18 @@ export class TeamInboxWatcher {
               };
             }
           } catch { /* not valid JSON, store as-is */ }
+        } else if (content.startsWith('{"type":"task_')) {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed?.type === 'task_assignment' || parsed?.type === 'task_completed') {
+              messageType = 'status';
+              extraMeta = {
+                original_type: parsed.type,
+                task_id: parsed.taskId,
+                ...(parsed.subject != null ? { task_subject: parsed.subject } : {}),
+              };
+            }
+          } catch { /* not valid JSON, store as-is */ }
         }
 
         const sentMsg = await this.services.messages.send(teamState.conversationId, {

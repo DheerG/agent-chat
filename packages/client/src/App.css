@@ -542,6 +542,73 @@
 }
 .message-item__text a:hover { text-decoration: underline; }
 
+/* ─── Task Card ─────────────────────────────────────────────────── */
+
+.task-card {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--color-accent);
+  background: #f0f3ff;
+}
+.task-card--completed {
+  border-left-color: var(--color-success);
+  background: #f0faf4;
+}
+
+.task-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.task-card__icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.task-card__label {
+  font-weight: 600;
+  color: var(--color-text-body);
+  white-space: nowrap;
+}
+
+.task-card__id {
+  color: var(--color-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.task-card--completed .task-card__id {
+  color: var(--color-success);
+}
+
+.task-card__actor {
+  white-space: nowrap;
+}
+
+.task-card__time {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--color-text-timestamp);
+}
+
+.task-card__subject {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.task-card__description {
+  margin-top: 3px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-text-body);
+}
+
 /* ─── Idle Notification ─────────────────────────────────────────── */
 
 .idle-notification {
