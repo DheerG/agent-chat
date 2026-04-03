@@ -97,7 +97,7 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
           </label>
           <span className="toggle__label">Show all</span>
         </div>
-        <span className="left-panel__countdown">{refreshCountdown}s</span>
+        <span className="left-panel__countdown" title={`Refreshes list in ${refreshCountdown}s`}>{refreshCountdown}s</span>
       </div>
     </nav>
   );
