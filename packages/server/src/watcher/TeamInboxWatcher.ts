@@ -260,33 +260,26 @@ export class TeamInboxWatcher {
       this.teamDedupKeys.get(teamName)!.add(dedupKey);
 
       try {
-        // Detect idle_notification JSON and classify it properly
+        // Detect structured JSON events and classify as status
         let content = msg.text;
         let messageType: 'text' | 'status' = 'text';
         let extraMeta: Record<string, unknown> = {};
 
-        if (content.startsWith('{"type":"idle_notification"')) {
+        if (content.startsWith('{"type":"')) {
           try {
             const parsed = JSON.parse(content);
-            if (parsed?.type === 'idle_notification') {
+            if (parsed && typeof parsed.type === 'string') {
               messageType = 'status';
-              extraMeta = {
-                original_type: 'idle_notification',
-                idle_reason: parsed.idleReason,
-                ...(parsed.summary != null ? { summary: parsed.summary } : {}),
-              };
-            }
-          } catch { /* not valid JSON, store as-is */ }
-        } else if (content.startsWith('{"type":"task_')) {
-          try {
-            const parsed = JSON.parse(content);
-            if (parsed?.type === 'task_assignment' || parsed?.type === 'task_completed') {
-              messageType = 'status';
-              extraMeta = {
-                original_type: parsed.type,
-                task_id: parsed.taskId,
-                ...(parsed.subject != null ? { task_subject: parsed.subject } : {}),
-              };
+              extraMeta = { original_type: parsed.type };
+
+              // Extract type-specific metadata
+              if (parsed.type === 'idle_notification') {
+                if (parsed.idleReason != null) extraMeta.idle_reason = parsed.idleReason;
+                if (parsed.summary != null) extraMeta.summary = parsed.summary;
+              } else if (parsed.type === 'task_assignment' || parsed.type === 'task_completed') {
+                if (parsed.taskId != null) extraMeta.task_id = parsed.taskId;
+                if (parsed.subject != null) extraMeta.task_subject = parsed.subject;
+              }
             }
           } catch { /* not valid JSON, store as-is */ }
         }

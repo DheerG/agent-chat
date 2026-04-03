@@ -609,6 +609,51 @@
   color: var(--color-text-body);
 }
 
+/* ─── Generic JSON Event ────────────────────────────────────────── */
+
+.json-event {
+  margin: 2px 0;
+  padding: 4px 12px;
+}
+
+.json-event__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+
+.json-event__label {
+  font-weight: 600;
+  color: var(--color-text-body);
+  background: var(--color-bg-event);
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.json-event__from {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.json-event__details {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.json-event__time {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: var(--color-text-timestamp);
+}
+
 /* ─── Idle Notification ─────────────────────────────────────────── */
 
 .idle-notification {
