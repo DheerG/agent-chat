@@ -8,22 +8,30 @@ interface Props {
   error: string | null;
   selectedId: string | null;
   tab: 'active' | 'recent' | 'all';
+  showAll: boolean;
   onTabChange: (tab: 'active' | 'recent' | 'all') => void;
+  onShowAllChange: (showAll: boolean) => void;
   onSelect: (id: string) => void;
   unreadCounts?: Map<string, number>;
 }
 
-export function ConversationList({ conversations, loading, error, selectedId, tab, onTabChange, onSelect, unreadCounts }: Props) {
+export function ConversationList({ conversations, loading, error, selectedId, tab, showAll, onTabChange, onShowAllChange, onSelect, unreadCounts }: Props) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
-    if (!search) return conversations;
-    const q = search.toLowerCase();
-    return conversations.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      (c.workspaceName ?? '').toLowerCase().includes(q)
-    );
-  }, [conversations, search]);
+    let list = conversations;
+    if (!showAll) {
+      list = list.filter(c => c.type === 'team');
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.workspaceName ?? '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [conversations, search, showAll]);
 
   return (
     <nav className="left-panel" aria-label="Conversations">
@@ -40,6 +48,18 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
           className="search-input"
           aria-label="Search conversations"
         />
+      </div>
+
+      <div className="left-panel__toggle">
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(e) => onShowAllChange(e.target.checked)}
+          />
+          <span className="toggle__slider" />
+        </label>
+        <span className="toggle__label">Show all</span>
       </div>
 
       <div className="left-panel__tabs" role="tablist">

@@ -16,8 +16,15 @@ export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  const [showAll, setShowAll] = useState(false);
 
   const { conversations, loading, error, updateConversation, addConversation, reSort } = useConversations(tab, refreshKey);
+
+  // Poll for new conversations every 60 seconds
+  useEffect(() => {
+    const id = setInterval(() => setRefreshKey(k => k + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
@@ -127,7 +134,9 @@ export function App() {
         error={error}
         selectedId={selectedId}
         tab={tab}
+        showAll={showAll}
         onTabChange={setTab}
+        onShowAllChange={setShowAll}
         onSelect={handleSelect}
         unreadCounts={unreadCounts}
       />
