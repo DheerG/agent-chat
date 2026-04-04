@@ -16,10 +16,17 @@ function duration(startedAt: string | null): string {
   return `${m}m`;
 }
 
+const STATUS_ORDER: Record<string, number> = { active: 0, idle: 1, pending: 2, stopped: 3 };
+
 export function ConversationHeader({ conversation, sessions }: Props) {
   const [compact, setCompact] = useState(false);
   const { summary } = conversation;
-  const activeSessions = sessions.filter(s => s.status === 'active' || s.status === 'idle');
+  const activeCount = sessions.filter(s => s.status === 'active' || s.status === 'idle').length;
+
+  // Show all members, sorted: active → idle → pending → stopped
+  const sortedSessions = [...sessions].sort(
+    (a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9),
+  );
 
   if (compact) {
     return (
@@ -27,7 +34,7 @@ export function ConversationHeader({ conversation, sessions }: Props) {
         <StatusIndicator status={conversation.status} />
         <span className="conversation-header__name">{conversation.name}</span>
         <span className="conversation-header__meta">
-          {activeSessions.length}/{sessions.length} agents active
+          {activeCount}/{sessions.length} agents active
           {summary.startedAt && ` | ${duration(summary.startedAt)}`}
         </span>
         <button className="conversation-header__toggle" onClick={() => setCompact(false)} title="Expand header">
@@ -52,7 +59,7 @@ export function ConversationHeader({ conversation, sessions }: Props) {
 
       <div className="conversation-header__status-bar">
         <span className="conversation-header__health">
-          {activeSessions.length}/{sessions.length} agents active
+          {activeCount}/{sessions.length} agents active
         </span>
         {summary.startedAt && (
           <span className="conversation-header__duration">
@@ -69,15 +76,15 @@ export function ConversationHeader({ conversation, sessions }: Props) {
         )}
       </div>
 
-      {sessions.length > 0 && (
+      {sortedSessions.length > 0 && (
         <div className="conversation-header__agents">
-          {sessions.map(s => (
+          {sortedSessions.map(s => (
             <span
               key={s.id}
               className={`agent-pill agent-pill--${s.status}`}
               title={`${s.agentName ?? s.id.slice(0, 8)} (${s.status})`}
             >
-              <StatusIndicator status={s.status === 'active' ? 'active' : s.status === 'idle' ? 'idle' : 'inactive'} size={6} />
+              <StatusIndicator status={s.status} size={6} />
               {s.agentName ?? s.id.slice(0, 8)}
             </span>
           ))}

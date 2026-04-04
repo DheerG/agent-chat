@@ -392,7 +392,9 @@
   font-size: 0.72rem;
   color: var(--color-text-body);
 }
-.agent-pill--stopped { opacity: 0.5; }
+.agent-pill--idle { opacity: 0.85; }
+.agent-pill--pending { opacity: 0.6; font-style: italic; }
+.agent-pill--stopped { opacity: 0.45; }
 
 /* ─── Message Feed ───────────────────────────────────────────────── */
 

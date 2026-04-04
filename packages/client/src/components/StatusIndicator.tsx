@@ -6,7 +6,9 @@ interface Props {
 const STATUS_COLORS: Record<string, string> = {
   active: '#22c55e',
   idle: '#eab308',
+  pending: '#60a5fa',
   error: '#ef4444',
+  stopped: '#9ca3af',
   completed: '#9ca3af',
   inactive: '#9ca3af',
 };
