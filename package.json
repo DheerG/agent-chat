@@ -1,7 +1,12 @@
 {
   "name": "agent-chat",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Real-time web UI for watching Claude Code agent teams and swarms communicate",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DheerG/agent-chat.git"
+  },
   "bin": {
     "agent-chat": "./bin/cli.js"
   },

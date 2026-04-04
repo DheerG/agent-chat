@@ -1,246 +1,107 @@
 # AgentChat
 
-A local multi-tenant messaging service for Claude agent teams. Agents communicate through structured channels via MCP tools, and humans observe and participate through a web UI.
+**See what your AI agents are actually saying to each other.**
 
-> **Status:** All 12 phases complete — v1.0 release. Includes real-time messaging, documents, archive/restore, setup scripts, UI polish, and team inbox watching.
+When you run Claude Code agent teams or swarms, the agents coordinate through file-based inboxes that are invisible to you. AgentChat gives you a real-time web UI to watch those conversations unfold, understand what your agents are doing, and step in when they need help.
+
+## Why AgentChat?
+
+- **Visibility** -- Agent teams produce dozens of messages per minute. Without a UI you're left tailing JSON files or waiting for the final result and hoping nothing went wrong.
+- **Live status** -- See which agents are active, idle, or stopped at a glance. Know when an agent is blocked and needs your input before it stalls the whole team.
+- **Zero config for teams** -- AgentChat watches `~/.claude/teams/` automatically. Start a Claude Code team session and the conversation appears in the UI within seconds.
+- **Works with any codebase** -- Run one setup script and your project's agents can send and read messages through AgentChat. Remove it just as easily.
+- **Human-in-the-loop** -- You're not just watching. Send messages into the conversation, answer agent questions, and steer the team when they go off track.
 
 ## Quick Start
 
 ```bash
 # Prerequisites: Node.js >= 20, pnpm >= 9
+
+git clone https://github.com/DheerG/agent-chat.git
+cd agent-chat
 pnpm install
 pnpm build
 
-# Start the server
-node packages/server/dist/index.js
+# Start the server + UI
+pnpm dev
 ```
 
-The server starts on `http://localhost:5555`. The web UI is at `http://localhost:5173`. The SQLite database is created automatically at `~/.agent-chat/data.db`.
+The web UI opens at **http://localhost:5173**. The API server runs on **http://localhost:5555**. A SQLite database is created automatically at `~/.agent-chat/data.db`.
 
-### Integrate AgentChat into an Existing Project
+Any active Claude Code team sessions in `~/.claude/teams/` will appear in the sidebar automatically.
 
-Use the setup script to wire any local codebase into a running AgentChat instance:
+### Add AgentChat to an existing project
 
 ```bash
 ./scripts/setup.sh /path/to/your/project
 ```
 
-This configures Claude Code hooks and MCP server entries in `.claude/settings.json` so agents in that project can communicate through AgentChat. To remove AgentChat from a project:
+This configures Claude Code hooks and MCP server entries in your project's `.claude/settings.json` so agents can communicate through AgentChat. To remove it:
 
 ```bash
 ./scripts/teardown.sh /path/to/your/project
 ```
 
-## Project Structure
+## What you see
+
+- **Conversation sidebar** -- All your team conversations in one place, sorted by activity. Toggle between team chats and all sessions. Auto-refreshes every 60 seconds.
+- **Agent status pills** -- Every team member shown with real-time status: green (active), yellow (idle), blue (pending), grey (stopped).
+- **Structured events** -- Task assignments, completions, idle notifications, shutdown approvals, and other agent protocol messages are rendered as human-readable cards instead of raw JSON.
+- **Activity batches** -- Tool calls are grouped into collapsible summaries so the feed stays readable even during heavy agent activity.
+- **Unread indicators** -- Badge counts and tab title updates so you know when something needs attention, even in a background tab.
+
+## How it works
+
+```
+  Claude Code agents            AgentChat server           Web UI
+  ─────────────────            ────────────────           ──────
+  Write to team inboxes  ──>   File watcher picks up  ──>  WebSocket push
+  Use MCP tools          ──>   HTTP API + SQLite      ──>  Real-time feed
+  Hook events            ──>   Event ingestion        ──>  Activity batches
+```
+
+AgentChat runs entirely on your machine. No data leaves localhost. The server watches your `~/.claude/teams/` directory for agent messages and ingests them into a local SQLite database. The React UI connects over WebSocket for real-time updates.
+
+## Project structure
 
 ```
 agent-chat/
 ├── packages/
-│   ├── server/          HTTP API, database, services, WebSocket hub (@agent-chat/server)
-│   ├── mcp/             MCP server for Claude Code agents (@agent-chat/mcp)
-│   ├── client/          React SPA for observing and interacting with agent conversations (@agent-chat/client)
-│   └── shared/          Schema, types, shared definitions (@agent-chat/shared)
+│   ├── server/     HTTP API, SQLite, WebSocket hub, team inbox watcher
+│   ├── client/     React UI
+│   ├── mcp/        MCP server for Claude Code agents
+│   └── shared/     Types and schema shared across packages
 ├── scripts/
-│   ├── setup.sh         Integrate AgentChat into a local codebase
-│   ├── teardown.sh      Remove AgentChat from a local codebase
-│   ├── test-setup.sh    Integration tests for setup and teardown
-│   └── lib/             Setup and teardown helper modules
-├── .planning/           Roadmap, requirements, project state
+│   ├── setup.sh    Wire a project into AgentChat
+│   └── teardown.sh Remove AgentChat from a project
 └── pnpm-workspace.yaml
 ```
 
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Runtime | Node.js >= 20 |
-| Language | TypeScript 5.8 |
-| HTTP Server | Hono 4.12 |
-| Database | SQLite via better-sqlite3 12.6 |
-| ORM | Drizzle ORM 0.45 |
-| Validation | Zod 4.3 |
-| MCP Server | Model Context Protocol SDK 1.12 |
-| WebSocket | ws 8.19 |
-| UI Framework | React 18.3 |
-| UI Build Tool | Vite 6.3 |
-| IDs | ULID (lexicographic = chronological) |
-| Tests | Vitest 3.2 |
-| Package Manager | pnpm 9+ (monorepo) |
-
-## API
-
-Base URL: `http://localhost:5555`
-
-### Health
-```
-GET /health → { status: "ok", timestamp: "..." }
-```
-
-### Tenants
-```
-GET    /api/tenants                         → { tenants: [...] }
-GET    /api/tenants/archived                → { tenants: [...] }
-POST   /api/tenants                         → { tenant: {...} }    body: { name, codebasePath }
-GET    /api/tenants/:id                     → { tenant: {...} }
-PATCH  /api/tenants/:id/archive             → { success: true }
-PATCH  /api/tenants/:id/restore             → { success: true }
-```
-
-### Channels
-```
-GET    /api/tenants/:tid/channels                → { channels: [...] }
-GET    /api/tenants/:tid/channels/archived       → { channels: [...] }
-POST   /api/tenants/:tid/channels                → { channel: {...} }   body: { name, sessionId?, type? }
-GET    /api/tenants/:tid/channels/:id            → { channel: {...} }
-PATCH  /api/tenants/:tid/channels/:id/archive    → { success: true }
-PATCH  /api/tenants/:tid/channels/:id/restore    → { success: true }
-```
-
-### Messages
-```
-GET    /api/tenants/:tid/channels/:cid/messages   → { messages: [...], pagination: { hasMore, nextCursor, prevCursor } }
-POST   /api/tenants/:tid/channels/:cid/messages   → { message: {...} }
-```
-
-**GET query params:** `limit` (1-100, default 50), `before` (ULID cursor), `after` (ULID cursor)
-
-**POST body:**
-```json
-{
-  "senderId": "agent-1",
-  "senderName": "Researcher",
-  "senderType": "agent",
-  "content": "Found the bug in auth.ts",
-  "messageType": "text",
-  "parentMessageId": null,
-  "metadata": {}
-}
-```
-
-`senderType`: `agent` | `human` | `system` | `hook`
-`messageType`: `text` | `event` | `hook`
-
-### Documents
-```
-GET    /api/tenants/:tid/channels/:cid/documents         → { documents: [...] }
-POST   /api/tenants/:tid/channels/:cid/documents         → { document: {...} }   body: { title, content, contentType?, createdById, createdByName, createdByType? }
-GET    /api/tenants/:tid/channels/:cid/documents/:docId  → { document: {...} }
-PUT    /api/tenants/:tid/channels/:cid/documents/:docId  → { document: {...} }   body: { title?, content? }
-```
-
-`contentType`: `text` | `markdown` | `json` (default: `text`)
-
-### MCP Tools
-
-**send_message**
-```
-Send a message to a channel
-
-Parameters:
-  channel_id (string)        - Channel ID to send message to
-  content (string)           - Message content
-  parent_message_id (string) - Optional thread parent message ID
-  metadata (object)          - Optional metadata JSON
-```
-
-**read_channel**
-```
-Read messages from a channel (excludes your own messages)
-
-Parameters:
-  channel_id (string) - Channel ID to read from
-  limit (number)      - Optional max messages to return (default 50)
-  after (string)      - Optional ULID cursor — return messages after this ID
-```
-
-**list_channels**
-```
-List all channels available in your tenant
-```
-
-**create_document**
-```
-Create a new document pinned to a channel
-
-Parameters:
-  channel_id (string)   - Channel ID to pin document to
-  title (string)        - Document title
-  content (string)      - Document content
-  content_type (string) - Optional: text, markdown, or json (default: text)
-```
-
-**read_document**
-```
-Read a document by its ID
-
-Parameters:
-  document_id (string) - Document ID to read
-```
-
-**update_document**
-```
-Update an existing document (title and/or content)
-
-Parameters:
-  document_id (string) - Document ID to update
-  title (string)       - New title (omit to keep current)
-  content (string)     - New content (omit to keep current)
-```
-
-**list_documents**
-```
-List all documents pinned to a channel
-
-Parameters:
-  channel_id (string) - Channel ID to list documents for
-```
-
-## Environment Variables
+## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `5555` | HTTP server port |
 | `AGENT_CHAT_DB_PATH` | `~/.agent-chat/data.db` | SQLite database path |
-| `TEAMS_DIR` | `~/.claude/teams/` | Directory to watch for agent team conversations |
+| `TEAMS_DIR` | `~/.claude/teams/` | Directory to watch for team conversations |
 
-## Testing
-
-```bash
-pnpm test          # Run all tests (200 passing)
-pnpm test:watch    # Watch mode
-pnpm typecheck     # Type checking only
-```
-
-To test the setup and teardown scripts:
+## Development
 
 ```bash
-./scripts/test-setup.sh
+pnpm dev            # Server + client with hot reload
+pnpm build          # Production build
+pnpm test           # Run all tests
+pnpm typecheck      # Type checking only
 ```
 
-## Architecture
+## Tech stack
 
-- **Multi-tenancy:** Each codebase is a tenant. All queries are scoped by `tenant_id`.
-- **Write serialization:** The `WriteQueue` serializes writes to better-sqlite3's synchronous API as Promises, preventing `SQLITE_BUSY` under concurrency. Reads bypass the queue (safe under WAL mode).
-- **ULID ordering:** Message IDs are ULIDs — lexicographic sorting = chronological ordering, enabling efficient cursor-based pagination.
-- **Append-only messages:** Messages are immutable. Threads use `parent_message_id` self-references.
-- **Graceful shutdown:** SIGTERM drains in-flight writes, then closes the database.
-- **Team inbox watching:** The server monitors `~/.claude/teams/` for agent team messages and ingests them into channels in real-time, giving humans visibility into multi-agent coordination.
+TypeScript, React, Hono, SQLite (via better-sqlite3 + Drizzle ORM), WebSocket, Model Context Protocol SDK. Full details in each package's `package.json`.
 
-## Roadmap
+## Contributing
 
-- [x] **Phase 1:** Data Layer Foundation — SQLite schema, WAL mode, write serialization, tenant isolation
-- [x] **Phase 2:** Domain Services and HTTP API — Service layer, Hono REST server, Zod validation
-- [x] **Phase 3:** MCP Server and Hook Ingestion — Claude Code agent integration via MCP tools + hook capture
-- [x] **Phase 4:** Real-Time WebSocket Delivery — WebSocket hub with tenant-scoped broadcast and cursor-based reconnect catch-up
-- [x] **Phase 5:** Human Web UI — React SPA for observing and interacting with agent conversations
-- [x] **Phase 6:** Documents and Canvases — Persistent shared artifacts pinned to channels
-- [x] **Phase 7:** Channel and Tenant Archiving — Archive/restore UI for channels and tenants
-- [x] **Phase 8:** Add to Existing Codebases — Setup/teardown scripts for wiring local codebases into AgentChat
-- [x] **Phase 9:** UI Polish — CSS design tokens, WCAG AA contrast, accessibility fixes
-- [x] **Phase 10:** Fix Dogfood Bugs — Archived channel write guards, tenant upsert, test fixes
-- [x] **Phase 11:** Team Inbox Ingestion — File watcher syncing ~/.claude/teams/ messages into channels
-- [x] **Phase 12:** Setup Script Updates — Documentation and setup output for team inbox watching
+Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
 ## License
 
-Private
+[MIT](LICENSE)
