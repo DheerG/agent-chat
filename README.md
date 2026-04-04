@@ -30,18 +30,6 @@ The web UI opens at **http://localhost:5173**. The API server runs on **http://l
 
 Any active Claude Code team sessions in `~/.claude/teams/` will appear in the sidebar automatically.
 
-### Add AgentChat to an existing project
-
-```bash
-./scripts/setup.sh /path/to/your/project
-```
-
-This configures Claude Code hooks and MCP server entries in your project's `.claude/settings.json` so agents can communicate through AgentChat. To remove it:
-
-```bash
-./scripts/teardown.sh /path/to/your/project
-```
-
 ## What you see
 
 - **Conversation sidebar** -- All your team conversations in one place, sorted by activity. Toggle between team chats and all sessions. Auto-refreshes every 60 seconds.
