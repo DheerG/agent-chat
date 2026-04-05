@@ -8,22 +8,17 @@ interface Props {
   error: string | null;
   selectedId: string | null;
   tab: 'active' | 'recent' | 'all';
-  showAll: boolean;
   refreshCountdown: number;
   onTabChange: (tab: 'active' | 'recent' | 'all') => void;
-  onShowAllChange: (showAll: boolean) => void;
   onSelect: (id: string) => void;
   unreadCounts?: Map<string, number>;
 }
 
-export function ConversationList({ conversations, loading, error, selectedId, tab, showAll, refreshCountdown, onTabChange, onShowAllChange, onSelect, unreadCounts }: Props) {
+export function ConversationList({ conversations, loading, error, selectedId, tab, refreshCountdown, onTabChange, onSelect, unreadCounts }: Props) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
     let list = conversations;
-    if (!showAll) {
-      list = list.filter(c => c.type === 'team');
-    }
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(c =>
@@ -32,7 +27,7 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
       );
     }
     return list;
-  }, [conversations, search, showAll]);
+  }, [conversations, search]);
 
   return (
     <nav className="left-panel" aria-label="Conversations">
@@ -86,17 +81,6 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
       </div>
 
       <div className="left-panel__footer">
-        <div className="left-panel__footer-left">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={showAll}
-              onChange={(e) => onShowAllChange(e.target.checked)}
-            />
-            <span className="toggle__slider" />
-          </label>
-          <span className="toggle__label">Show all</span>
-        </div>
         <span className="left-panel__countdown" title={`Refreshes list in ${refreshCountdown}s`}>{refreshCountdown}s</span>
       </div>
     </nav>

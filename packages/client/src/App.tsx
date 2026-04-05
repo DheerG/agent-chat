@@ -16,10 +16,9 @@ export function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
-  const [showAll, setShowAll] = useState(false);
   const [refreshCountdown, setRefreshCountdown] = useState(60);
 
-  const { conversations, loading, error, updateConversation, addConversation, reSort } = useConversations(tab, refreshKey);
+  const { conversations, loading, error, updateConversation, reSort } = useConversations(tab, refreshKey);
 
   // Poll for new conversations every 60 seconds with visible countdown
   useEffect(() => {
@@ -70,67 +69,26 @@ export function App() {
         }
         break;
       }
-      case 'activity': {
-        // Activity batch — trigger re-sort on activity
-        reSort();
-        break;
-      }
       case 'summary_update': {
         const upd = msg as { conversationId: string; summary: unknown };
         updateConversation(upd.conversationId, { summary: upd.summary } as Partial<ConversationListItem>);
         reSort();
         break;
       }
-      case 'status_change': {
-        const sc = msg as { conversationId: string; status: string };
-        updateConversation(sc.conversationId, { status: sc.status } as Partial<ConversationListItem>);
-        reSort();
-        break;
-      }
-      case 'conversation_created': {
-        const cc = msg as { conversation: ConversationListItem };
-        addConversation(cc.conversation);
-        break;
-      }
-      case 'conversation_lifecycle': {
-        // Conversation archived/restored — refresh the list
-        setRefreshKey(k => k + 1);
-        break;
-      }
-      case 'session_event': {
-        // Agent session started/stopped/idle — refresh sessions for selected conversation
-        const se = msg as { conversationId: string; sessionId: string; event: string; agentName?: string };
-        if (se.conversationId === selectedIdRef.current) {
-          setSessions(prev => prev.map(s =>
-            s.id === se.sessionId
-              ? { ...s, status: se.event === 'started' ? 'active' : se.event === 'stopped' ? 'stopped' : 'idle' as Session['status'] }
-              : s
-          ));
-        }
-        break;
-      }
-      case 'attention_needed': {
-        const an = msg as { conversationId: string };
-        updateConversation(an.conversationId, { attentionNeeded: true } as Partial<ConversationListItem>);
-        break;
-      }
     }
-  }, [addMessage, updateConversation, addConversation, reSort]);
+  }, [addMessage, updateConversation, reSort]);
 
   useWebSocket(handleWsMessage);
 
   // Update tab title
   useEffect(() => {
-    const needsAttention = conversations.some(c => c.attentionNeeded);
     const totalUnread = Array.from(unreadCounts.values()).reduce((sum, n) => sum + n, 0);
-    if (needsAttention) {
-      document.title = '(!) AgentChat';
-    } else if (totalUnread > 0) {
+    if (totalUnread > 0) {
       document.title = `(${totalUnread}) AgentChat`;
     } else {
       document.title = 'AgentChat';
     }
-  }, [conversations, unreadCounts]);
+  }, [unreadCounts]);
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -144,10 +102,8 @@ export function App() {
         error={error}
         selectedId={selectedId}
         tab={tab}
-        showAll={showAll}
         refreshCountdown={refreshCountdown}
         onTabChange={setTab}
-        onShowAllChange={setShowAll}
         onSelect={handleSelect}
         unreadCounts={unreadCounts}
       />

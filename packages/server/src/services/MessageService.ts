@@ -55,19 +55,4 @@ export class MessageService {
     };
   }
 
-  getById(conversationId: string, messageId: string): Message | null {
-    return this.q.getMessageById(conversationId, messageId);
-  }
-
-  getThreadReplies(conversationId: string, parentMessageId: string): Message[] {
-    return this.q.getThreadReplies(conversationId, parentMessageId);
-  }
-
-  getMessagesSince(conversationId: string, since: string, limit = 200): Message[] {
-    return this.q.getMessagesSince(conversationId, since, limit);
-  }
-
-  getMessageCount(conversationId: string): number {
-    return this.q.getMessageCount(conversationId);
-  }
 }

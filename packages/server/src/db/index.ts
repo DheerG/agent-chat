@@ -13,7 +13,6 @@ const CREATE_TABLES_SQL = `
     workspace_name TEXT,
     type TEXT NOT NULL DEFAULT 'team',
     status TEXT NOT NULL DEFAULT 'active',
-    attention_needed INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     archived_at TEXT
@@ -48,53 +47,19 @@ const CREATE_TABLES_SQL = `
   CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
   CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
 
-  CREATE TABLE IF NOT EXISTS activity_events (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL REFERENCES conversations(id),
-    session_id TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    tool_name TEXT,
-    file_paths TEXT,
-    is_error INTEGER NOT NULL DEFAULT 0,
-    summary TEXT,
-    metadata TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_activity_conversation ON activity_events(conversation_id, created_at);
-  CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_events(session_id, created_at);
-
   CREATE TABLE IF NOT EXISTS conversation_summaries (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
-    total_events INTEGER NOT NULL DEFAULT 0,
-    total_errors INTEGER NOT NULL DEFAULT 0,
-    files_touched_count INTEGER NOT NULL DEFAULT 0,
-    last_event_at TEXT,
     total_messages INTEGER NOT NULL DEFAULT 0,
     last_message_at TEXT,
     last_message_preview TEXT,
     last_message_sender TEXT,
     active_session_count INTEGER NOT NULL DEFAULT 0,
     total_session_count INTEGER NOT NULL DEFAULT 0,
-    has_stop_event INTEGER NOT NULL DEFAULT 0,
-    has_error INTEGER NOT NULL DEFAULT 0,
     started_at TEXT,
-    ended_at TEXT,
     status TEXT NOT NULL DEFAULT 'active',
     updated_at TEXT NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS documents (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL REFERENCES conversations(id),
-    title TEXT NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
-    content_type TEXT NOT NULL DEFAULT 'text',
-    created_by_id TEXT NOT NULL,
-    created_by_name TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_documents_conversation ON documents(conversation_id);
 `;
 
 export interface DbInstance {

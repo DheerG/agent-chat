@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import type { FeedItem, FeedMessage, FeedEventBatch } from '@agent-chat/shared';
+import type { FeedItem, FeedMessage } from '@agent-chat/shared';
 import { MessageItem } from './MessageItem';
-import { EventBatch } from './EventBatch';
 
 interface Props {
   items: FeedItem[];
@@ -53,9 +52,9 @@ export function MessageFeed({ items, loading, error }: Props) {
         {items.map((item, idx) => {
           const elements: React.ReactNode[] = [];
 
-          const currentDate = new Date(item.type === 'message' ? (item as FeedMessage).createdAt : (item as FeedEventBatch).startTime);
+          const currentDate = new Date((item as FeedMessage).createdAt);
           const prevItem = idx > 0 ? items[idx - 1] : null;
-          const prevDate = prevItem ? new Date(prevItem.type === 'message' ? (prevItem as FeedMessage).createdAt : (prevItem as FeedEventBatch).startTime) : null;
+          const prevDate = prevItem ? new Date((prevItem as FeedMessage).createdAt) : null;
 
           if (!prevDate || currentDate.toDateString() !== prevDate.toDateString()) {
             const label = currentDate.toDateString() === new Date().toDateString()
@@ -70,11 +69,7 @@ export function MessageFeed({ items, loading, error }: Props) {
             );
           }
 
-          if (item.type === 'message') {
-            elements.push(<MessageItem key={item.id} message={item as FeedMessage} />);
-          } else if (item.type === 'event_batch') {
-            elements.push(<EventBatch key={item.id} batch={item as FeedEventBatch} />);
-          }
+          elements.push(<MessageItem key={item.id} message={item as FeedMessage} />);
 
           return elements;
         })}

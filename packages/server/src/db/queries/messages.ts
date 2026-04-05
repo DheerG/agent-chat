@@ -84,54 +84,5 @@ export function createMessageQueries(instance: DbInstance, queue: WriteQueue) {
         .map(rowToMessage);
     },
 
-    getMessageById(conversationId: string, messageId: string): Message | null {
-      const row = db.select().from(messages)
-        .where(and(eq(messages.conversationId, conversationId), eq(messages.id, messageId)))
-        .get();
-      return row ? rowToMessage(row) : null;
-    },
-
-    getThreadReplies(conversationId: string, parentMessageId: string): Message[] {
-      return db.select().from(messages)
-        .where(and(
-          eq(messages.conversationId, conversationId),
-          eq(messages.parentMessageId, parentMessageId)
-        ))
-        .orderBy(asc(messages.id))
-        .all()
-        .map(rowToMessage);
-    },
-
-    getMessagesSince(conversationId: string, since: string, limit = 200): Message[] {
-      interface RawRow {
-        id: string; conversation_id: string; parent_message_id: string | null;
-        sender_id: string; sender_name: string; sender_type: string;
-        content: string; message_type: string; metadata: string; created_at: string;
-      }
-      const rows = rawDb.prepare(`
-        SELECT * FROM messages
-        WHERE conversation_id = ? AND created_at > ?
-        ORDER BY id ASC LIMIT ?
-      `).all(conversationId, since, limit) as RawRow[];
-      return rows.map(r => ({
-        id: r.id,
-        conversationId: r.conversation_id,
-        parentMessageId: r.parent_message_id,
-        senderId: r.sender_id,
-        senderName: r.sender_name,
-        senderType: r.sender_type as Message['senderType'],
-        content: r.content,
-        messageType: r.message_type as Message['messageType'],
-        metadata: JSON.parse(r.metadata) as Record<string, unknown>,
-        createdAt: r.created_at,
-      }));
-    },
-
-    getMessageCount(conversationId: string): number {
-      const result = rawDb.prepare(
-        `SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?`
-      ).get(conversationId) as { cnt: number };
-      return result.cnt;
-    },
   };
 }

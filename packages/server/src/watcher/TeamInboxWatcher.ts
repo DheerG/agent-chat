@@ -53,6 +53,7 @@ function commonAncestor(paths: string[]): string | null {
 
 export class TeamInboxWatcher {
   private teams = new Map<string, TeamState>();
+  private skippedTeams = new Set<string>();
   private seenMessages = new Set<string>();
   private teamDedupKeys = new Map<string, Set<string>>();
   private lastProcessedIndex = new Map<string, number>();
@@ -99,6 +100,7 @@ export class TeamInboxWatcher {
     for (const timer of this.debounceTimers.values()) clearTimeout(timer);
     this.debounceTimers.clear();
     this.teamDedupKeys.clear();
+    this.skippedTeams.clear();
   }
 
   private async scanTeams(): Promise<void> {
@@ -115,7 +117,7 @@ export class TeamInboxWatcher {
     try { entries = readdirSync(this.teamsDir); } catch { return; }
 
     for (const entry of entries) {
-      if (!this.teams.has(entry)) {
+      if (!this.teams.has(entry) && !this.skippedTeams.has(entry)) {
         const teamPath = join(this.teamsDir, entry);
         if (existsSync(join(teamPath, 'config.json'))) {
           try {
@@ -132,6 +134,9 @@ export class TeamInboxWatcher {
     for (const teamName of this.teams.keys()) {
       if (!currentTeamNames.has(teamName)) await this.removeTeam(teamName);
     }
+    for (const teamName of this.skippedTeams) {
+      if (!currentTeamNames.has(teamName)) this.skippedTeams.delete(teamName);
+    }
   }
 
   private async processTeam(teamName: string, teamPath: string): Promise<void> {
@@ -144,7 +149,10 @@ export class TeamInboxWatcher {
     let config: TeamConfig;
     try {
       config = JSON.parse(readFileSync(configPath, 'utf-8')) as TeamConfig;
-    } catch { return; }
+    } catch {
+      this.skippedTeams.add(teamName);
+      return;
+    }
 
     // Compute workspace path from member cwds
     const cwds = (config.members ?? []).map(m => m.cwd).filter((c): c is string => !!c);
@@ -153,6 +161,7 @@ export class TeamInboxWatcher {
 
     // Skip teams whose workspace no longer exists (deleted worktrees, removed codebases)
     if (workspacePath !== teamPath && !existsSync(workspacePath)) {
+      this.skippedTeams.add(teamName);
       console.log(JSON.stringify({ event: 'team_skipped_missing_workspace', teamName, workspacePath }));
       return;
     }
@@ -202,17 +211,6 @@ export class TeamInboxWatcher {
         cwd: member.cwd,
       });
       await this.services.conversations.incrementSessionCount(conversation.id);
-    }
-
-    // Check for pending sessions that match team members
-    const memberIds = (config.members ?? []).map(m => m.agentId);
-    if (memberIds.length > 0) {
-      const unlinked = this.services.sessions.findByIds(memberIds);
-      const toLink = unlinked.filter(s => !s.conversationId).map(s => s.id);
-      if (toLink.length > 0) {
-        await this.services.sessions.linkToConversation(toLink, conversation.id);
-        await this.services.activityEvents.backfillConversation(toLink, conversation.id);
-      }
     }
 
     this.teams.set(teamName, { conversationId: conversation.id, config });
@@ -365,7 +363,7 @@ export class TeamInboxWatcher {
     const teamName = parts[0]!;
     const teamPath = join(this.teamsDir, teamName);
 
-    if (!this.teams.has(teamName)) {
+    if (!this.teams.has(teamName) && !this.skippedTeams.has(teamName)) {
       if (existsSync(join(teamPath, 'config.json'))) {
         try { await this.processTeam(teamName, teamPath); } catch (err) {
           console.error(JSON.stringify({ event: 'team_watcher_new_team_error', teamName, error: String(err) }));

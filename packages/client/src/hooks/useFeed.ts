@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FeedItem, Message } from '@agent-chat/shared';
-import { fetchFeed, sendMessage } from '../lib/api';
+import { fetchFeed } from '../lib/api';
 
 export function useFeed(conversationId: string | null) {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -45,15 +45,5 @@ export function useFeed(conversationId: string | null) {
     setLastSeenId(msg.id);
   }, []);
 
-  const send = useCallback(async (content: string) => {
-    if (!conversationId) return;
-    try {
-      const msg = await sendMessage(conversationId, content);
-      addMessage(msg);
-    } catch (err) {
-      setError(String(err));
-    }
-  }, [conversationId, addMessage]);
-
-  return { items, loading, error, send, addMessage, lastSeenId };
+  return { items, loading, error, addMessage, lastSeenId };
 }

@@ -18,35 +18,7 @@ export class SessionService {
     return this.queries.upsert(data);
   }
 
-  getById(id: string): Session | null {
-    return this.queries.getById(id);
-  }
-
   getByConversation(conversationId: string): Session[] {
     return this.queries.getByConversation(conversationId);
-  }
-
-  getActiveByConversation(conversationId: string): Session[] {
-    return this.queries.getActiveByConversation(conversationId);
-  }
-
-  findByIds(ids: string[]): Session[] {
-    return this.queries.findByIds(ids);
-  }
-
-  findUnlinked(): Session[] {
-    return this.queries.findUnlinked();
-  }
-
-  async markStopped(id: string): Promise<void> {
-    await this.queries.markStopped(id);
-  }
-
-  async markIdle(id: string): Promise<void> {
-    await this.queries.markIdle(id);
-  }
-
-  async linkToConversation(sessionIds: string[], conversationId: string): Promise<void> {
-    await this.queries.linkToConversation(sessionIds, conversationId);
   }
 }
