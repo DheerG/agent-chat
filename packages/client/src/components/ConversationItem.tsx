@@ -20,7 +20,7 @@ function timeAgo(iso: string | null): string {
 
 export function ConversationItem({ conversation, isSelected, compact, unreadCount, onClick }: Props) {
   const { summary } = conversation;
-  const lastActivity = summary.lastMessageAt ?? summary.lastEventAt;
+  const lastActivity = summary.lastMessageAt;
   const agentCount = summary.totalSessionCount;
 
   return (
@@ -36,7 +36,7 @@ export function ConversationItem({ conversation, isSelected, compact, unreadCoun
       <div className="conversation-item__content">
         <div className="conversation-item__line1">
           <span className="conversation-item__name">{conversation.name}</span>
-          {conversation.type === 'team' && agentCount > 0 && (
+          {agentCount > 0 && (
             <span className="conversation-item__agents">({agentCount})</span>
           )}
           <span className="conversation-item__time">{timeAgo(lastActivity)}</span>
@@ -49,17 +49,11 @@ export function ConversationItem({ conversation, isSelected, compact, unreadCoun
             {summary.totalMessages > 0 && (
               <span className="conversation-item__stat">{summary.totalMessages} msgs</span>
             )}
-            {summary.totalErrors > 0 && (
-              <span className="conversation-item__stat conversation-item__stat--error">{summary.totalErrors} errors</span>
-            )}
           </div>
         )}
       </div>
-      {(unreadCount ?? 0) > 0 && !conversation.attentionNeeded && (
+      {(unreadCount ?? 0) > 0 && (
         <span className="conversation-item__unread">{unreadCount}</span>
-      )}
-      {conversation.attentionNeeded && (
-        <span className="conversation-item__attention" title="Needs your attention">!</span>
       )}
     </div>
   );

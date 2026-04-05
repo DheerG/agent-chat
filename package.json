@@ -7,9 +7,6 @@
     "type": "git",
     "url": "https://github.com/DheerG/agent-chat.git"
   },
-  "bin": {
-    "agent-chat": "./bin/cli.js"
-  },
   "scripts": {
     "dev": "pnpm build && concurrently -n server,client -c blue,green \"node packages/server/dist/index.js\" \"pnpm --filter @agent-chat/client dev\"",
     "build": "pnpm -r build",

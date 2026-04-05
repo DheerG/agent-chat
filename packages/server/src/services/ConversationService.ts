@@ -5,40 +5,26 @@ type ConversationQueries = ReturnType<typeof import('../db/queries/conversations
 function summaryRowToSummary(row: ConversationSummaryRow): ConversationSummary {
   return {
     conversationId: row.conversationId,
-    totalEvents: row.totalEvents,
-    totalErrors: row.totalErrors,
-    filesTouchedCount: row.filesTouchedCount,
-    lastEventAt: row.lastEventAt,
     totalMessages: row.totalMessages,
     lastMessageAt: row.lastMessageAt,
     lastMessagePreview: row.lastMessagePreview,
     lastMessageSender: row.lastMessageSender,
     activeSessionCount: row.activeSessionCount,
     totalSessionCount: row.totalSessionCount,
-    hasStopEvent: row.hasStopEvent === 1,
-    hasError: row.hasError === 1,
     startedAt: row.startedAt,
-    endedAt: row.endedAt,
     status: row.status,
   };
 }
 
 const DEFAULT_SUMMARY: ConversationSummary = {
   conversationId: '',
-  totalEvents: 0,
-  totalErrors: 0,
-  filesTouchedCount: 0,
-  lastEventAt: null,
   totalMessages: 0,
   lastMessageAt: null,
   lastMessagePreview: null,
   lastMessageSender: null,
   activeSessionCount: 0,
   totalSessionCount: 0,
-  hasStopEvent: false,
-  hasError: false,
   startedAt: null,
-  endedAt: null,
   status: 'active',
 };
 
@@ -49,7 +35,7 @@ export class ConversationService {
     name: string;
     workspacePath?: string;
     workspaceName?: string;
-    type?: 'team' | 'solo';
+    type?: 'team';
   }): Promise<Conversation> {
     return this.queries.create(data);
   }
@@ -84,18 +70,19 @@ export class ConversationService {
     const summaryRows = this.queries.getAllSummaries(ids);
     const summaryMap = new Map(summaryRows.map(s => [s.conversationId, summaryRowToSummary(s)]));
 
-    return convos.map(c => ({
+    const items = convos.map(c => ({
       ...c,
       summary: summaryMap.get(c.id) ?? { ...DEFAULT_SUMMARY, conversationId: c.id },
     }));
-  }
 
-  async updateStatus(id: string, status: Conversation['status']): Promise<void> {
-    await this.queries.updateStatus(id, status);
-  }
+    // Sort by most recent message, falling back to conversation updatedAt
+    items.sort((a, b) => {
+      const ta = a.summary.lastMessageAt ?? a.updatedAt;
+      const tb = b.summary.lastMessageAt ?? b.updatedAt;
+      return tb.localeCompare(ta);
+    });
 
-  async setAttentionNeeded(id: string, needed: boolean): Promise<void> {
-    await this.queries.setAttentionNeeded(id, needed);
+    return items;
   }
 
   async archive(id: string): Promise<void> {
@@ -111,36 +98,11 @@ export class ConversationService {
     return row ? summaryRowToSummary(row) : { ...DEFAULT_SUMMARY, conversationId };
   }
 
-  async incrementEvents(conversationId: string, isError: boolean): Promise<void> {
-    await this.queries.incrementSummaryEvents(conversationId, isError);
-  }
-
   async incrementMessages(conversationId: string, preview: string, sender: string, timestamp?: string): Promise<void> {
     await this.queries.incrementSummaryMessages(conversationId, preview, sender, timestamp);
   }
 
   async incrementSessionCount(conversationId: string): Promise<void> {
     await this.queries.incrementSessionCount(conversationId);
-  }
-
-  async decrementActiveSessionCount(conversationId: string): Promise<void> {
-    await this.queries.decrementActiveSessionCount(conversationId);
-  }
-
-  async setStopEvent(conversationId: string): Promise<void> {
-    await this.queries.setStopEvent(conversationId);
-  }
-
-  computeStatus(summary: ConversationSummary): Conversation['status'] {
-    if (summary.hasError) return 'error';
-    if (summary.activeSessionCount > 0) {
-      if (summary.lastEventAt) {
-        const elapsed = Date.now() - new Date(summary.lastEventAt).getTime();
-        return elapsed < 5 * 60 * 1000 ? 'active' : 'idle';
-      }
-      return 'active';
-    }
-    if (summary.hasStopEvent) return 'completed';
-    return 'inactive';
   }
 }

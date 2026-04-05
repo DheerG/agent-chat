@@ -69,11 +69,6 @@ export function ConversationHeader({ conversation, sessions }: Props) {
         <span className="conversation-header__msgs">
           {summary.totalMessages} messages
         </span>
-        {summary.totalErrors > 0 && (
-          <span className="conversation-header__errors">
-            {summary.totalErrors} errors
-          </span>
-        )}
       </div>
 
       {sortedSessions.length > 0 && (

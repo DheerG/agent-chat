@@ -1,6 +1,6 @@
 import type { EventEmitter } from 'events';
 import type { WebSocket } from 'ws';
-import type { Message, Document, ActivityEvent, WsServerMessage } from '@agent-chat/shared';
+import type { Message, WsServerMessage } from '@agent-chat/shared';
 import type { Services } from '../services/index.js';
 
 interface ClientState {
@@ -8,22 +8,10 @@ interface ClientState {
   subscribedAll: boolean;
 }
 
-// Activity batch buffer for 1-second flush
-interface ActivityBuffer {
-  sessionId: string;
-  eventCount: number;
-  toolsUsed: Set<string>;
-  errorCount: number;
-  lastTool: string | null;
-  filesTouched: Set<string>;
-}
-
 export class WebSocketHub {
   private conversations = new Map<string, Set<WebSocket>>();
   private clients = new Map<WebSocket, ClientState>();
   private allSubscribers = new Set<WebSocket>();
-  private activityBuffers = new Map<string, ActivityBuffer>(); // conversationId -> buffer
-  private flushTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private services: Services,
@@ -44,29 +32,6 @@ export class WebSocketHub {
         summary,
       });
     });
-
-    emitter.on('activity:created', (event: ActivityEvent) => {
-      this.bufferActivity(event);
-    });
-
-    emitter.on('document:created', (doc: Document) => {
-      this.broadcastToConversation(doc.conversationId, {
-        type: 'message',
-        conversationId: doc.conversationId,
-        message: { type: 'document_created', document: doc } as unknown as Message,
-      });
-    });
-
-    emitter.on('document:updated', (doc: Document) => {
-      this.broadcastToConversation(doc.conversationId, {
-        type: 'message',
-        conversationId: doc.conversationId,
-        message: { type: 'document_updated', document: doc } as unknown as Message,
-      });
-    });
-
-    // Flush activity buffers every 1 second
-    this.flushTimer = setInterval(() => this.flushActivityBuffers(), 1000);
   }
 
   addClient(ws: WebSocket): void {
@@ -169,81 +134,7 @@ export class WebSocketHub {
     }
   }
 
-  broadcastStatusChange(conversationId: string, status: string, previousStatus: string): void {
-    this.broadcastToAll({
-      type: 'status_change',
-      conversationId,
-      status,
-      previousStatus,
-    });
-  }
-
-  broadcastConversationCreated(conversation: unknown): void {
-    this.broadcastToAll({
-      type: 'conversation_created',
-      conversation,
-    } as WsServerMessage);
-  }
-
-  broadcastAttentionNeeded(conversationId: string, sessionId: string, agentName: string, question: string, options?: string[]): void {
-    this.broadcastToAll({
-      type: 'attention_needed',
-      conversationId,
-      sessionId,
-      agentName,
-      question,
-      options,
-    });
-  }
-
-  private bufferActivity(event: ActivityEvent): void {
-    let buffer = this.activityBuffers.get(event.conversationId);
-    if (!buffer) {
-      buffer = {
-        sessionId: event.sessionId,
-        eventCount: 0,
-        toolsUsed: new Set(),
-        errorCount: 0,
-        lastTool: null,
-        filesTouched: new Set(),
-      };
-      this.activityBuffers.set(event.conversationId, buffer);
-    }
-
-    buffer.eventCount++;
-    if (event.toolName) {
-      buffer.toolsUsed.add(event.toolName);
-      buffer.lastTool = event.toolName;
-    }
-    if (event.isError) buffer.errorCount++;
-    if (event.filePaths) {
-      for (const p of event.filePaths) buffer.filesTouched.add(p);
-    }
-  }
-
-  private flushActivityBuffers(): void {
-    for (const [conversationId, buffer] of this.activityBuffers) {
-      this.broadcastToConversation(conversationId, {
-        type: 'activity',
-        conversationId,
-        summary: {
-          sessionId: buffer.sessionId,
-          eventCount: buffer.eventCount,
-          toolsUsed: [...buffer.toolsUsed],
-          errorCount: buffer.errorCount,
-          lastTool: buffer.lastTool,
-          filesTouched: [...buffer.filesTouched],
-        },
-      });
-    }
-    this.activityBuffers.clear();
-  }
-
   closeAll(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
     for (const ws of this.clients.keys()) {
       try { ws.close(); } catch { /* ignore */ }
     }

@@ -21,10 +21,6 @@ export function useConversations(tab: 'active' | 'recent' | 'all', refreshKey: n
     setConversations(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
   }, []);
 
-  const addConversation = useCallback((conv: ConversationListItem) => {
-    setConversations(prev => [conv, ...prev]);
-  }, []);
-
   const reSort = useCallback(() => {
     setConversations(prev => {
       const sorted = [...prev];
@@ -43,5 +39,5 @@ export function useConversations(tab: 'active' | 'recent' | 'all', refreshKey: n
     });
   }, []);
 
-  return { conversations, loading, error, updateConversation, addConversation, reSort };
+  return { conversations, loading, error, updateConversation, reSort };
 }

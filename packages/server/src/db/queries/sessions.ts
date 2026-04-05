@@ -1,4 +1,4 @@
-import { eq, and, inArray, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DbInstance } from '../index.js';
 import { sessions } from '@agent-chat/shared';
 import type { Session, SessionRow } from '@agent-chat/shared';
@@ -84,70 +84,11 @@ export function createSessionQueries(instance: DbInstance, queue: WriteQueue) {
       };
     },
 
-    getById(id: string): Session | null {
-      const row = db.select().from(sessions).where(eq(sessions.id, id)).get();
-      return row ? rowToSession(row) : null;
-    },
-
     getByConversation(conversationId: string): Session[] {
       return db.select().from(sessions)
         .where(eq(sessions.conversationId, conversationId))
         .all()
         .map(rowToSession);
-    },
-
-    getActiveByConversation(conversationId: string): Session[] {
-      return db.select().from(sessions)
-        .where(and(
-          eq(sessions.conversationId, conversationId),
-          inArray(sessions.status, ['active', 'idle']),
-        ))
-        .all()
-        .map(rowToSession);
-    },
-
-    findByIds(ids: string[]): Session[] {
-      if (ids.length === 0) return [];
-      return db.select().from(sessions)
-        .where(inArray(sessions.id, ids))
-        .all()
-        .map(rowToSession);
-    },
-
-    findUnlinked(): Session[] {
-      return db.select().from(sessions)
-        .where(isNull(sessions.conversationId))
-        .all()
-        .map(rowToSession);
-    },
-
-    async markStopped(id: string): Promise<void> {
-      const now = new Date().toISOString();
-      await queue.enqueue(() =>
-        db.update(sessions)
-          .set({ status: 'stopped', endedAt: now })
-          .where(eq(sessions.id, id))
-          .run()
-      );
-    },
-
-    async markIdle(id: string): Promise<void> {
-      await queue.enqueue(() =>
-        db.update(sessions)
-          .set({ status: 'idle' })
-          .where(eq(sessions.id, id))
-          .run()
-      );
-    },
-
-    async linkToConversation(sessionIds: string[], conversationId: string): Promise<void> {
-      if (sessionIds.length === 0) return;
-      await queue.enqueue(() =>
-        db.update(sessions)
-          .set({ conversationId })
-          .where(inArray(sessions.id, sessionIds))
-          .run()
-      );
     },
   };
 }
