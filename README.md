@@ -1,14 +1,16 @@
 # AgentChat
 
-**See what your AI agents are actually saying to each other.**
+**Real-time visibility into AI agent teams.**
 
-When you run Claude Code agent teams or swarms, the agents coordinate through file-based inboxes that are invisible to you. AgentChat gives you a real-time web UI to watch those conversations unfold and understand what your agents are doing.
+I built AgentChat because I couldn't see how my agents were working.
 
-## Why AgentChat?
+The gains from Claude Code agent teams were immediate. But thinking blocks became summaries, summaries became fragments. Today, the frontend hardly surfaces any of the inner reasoning.
 
-- **Visibility** -- Agent teams produce dozens of messages per minute. Without a UI you're left tailing JSON files or waiting for the final result and hoping nothing went wrong.
-- **Live status** -- See which agents are active, idle, or stopped at a glance.
-- **Zero config** -- AgentChat watches `~/.claude/teams/` automatically. Start a Claude Code team session and the conversation appears in the UI within seconds. No setup scripts, no per-project wiring.
+I needed to see where my teams were heading, whether to steer them, whether to stop and start again. So I built AgentChat. After sharing it with a few friends who found the same value, I decided to release it publicly.
+
+AgentChat gives you a live web UI into every agent conversation, every task assignment, every status change, as it happens. Zero config. Runs locally. No data leaves your machine.
+
+![AgentChat in action](docs/demo.gif)
 
 ## Quick Start
 
@@ -26,14 +28,14 @@ pnpm dev
 
 The web UI opens at **http://localhost:5173**. The API server runs on **http://localhost:5555**. A SQLite database is created automatically at `~/.agent-chat/v2.db`.
 
-Any active Claude Code team sessions in `~/.claude/teams/` will appear in the sidebar automatically.
+Any active Claude Code team sessions in `~/.claude/teams/` will appear automatically. No setup scripts, no per-project wiring.
 
-## What you see
+## What you get
 
-- **Conversation sidebar** -- All your team conversations in one place, sorted by most recent message. Filter by active, recent, or all conversations. Auto-refreshes every 60 seconds.
-- **Agent status pills** -- Every team member shown with their name and role in the conversation header.
-- **Structured events** -- Task assignments, completions, idle notifications, shutdown approvals, and other agent protocol messages are rendered as human-readable cards instead of raw JSON.
-- **Unread indicators** -- Badge counts and tab title updates so you know when new messages arrive, even in a background tab.
+- **Watch agents think in real time** -- Every message between agents streams to your browser over WebSocket. Follow the conversation as it unfolds instead of waiting for the final result.
+- **Structured task cards, not raw JSON** -- Task assignments, completions, idle notifications, and shutdown approvals rendered as human-readable cards. The difference between reading inbox files and actually understanding what your team is doing.
+- **Know who's working, stuck, or done** -- Agent status pills show each team member's state at a glance. Spot a stalled agent or duplicated work before it costs you 10 minutes.
+- **All your teams in one place** -- Conversations sorted by most recent message. Filter by active, recent, or all. Unread badges and tab title updates so you know when something happens, even in a background tab.
 
 ## How it works
 
@@ -44,7 +46,9 @@ Any active Claude Code team sessions in `~/.claude/teams/` will appear in the si
                                SQLite cache            -->  Real-time feed
 ```
 
-AgentChat runs entirely on your machine. No data leaves localhost. The server watches your `~/.claude/teams/` directory for agent messages and ingests them into a local SQLite database. The React UI connects over WebSocket for real-time updates.
+AgentChat watches your `~/.claude/teams/` directory for agent messages and ingests them into a local SQLite database. The React UI connects over WebSocket for real-time updates. Everything runs on your machine. Nothing leaves localhost.
+
+Built for Claude Code agent teams. The file-watching architecture means extending to other agent frameworks is straightforward.
 
 ## Project structure
 
