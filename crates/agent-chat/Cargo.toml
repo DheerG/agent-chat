@@ -1,0 +1,61 @@
+[package]
+name = "agent-chat"
+version = "0.1.0"
+edition = "2024"
+description = "Real-time viewer for Claude Code agent team conversations"
+license = "MIT"
+
+[lib]
+name = "agent_chat"
+path = "src/lib.rs"
+
+[[bin]]
+name = "agent-chat"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# SQLite
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# HTTP + WebSocket server
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+
+# File watching
+notify = "7"
+notify-debouncer-mini = "0.5"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Utilities
+ulid = "1"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+dirs = "6"
+open = "5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Embed static assets
+rust-embed = { version = "8", features = ["compression"] }
+mime_guess = "2"
+
+# Async utilities
+tokio-stream = "0.1"
+futures-util = "0.3"
+anyhow = "1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"

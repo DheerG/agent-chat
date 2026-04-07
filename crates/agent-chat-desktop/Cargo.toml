@@ -1,0 +1,27 @@
+[package]
+name = "agent-chat-desktop"
+version = "0.1.0"
+edition = "2024"
+description = "AgentChat desktop app — native window for Claude Code team conversations"
+license = "MIT"
+
+[dependencies]
+agent-chat = { path = "../agent-chat" }
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tokio = { version = "1", features = ["full"] }
+dirs = "6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"

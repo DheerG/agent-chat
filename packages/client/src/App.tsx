@@ -119,6 +119,7 @@ export function App() {
               items={items}
               loading={feedLoading}
               error={feedError}
+              teamMemberCount={sessions.length}
             />
           </>
         ) : (

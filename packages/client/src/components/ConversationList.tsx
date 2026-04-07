@@ -65,7 +65,18 @@ export function ConversationList({ conversations, loading, error, selectedId, ta
         {error && <div className="left-panel__error">{error}</div>}
         {!loading && filtered.length === 0 && (
           <div className="left-panel__empty">
-            {search ? 'No matches' : 'No conversations'}
+            {search ? 'No matches' : (
+              <div className="empty-state">
+                <p className="empty-state__title">No conversations yet</p>
+                <p className="empty-state__description">
+                  AgentChat watches for Claude Code team sessions.
+                  Start a team session with <code>/swarm:launch</code> to see conversations here.
+                </p>
+                <p className="empty-state__path">
+                  Watching: <code>~/.claude/teams/</code>
+                </p>
+              </div>
+            )}
           </div>
         )}
         {filtered.map(c => (

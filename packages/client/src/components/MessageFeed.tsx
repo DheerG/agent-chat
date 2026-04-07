@@ -6,9 +6,10 @@ interface Props {
   items: FeedItem[];
   loading: boolean;
   error: string | null;
+  teamMemberCount?: number;
 }
 
-export function MessageFeed({ items, loading, error }: Props) {
+export function MessageFeed({ items, loading, error, teamMemberCount }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -69,7 +70,7 @@ export function MessageFeed({ items, loading, error }: Props) {
             );
           }
 
-          elements.push(<MessageItem key={item.id} message={item as FeedMessage} />);
+          elements.push(<MessageItem key={item.id} message={item as FeedMessage} teamMemberCount={teamMemberCount} />);
 
           return elements;
         })}

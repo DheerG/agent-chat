@@ -6,3 +6,11 @@ dist/
 .env
 coverage/
 *.tsbuildinfo
+
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+
+# Tauri
+crates/agent-chat-desktop/gen/
