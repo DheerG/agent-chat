@@ -74,6 +74,10 @@ jobs:
       - name: Build CLI binary
         run: cargo build --release --target ${{ matrix.target }} -p agent-chat
 
+      - name: Ad-hoc sign binary (macOS)
+        if: runner.os == 'macOS'
+        run: codesign -s - --force target/${{ matrix.target }}/release/agent-chat
+
       - name: Package binary (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -207,3 +211,28 @@ jobs:
           draft: true
           generate_release_notes: true
           files: release-files/*
+          body: |
+            ## Install
+
+            **macOS (one-liner — recommended):**
+            ```bash
+            curl -fsSL https://github.com/DheerG/agent-chat/releases/download/${{ github.ref_name }}/agent-chat-macos-universal.tar.gz | tar xz && chmod +x agent-chat && ./agent-chat
+            ```
+
+            **macOS (manual download):**
+            Download the `.tar.gz` for your architecture, then:
+            ```bash
+            tar xzf agent-chat-macos-*.tar.gz
+            xattr -d com.apple.quarantine agent-chat
+            ./agent-chat
+            ```
+
+            **Windows:**
+            Download the `.zip`, extract `agent-chat.exe`, and run it.
+
+            **Desktop app (macOS):**
+            Download `AgentChat-macos-*.app.tar.gz`, extract, then:
+            ```bash
+            xattr -cr AgentChat.app
+            open AgentChat.app
+            ```
