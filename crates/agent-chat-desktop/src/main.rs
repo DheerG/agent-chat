@@ -37,11 +37,17 @@ fn main() {
                 });
             });
 
-            // Navigate the window to the server after it starts
+            // Navigate the window to the server once it's ready
             let window = app.get_webview_window("main").expect("no main window");
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(800));
-                let _ = window.navigate("http://localhost:5555".parse().unwrap());
+                for _ in 0..50 {
+                    if std::net::TcpStream::connect("127.0.0.1:5555").is_ok() {
+                        let _ = window.navigate("http://localhost:5555".parse().unwrap());
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                tracing::error!("Server did not start within 5 seconds");
             });
 
             Ok(())
