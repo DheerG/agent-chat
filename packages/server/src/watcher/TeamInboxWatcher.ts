@@ -54,7 +54,7 @@ function commonAncestor(paths: string[]): string | null {
 export class TeamInboxWatcher {
   private teams = new Map<string, TeamState>();
   private skippedTeams = new Set<string>();
-  private seenMessages = new Map<string, number>();
+  private seenMessages = new Map<string, { timestamp: number; messageId: string }>();
   private static readonly DEDUP_WINDOW_MS = 5_000;
   private teamDedupKeys = new Map<string, Set<string>>();
   private lastProcessedIndex = new Map<string, number>();
@@ -91,6 +91,22 @@ export class TeamInboxWatcher {
     }
 
     this.pollTimer = setInterval(() => { void this.pollForNewTeams(); }, POLL_INTERVAL_MS);
+  }
+
+  private appendRecipient(messageId: string, recipient: string): void {
+    try {
+      // Direct DB update to append recipient to metadata.recipients array
+      const { rawDb } = (this.services as any).messages?.q?.instance ?? (this.services as any)._db ?? {};
+      if (!rawDb) return;
+      const row = rawDb.prepare('SELECT metadata FROM messages WHERE id = ?').get(messageId) as { metadata: string } | undefined;
+      if (!row) return;
+      const metadata = JSON.parse(row.metadata);
+      if (!Array.isArray(metadata.recipients)) metadata.recipients = [];
+      if (!metadata.recipients.includes(recipient)) {
+        metadata.recipients.push(recipient);
+        rawDb.prepare('UPDATE messages SET metadata = ? WHERE id = ?').run(JSON.stringify(metadata), messageId);
+      }
+    } catch { /* best effort */ }
   }
 
   stop(): void {
@@ -255,9 +271,15 @@ export class TeamInboxWatcher {
       // timestamps (3-72ms apart) across inbox files.
       const dedupKey = `${msg.from}|${textHash}`;
       const now = Date.now();
-      const lastSeen = this.seenMessages.get(dedupKey);
-      if (lastSeen && (now - lastSeen) < TeamInboxWatcher.DEDUP_WINDOW_MS) continue;
-      this.seenMessages.set(dedupKey, now);
+      const existing = this.seenMessages.get(dedupKey);
+      if (existing && (now - existing.timestamp) < TeamInboxWatcher.DEDUP_WINDOW_MS) {
+        // Broadcast duplicate — append this recipient to the existing message
+        if (existing.messageId) {
+          this.appendRecipient(existing.messageId, recipientName);
+        }
+        continue;
+      }
+      this.seenMessages.set(dedupKey, { timestamp: now, messageId: '' });
 
       if (!this.teamDedupKeys.has(teamName)) this.teamDedupKeys.set(teamName, new Set());
       this.teamDedupKeys.get(teamName)!.add(dedupKey);
@@ -295,12 +317,17 @@ export class TeamInboxWatcher {
           messageType,
           metadata: {
             recipient: recipientName,
+            recipients: [recipientName],
             ...(msg.color != null ? { color: msg.color } : {}),
             ...(msg.summary != null ? { summary: msg.summary } : {}),
             source: 'team_inbox',
             ...extraMeta,
           },
         });
+
+        // Store message ID for broadcast recipient accumulation
+        const entry = this.seenMessages.get(dedupKey);
+        if (entry) entry.messageId = sentMsg.id;
 
         await this.services.conversations.incrementMessages(
           teamState.conversationId, msg.text, msg.from, msg.timestamp

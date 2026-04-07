@@ -45,9 +45,32 @@ const HIDDEN_FIELDS = new Set([
 
 interface Props {
   message: FeedMessage;
+  teamMemberCount?: number;
 }
 
-export function MessageItem({ message }: Props) {
+function getRecipientLabel(message: FeedMessage, teamMemberCount?: number): string | null {
+  const recipients = message.metadata?.recipients as string[] | undefined;
+  const recipient = message.metadata?.recipient as string | undefined;
+
+  if (recipients && recipients.length > 0) {
+    // If recipients count matches team size (minus sender), it's a broadcast
+    if (teamMemberCount && recipients.length >= teamMemberCount - 1) {
+      return 'everyone';
+    }
+    if (recipients.length > 1) {
+      return recipients.filter(r => r !== message.senderName).join(', ');
+    }
+    const target = recipients[0];
+    if (target && target !== message.senderName) return target;
+  }
+
+  // Fallback to legacy single recipient field
+  if (recipient && recipient !== message.senderName) return recipient;
+
+  return null;
+}
+
+export function MessageItem({ message, teamMemberCount }: Props) {
   const isSystem = message.senderType === 'system';
   const isError = message.messageType === 'error';
   const isStatus = message.messageType === 'status';
@@ -168,6 +191,12 @@ export function MessageItem({ message }: Props) {
           {message.senderName.charAt(0).toUpperCase()}
         </span>
         <span className="message-item__sender">{message.senderName}</span>
+        {(() => {
+          const recipientLabel = getRecipientLabel(message, teamMemberCount);
+          return recipientLabel ? (
+            <span className="message-item__routing">→ {recipientLabel}</span>
+          ) : null;
+        })()}
         <span className="message-item__time">
           {new Date(message.createdAt).toLocaleTimeString()}
         </span>

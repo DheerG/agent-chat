@@ -54,7 +54,8 @@ struct TeamState {
 struct WatcherState {
     teams: HashMap<String, TeamState>,
     skipped_teams: HashSet<String>,
-    seen_messages: HashMap<String, std::time::Instant>,
+    /// Maps dedup key (from|textHash) to (last_seen_time, stored_message_id)
+    seen_messages: HashMap<String, (std::time::Instant, String)>,
     team_dedup_keys: HashMap<String, HashSet<String>>,
     last_processed_index: HashMap<PathBuf, usize>,
 }
@@ -413,17 +414,20 @@ fn process_inbox_file(
         {
             let now = std::time::Instant::now();
             let mut ws_lock = ws.lock().unwrap();
-            if let Some(last_seen) = ws_lock.seen_messages.get(&dedup_key) {
+            if let Some((last_seen, existing_msg_id)) = ws_lock.seen_messages.get(&dedup_key) {
                 if now.duration_since(*last_seen) < Duration::from_secs(DEDUP_WINDOW_SECS) {
+                    // Broadcast duplicate — append this recipient to the existing message
+                    state.db.append_message_recipient(existing_msg_id, recipient_name);
                     continue;
                 }
             }
-            ws_lock.seen_messages.insert(dedup_key.clone(), now);
+            // Will be updated with the message ID after insertion below
+            ws_lock.seen_messages.insert(dedup_key.clone(), (now, String::new()));
             ws_lock
                 .team_dedup_keys
                 .entry(team_name.to_string())
                 .or_default()
-                .insert(dedup_key);
+                .insert(dedup_key.clone());
         }
 
         // Detect structured JSON events
@@ -462,6 +466,7 @@ fn process_inbox_file(
 
         let mut metadata = serde_json::Map::new();
         metadata.insert("recipient".into(), serde_json::Value::String(recipient_name.to_string()));
+        metadata.insert("recipients".into(), serde_json::json!([recipient_name]));
         if let Some(color) = &msg.color {
             metadata.insert("color".into(), serde_json::Value::String(color.clone()));
         }
@@ -474,7 +479,7 @@ fn process_inbox_file(
         let metadata_value = serde_json::Value::Object(metadata);
         let sender_id = format!("{}@{}", msg.from, team_name);
 
-        state.send_message(
+        let sent_msg = state.send_message(
             conversation_id,
             &sender_id,
             &msg.from,
@@ -484,6 +489,14 @@ fn process_inbox_file(
             None,
             &metadata_value,
         );
+
+        // Store the message ID so broadcast duplicates can append recipients
+        {
+            let mut ws_lock = ws.lock().unwrap();
+            if let Some(entry) = ws_lock.seen_messages.get_mut(&dedup_key) {
+                entry.1 = sent_msg.id.clone();
+            }
+        }
 
         state.db.increment_summary_messages(
             conversation_id,

@@ -484,6 +484,43 @@ impl Database {
         }
     }
 
+    /// Append a recipient to an existing message's metadata.recipients array.
+    pub fn append_message_recipient(&self, message_id: &str, recipient: &str) {
+        self.with_conn(|conn| {
+            let metadata_str: String = match conn.query_row(
+                "SELECT metadata FROM messages WHERE id = ?1",
+                params![message_id],
+                |row| row.get(0),
+            ) {
+                Ok(s) => s,
+                Err(_) => return,
+            };
+
+            let mut metadata: serde_json::Value =
+                serde_json::from_str(&metadata_str).unwrap_or(serde_json::json!({}));
+
+            let recipients = metadata
+                .as_object_mut()
+                .unwrap()
+                .entry("recipients")
+                .or_insert_with(|| serde_json::json!([]));
+
+            if let Some(arr) = recipients.as_array_mut() {
+                let recipient_val = serde_json::Value::String(recipient.to_string());
+                if !arr.contains(&recipient_val) {
+                    arr.push(recipient_val);
+                }
+            }
+
+            let updated = serde_json::to_string(&metadata).unwrap();
+            conn.execute(
+                "UPDATE messages SET metadata = ?1 WHERE id = ?2",
+                params![updated, message_id],
+            )
+            .ok();
+        });
+    }
+
     // ─── Session Queries ───────────────────────────────────────────────
 
     pub fn upsert_session(

@@ -27,6 +27,10 @@ struct Cli {
     /// Path to the SQLite database
     #[arg(long, env = "AGENT_CHAT_DB_PATH")]
     db_path: Option<PathBuf>,
+
+    /// Delete and rebuild the database from inbox files
+    #[arg(long)]
+    rebuild: bool,
 }
 
 #[tokio::main]
@@ -50,6 +54,19 @@ async fn main() -> anyhow::Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::create_dir_all(&teams_dir).ok();
+
+    if cli.rebuild {
+        if db_path.exists() {
+            // Also remove WAL and SHM files
+            let wal = db_path.with_extension("db-wal");
+            let shm = db_path.with_extension("db-shm");
+            std::fs::remove_file(&db_path)?;
+            std::fs::remove_file(&wal).ok();
+            std::fs::remove_file(&shm).ok();
+            println!("  Deleted {}", db_path.display());
+        }
+        println!("  Database will be rebuilt from inbox files on startup.\n");
+    }
 
     web::run(db_path, teams_dir, cli.port).await?;
 
