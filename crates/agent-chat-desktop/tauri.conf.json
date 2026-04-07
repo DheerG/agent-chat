@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.agentchat.app",
   "build": {
-    "beforeDevCommand": "cd ../.. && pnpm build",
+    "beforeDevCommand": "pnpm --dir ../../ build",
     "frontendDist": "../../packages/client/dist"
   },
   "app": {
