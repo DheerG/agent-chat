@@ -54,17 +54,19 @@ struct TeamState {
 struct WatcherState {
     teams: HashMap<String, TeamState>,
     skipped_teams: HashSet<String>,
-    seen_messages: HashSet<String>,
+    seen_messages: HashMap<String, std::time::Instant>,
     team_dedup_keys: HashMap<String, HashSet<String>>,
     last_processed_index: HashMap<PathBuf, usize>,
 }
+
+const DEDUP_WINDOW_SECS: u64 = 5;
 
 impl WatcherState {
     fn new() -> Self {
         Self {
             teams: HashMap::new(),
             skipped_teams: HashSet::new(),
-            seen_messages: HashSet::new(),
+            seen_messages: HashMap::new(),
             team_dedup_keys: HashMap::new(),
             last_processed_index: HashMap::new(),
         }
@@ -403,14 +405,20 @@ fn process_inbox_file(
             hasher.update(text.as_bytes());
             hex::encode(&hasher.finalize()[..8])
         };
-        let dedup_key = format!("{}|{}|{}", msg.from, msg.timestamp, text_hash);
+        // Dedup by sender + content hash (no timestamp) with a time window.
+        // Broadcast messages have identical from+text but slightly different
+        // timestamps (3-72ms apart) across inbox files.
+        let dedup_key = format!("{}|{}", msg.from, text_hash);
 
         {
+            let now = std::time::Instant::now();
             let mut ws_lock = ws.lock().unwrap();
-            if ws_lock.seen_messages.contains(&dedup_key) {
-                continue;
+            if let Some(last_seen) = ws_lock.seen_messages.get(&dedup_key) {
+                if now.duration_since(*last_seen) < Duration::from_secs(DEDUP_WINDOW_SECS) {
+                    continue;
+                }
             }
-            ws_lock.seen_messages.insert(dedup_key.clone());
+            ws_lock.seen_messages.insert(dedup_key.clone(), now);
             ws_lock
                 .team_dedup_keys
                 .entry(team_name.to_string())

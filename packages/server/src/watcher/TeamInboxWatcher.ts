@@ -54,7 +54,8 @@ function commonAncestor(paths: string[]): string | null {
 export class TeamInboxWatcher {
   private teams = new Map<string, TeamState>();
   private skippedTeams = new Set<string>();
-  private seenMessages = new Set<string>();
+  private seenMessages = new Map<string, number>();
+  private static readonly DEDUP_WINDOW_MS = 5_000;
   private teamDedupKeys = new Map<string, Set<string>>();
   private lastProcessedIndex = new Map<string, number>();
   private watchers: FSWatcher[] = [];
@@ -249,10 +250,14 @@ export class TeamInboxWatcher {
       if (!msg || typeof msg !== 'object' || !msg.from || !msg.timestamp || msg.text == null) continue;
 
       const textHash = createHash('sha256').update(msg.text).digest('hex').slice(0, 16);
-      const dedupKey = `${msg.from}|${msg.timestamp}|${textHash}`;
-
-      if (this.seenMessages.has(dedupKey)) continue;
-      this.seenMessages.add(dedupKey);
+      // Dedup by sender + content hash (no timestamp) with a time window.
+      // Broadcast messages have identical from+text but slightly different
+      // timestamps (3-72ms apart) across inbox files.
+      const dedupKey = `${msg.from}|${textHash}`;
+      const now = Date.now();
+      const lastSeen = this.seenMessages.get(dedupKey);
+      if (lastSeen && (now - lastSeen) < TeamInboxWatcher.DEDUP_WINDOW_MS) continue;
+      this.seenMessages.set(dedupKey, now);
 
       if (!this.teamDedupKeys.has(teamName)) this.teamDedupKeys.set(teamName, new Set());
       this.teamDedupKeys.get(teamName)!.add(dedupKey);
