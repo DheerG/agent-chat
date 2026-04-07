@@ -10,8 +10,40 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  prepare:
+    name: Build React Client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-
+
+      - name: Install and build
+        run: pnpm install --frozen-lockfile && pnpm build
+
+      - name: Upload client dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: packages/client/dist/
+          retention-days: 1
+
   build-cli:
     name: Build CLI (${{ matrix.target }})
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,6 +62,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download client dist
+        uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: packages/client/dist/
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,24 +77,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Build React client
-        run: pnpm install && pnpm build
 
       - name: Build CLI binary
         run: cargo build --release --target ${{ matrix.target }} -p agent-chat
@@ -100,6 +120,7 @@ jobs:
 
   build-tauri:
     name: Build Tauri (${{ matrix.os }})
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -115,6 +136,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download client dist
+        uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: packages/client/dist/
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -124,24 +151,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: tauri-${{ matrix.target }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Build React client
-        run: pnpm install && pnpm build
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
