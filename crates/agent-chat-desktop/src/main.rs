@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::Manager;
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -21,7 +23,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(move |_app| {
+        .setup(move |app| {
             let teams_dir = teams_dir.clone();
             let db_path = db_path.clone();
 
@@ -33,6 +35,13 @@ fn main() {
                         tracing::error!(error = %e, "AgentChat server failed");
                     }
                 });
+            });
+
+            // Navigate the window to the server after it starts
+            let window = app.get_webview_window("main").expect("no main window");
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(800));
+                let _ = window.navigate("http://localhost:5555".parse().unwrap());
             });
 
             Ok(())

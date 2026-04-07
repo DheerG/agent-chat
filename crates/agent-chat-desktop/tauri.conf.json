@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.agentchat.app",
   "build": {
+    "devUrl": "http://localhost:5555",
     "frontendDist": "http://localhost:5555"
   },
   "app": {
