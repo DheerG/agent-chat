@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/nicegui/static/tauri/tauri.conf.schema.json",
+  "productName": "AgentChat",
+  "version": "0.1.0",
+  "identifier": "com.agentchat.app",
+  "build": {
+    "frontendDist": "http://localhost:5555"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AgentChat",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "wix": null,
+      "nsis": null
+    }
+  }
+}

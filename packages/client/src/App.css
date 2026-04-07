@@ -140,6 +140,12 @@
   color: var(--color-text-sidebar-muted);
 }
 
+.empty-state { text-align: left; }
+.empty-state__title { font-weight: 600; color: var(--color-text-sidebar); margin-bottom: 8px; }
+.empty-state__description { line-height: 1.5; margin-bottom: 12px; }
+.empty-state__path { font-size: 0.75rem; opacity: 0.7; }
+.empty-state code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; font-size: 0.78rem; }
+
 /* ─── Conversation Item ──────────────────────────────────────────── */
 
 .conversation-item {
@@ -489,6 +495,38 @@
   text-decoration: none;
 }
 .message-item__text a:hover { text-decoration: underline; }
+.message-item__text table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 0.85em;
+  width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+.message-item__text thead { border-bottom: 2px solid var(--color-border); }
+.message-item__text th, .message-item__text td {
+  padding: 4px 10px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.message-item__text th {
+  font-weight: 600;
+  background: rgba(0,0,0,0.03);
+}
+.message-item__text tr:nth-child(even) {
+  background: rgba(0,0,0,0.02);
+}
+.message-item__text img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 4px 0;
+}
+.message-item__text hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 8px 0;
+}
 
 /* ─── Task Card ─────────────────────────────────────────────────── */
 

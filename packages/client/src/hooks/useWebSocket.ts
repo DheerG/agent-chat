@@ -17,9 +17,7 @@ export function useWebSocket(onMessage: MessageHandler) {
     function connect() {
       if (!alive) return;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname;
-      const port = 5555;
-      const ws = new WebSocket(`${protocol}//${host}:${port}/ws`);
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
       ws.onopen = () => {
         reconnectDelayRef.current = 1000; // reset backoff
