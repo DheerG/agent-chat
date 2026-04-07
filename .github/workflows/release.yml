@@ -162,7 +162,15 @@ jobs:
         working-directory: crates/agent-chat-desktop
 
       - name: Package Tauri app
+        shell: bash
         run: |
+          APP_PATH="target/${{ matrix.target }}/release/bundle/macos/AgentChat.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::AgentChat.app not found at expected path"
+            echo "Searching for .app bundle..."
+            find target -name "AgentChat.app" -type d 2>/dev/null
+            exit 1
+          fi
           cd target/${{ matrix.target }}/release/bundle/macos
           tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact-name }}.app.tar.gz" AgentChat.app
 
