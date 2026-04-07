@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   prepare:
@@ -24,13 +23,6 @@ jobs:
 
       - name: Install pnpm
         run: npm install -g pnpm
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-
 
       - name: Install and build
         run: pnpm install --frozen-lockfile && pnpm build
@@ -77,7 +69,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: cli-${{ matrix.target }}
 
       - name: Build CLI binary
         run: cargo build --release --target ${{ matrix.target }} -p agent-chat
@@ -91,24 +83,16 @@ jobs:
 
       - name: Package binary (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: bash
         run: |
-          Copy-Item target\${{ matrix.target }}\release\agent-chat.exe agent-chat.exe
-          Compress-Archive -Path agent-chat.exe -DestinationPath ${{ matrix.artifact }}.zip
+          cp target/${{ matrix.target }}/release/agent-chat.exe agent-chat.exe
+          7z a ${{ matrix.artifact }}.zip agent-chat.exe
 
-      - name: Upload artifact (macOS)
-        if: runner.os == 'macOS'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
-
-      - name: Upload artifact (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.zip
+          path: ${{ matrix.artifact }}.*
 
   build-universal-macos:
     name: Build Universal macOS binary
@@ -139,22 +123,17 @@ jobs:
           path: agent-chat-macos-universal.tar.gz
 
   build-tauri:
-    name: Build Tauri (${{ matrix.os }})
+    name: Build Tauri (macOS ${{ matrix.target }})
     needs: prepare
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
+          - target: aarch64-apple-darwin
             artifact-name: AgentChat-macos-arm64
-          - os: macos-latest
-            target: x86_64-apple-darwin
+          - target: x86_64-apple-darwin
             artifact-name: AgentChat-macos-x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact-name: AgentChat-windows-setup
 
     steps:
       - uses: actions/checkout@v4
@@ -175,47 +154,23 @@ jobs:
         with:
           key: tauri-${{ matrix.target }}
 
-      - name: Cache Tauri CLI
-        id: tauri-cli-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-tauri
-          key: ${{ runner.os }}-tauri-cli-2
-
       - name: Install Tauri CLI
-        if: steps.tauri-cli-cache.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --version "^2"
+        run: cargo install tauri-cli --version "^2" --locked
 
-      # cargo tauri build must run from the crate dir to find tauri.conf.json.
-      # target/ goes to the workspace root due to the workspace Cargo.toml.
       - name: Build Tauri app
         run: cargo tauri build --target ${{ matrix.target }}
         working-directory: crates/agent-chat-desktop
 
-      # Debug: show where the bundle was placed (remove once confirmed)
-      - name: Debug — list bundle output
-        if: always()
-        run: find target -path "*/bundle/*" -type f 2>/dev/null | head -20 || echo "No bundle found"
-
-      - name: Package Tauri app (macOS)
-        if: runner.os == 'macOS'
+      - name: Package Tauri app
         run: |
-          cd target/${{ matrix.target }}/release/bundle/macos/
+          cd target/${{ matrix.target }}/release/bundle/macos
           tar czf "$GITHUB_WORKSPACE/${{ matrix.artifact-name }}.app.tar.gz" AgentChat.app
 
-      - name: Upload Tauri artifacts (macOS)
-        if: runner.os == 'macOS'
+      - name: Upload Tauri artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-name }}.app.tar.gz
-
-      - name: Upload Tauri artifacts (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: target/${{ matrix.target }}/release/bundle/nsis/*.exe
 
   release:
     name: Create Release
@@ -231,6 +186,7 @@ jobs:
           path: artifacts
 
       - name: Collect release files
+        shell: bash
         run: |
           mkdir -p release-files
           find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release-files/ \;
