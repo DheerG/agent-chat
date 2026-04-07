@@ -57,6 +57,11 @@ async fn serve_embedded(req: Request) -> impl IntoResponse {
 
 /// Run the web server mode: HTTP API + WebSocket + embedded React UI.
 pub async fn run(db_path: PathBuf, teams_dir: PathBuf, port: u16) -> anyhow::Result<()> {
+    run_with_options(db_path, teams_dir, port, true).await
+}
+
+/// Run the web server. Set `open_browser` to false when embedded in Tauri.
+pub async fn run_with_options(db_path: PathBuf, teams_dir: PathBuf, port: u16, open_browser: bool) -> anyhow::Result<()> {
     let db = Database::open(&db_path)?;
     let state = AppState::new(db);
 
@@ -90,14 +95,15 @@ pub async fn run(db_path: PathBuf, teams_dir: PathBuf, port: u16) -> anyhow::Res
         Err(e) => return Err(e.into()),
     };
 
-    // Auto-open browser
     let url = format!("http://localhost:{port}");
     println!("\n  AgentChat is running at {url}");
     println!("  Watching: {}\n", teams_dir.display());
-    tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        let _ = open::that(&url);
-    });
+    if open_browser {
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let _ = open::that(&url);
+        });
+    }
 
     info!(port, teams_dir = %teams_dir.display(), "AgentChat server started");
 

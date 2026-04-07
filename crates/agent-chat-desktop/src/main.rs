@@ -31,7 +31,7 @@ fn main() {
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
                 rt.block_on(async move {
-                    if let Err(e) = agent_chat::web::run(db_path, teams_dir, 5555).await {
+                    if let Err(e) = agent_chat::web::run_with_options(db_path, teams_dir, 5555, false).await {
                         tracing::error!(error = %e, "AgentChat server failed");
                     }
                 });
