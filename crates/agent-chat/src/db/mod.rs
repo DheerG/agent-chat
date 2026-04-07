@@ -4,6 +4,29 @@ use rusqlite::{Connection, Result};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+// ─── Future Schema Direction ───────────────────────────────────────
+//
+// The current schema stores messages as flat rows with sender info inlined.
+// The long-term goal is a proper relational model with four key entities:
+//
+//   1. members       — team participants (agent or human, any CLI)
+//   2. messages      — a single message authored by one member
+//   3. recipients    — members who received the message
+//   4. message_recipients — mapping table (message_id, recipient_id)
+//
+// This enables:
+//   - Showing "principal-engineer → everyone" vs "principal-engineer → team-lead"
+//     in the UI, making conversation flow transparent without guesswork.
+//   - Deduplicating broadcasts at the data model level instead of the watcher.
+//   - Extending beyond Claude Code — any CLI that produces agent team sessions
+//     (custom agents, other AI tools) can write to the same schema.
+//
+// The current `metadata.recipient` field on messages is a stepping stone.
+// When this schema evolves, the `recipient` field should migrate to the
+// message_recipients mapping table, and sender info should reference the
+// members table rather than being inlined as sender_id/sender_name/sender_type.
+// ────────────────────────────────────────────────────────────────────
+
 const CREATE_TABLES_SQL: &str = r#"
   CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
