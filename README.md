@@ -14,19 +14,23 @@ AgentChat gives you a live web UI into every agent conversation, every task assi
 
 ## Quick Start
 
+**macOS — one-line install:**
+
 ```bash
-# Prerequisites: Node.js >= 20, pnpm >= 9
-
-git clone https://github.com/DheerG/agent-chat.git
-cd agent-chat
-pnpm install
-pnpm build
-
-# Start the server + UI
-pnpm dev
+curl -fsSL https://raw.githubusercontent.com/DheerG/agent-chat/main/install.sh | sh
 ```
 
-The web UI opens at **http://localhost:5173**. The API server runs on **http://localhost:5555**. A SQLite database is created automatically at `~/.agent-chat/v2.db`.
+Then run:
+
+```bash
+agent-chat
+```
+
+Your browser opens to the AgentChat UI. No Node.js, no pnpm, no build step.
+
+> **Why curl instead of a download link?** macOS Gatekeeper blocks apps downloaded through a browser unless they're signed with a paid Apple Developer certificate. `curl` downloads bypass this check, so the install is instant. Downloads from the [releases page](https://github.com/DheerG/agent-chat/releases) work too — see "Manual install" below.
+
+The web UI opens at **http://localhost:5555**. A SQLite database is created automatically at `~/.agent-chat/v2.db`.
 
 Any active Claude Code team sessions in `~/.claude/teams/` will appear automatically. No setup scripts, no per-project wiring.
 
@@ -69,9 +73,27 @@ agent-chat/
 | `AGENT_CHAT_DB_PATH` | `~/.agent-chat/v2.db` | SQLite database path |
 | `TEAMS_DIR` | `~/.claude/teams/` | Directory to watch for team conversations |
 
+## Manual install
+
+If you prefer downloading directly from the [releases page](https://github.com/DheerG/agent-chat/releases):
+
+```bash
+# Extract the archive
+tar xzf agent-chat-macos-*.tar.gz
+
+# Remove the quarantine attribute that macOS adds to browser downloads
+xattr -d com.apple.quarantine agent-chat
+
+# Run
+./agent-chat
+```
+
 ## Development
 
 ```bash
+git clone https://github.com/DheerG/agent-chat.git
+cd agent-chat
+pnpm install
 pnpm dev            # Server + client with hot reload
 pnpm build          # Production build
 pnpm test           # Run all tests
@@ -80,7 +102,7 @@ pnpm typecheck      # Type checking only
 
 ## Tech stack
 
-TypeScript, React, Hono, SQLite (via better-sqlite3 + Drizzle ORM), WebSocket. Full details in each package's `package.json`.
+Rust (server + CLI binary), React + TypeScript (UI), SQLite, WebSocket, Tauri (desktop app). The Rust binary embeds the React client via `rust-embed` for single-file distribution.
 
 ## Contributing
 

@@ -225,13 +225,16 @@ jobs:
           body: |
             ## Install
 
-            **macOS (one-liner — recommended):**
+            **macOS — recommended (one-line install):**
             ```bash
-            curl -fsSL https://github.com/DheerG/agent-chat/releases/download/${{ github.ref_name }}/agent-chat-macos-universal.tar.gz | tar xz && chmod +x agent-chat && ./agent-chat
+            curl -fsSL https://raw.githubusercontent.com/DheerG/agent-chat/main/install.sh | sh
             ```
+            Installs `agent-chat` to `/usr/local/bin` (or `~/.local/bin`). Then run `agent-chat`.
 
-            **macOS (manual download):**
-            Download the `.tar.gz` for your architecture, then:
+            **Why this and not a browser download?** macOS Gatekeeper blocks browser-downloaded binaries unless signed with a paid Apple Developer certificate. `curl` downloads bypass that check, so the install works instantly.
+
+            **macOS — manual download:**
+            If you prefer downloading the `.tar.gz` directly:
             ```bash
             tar xzf agent-chat-macos-*.tar.gz
             xattr -d com.apple.quarantine agent-chat
@@ -239,11 +242,13 @@ jobs:
             ```
 
             **Windows:**
-            Download the `.zip`, extract `agent-chat.exe`, and run it.
+            Download `agent-chat-windows-x86_64.zip`, extract `agent-chat.exe`, and run it.
 
             **Desktop app (macOS):**
-            Download `AgentChat-macos-*.app.tar.gz`, extract, then:
-            ```bash
-            xattr -cr AgentChat.app
-            open AgentChat.app
-            ```
+            Download `AgentChat-macos-*.app.tar.gz`, extract, then on first launch:
+            1. Double-click `AgentChat.app` — macOS will block it
+            2. Open **System Settings → Privacy & Security**
+            3. Scroll to **Security**, find the blocked app, click **Open Anyway**
+            4. Subsequent launches work normally
+
+            *(A paid Apple Developer signature would eliminate this step. It's on the roadmap.)*
