@@ -90,6 +90,11 @@ async fn run_watcher(state: AppState, teams_dir: PathBuf) -> anyhow::Result<()> 
 
     let watcher_state = Arc::new(Mutex::new(WatcherState::new()));
 
+    // Archive team conversations whose directory was deleted while the server was off.
+    // Without this, remove_team can never fire for them (nothing scans missing dirs),
+    // so they stay listed as active forever.
+    reconcile_missing_teams(&state, &teams_dir);
+
     // Initial scan
     scan_teams(&state, &teams_dir, &watcher_state);
 
@@ -151,6 +156,20 @@ async fn run_watcher(state: AppState, teams_dir: PathBuf) -> anyhow::Result<()> 
                     process_file_change(&state, &teams_dir, &rel, &watcher_state);
                 }
             }
+        }
+    }
+}
+
+fn reconcile_missing_teams(state: &AppState, teams_dir: &Path) {
+    for conv in state.db.list_unarchived_team_conversations() {
+        let config_path = teams_dir.join(&conv.name).join("config.json");
+        if !config_path.exists() {
+            state.db.archive_conversation(&conv.id);
+            info!(
+                conversation_id = %conv.id,
+                name = %conv.name,
+                "Archived conversation — team directory missing"
+            );
         }
     }
 }

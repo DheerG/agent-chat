@@ -184,6 +184,21 @@ impl Database {
         })
     }
 
+    pub fn list_unarchived_team_conversations(&self) -> Vec<Conversation> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, workspace_path, workspace_name, type, status, created_at, updated_at, archived_at
+                     FROM conversations WHERE archived_at IS NULL AND type = 'team'",
+                )
+                .expect("prepare");
+            stmt.query_map([], |row| Ok(row_to_conversation(row)))
+                .expect("query")
+                .filter_map(|r| r.ok())
+                .collect()
+        })
+    }
+
     pub fn list_active_conversations(&self) -> Vec<Conversation> {
         self.with_conn(|conn| {
             let mut stmt = conn
