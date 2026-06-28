@@ -275,7 +275,8 @@ fn process_team(
         let mut lock = ws.lock().unwrap();
         if let Some(ts) = lock.teams.get_mut(team_name) {
             let conv_id = ts.conversation_id.clone();
-            if ts.lead_session_id != lead_session_id || ts.project_dir != project_dir {
+            let repointed = ts.lead_session_id != lead_session_id || ts.project_dir != project_dir;
+            if repointed {
                 ts.lead_session_id = lead_session_id.clone();
                 ts.project_dir = project_dir.clone();
                 info!(team_name, "Lead session changed — re-pointed transcript tree");
@@ -288,6 +289,12 @@ fn process_team(
                 ts.lead_name = lead_name.clone();
             }
             drop(lock);
+            // Drop the old tree's ingest-progress rows so the coverage signal
+            // doesn't report "capture live" off stale files before the new
+            // transcripts have been tailed.
+            if repointed {
+                state.db.clear_ingest_files(&conv_id);
+            }
             register_members(state, &conv_id, &config);
             return;
         }
@@ -945,7 +952,7 @@ fn extract_wrappers(content: &str) -> Vec<Wrapper> {
 
     while let Some(rel) = content[search..].find(OPEN) {
         let open_pos = search + rel;
-        let tag_end = match content[open_pos..].find('>') {
+        let tag_end = match find_tag_end(&content[open_pos..]) {
             Some(e) => open_pos + e,
             None => break,
         };
@@ -970,6 +977,22 @@ fn extract_wrappers(content: &str) -> Vec<Wrapper> {
         search = after;
     }
     out
+}
+
+/// Find the `>` that closes an opening tag at the start of `s`, ignoring any
+/// `>` inside a double-quoted attribute value (e.g. `summary="A > B"`). Returns
+/// the byte offset of that `>`, or None if the tag never closes. `>` and `"`
+/// are ASCII, so byte offsets land on char boundaries.
+fn find_tag_end(s: &str) -> Option<usize> {
+    let mut in_quote = false;
+    for (i, b) in s.bytes().enumerate() {
+        match b {
+            b'"' => in_quote = !in_quote,
+            b'>' if !in_quote => return Some(i),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Find `needle` at/after `from`, skipping escaped occurrences (preceded by a

@@ -16,6 +16,19 @@ fn member_owner_named(name: &str) -> Owner {
     Owner { name: name.into(), session_token: "sub".into(), is_lead: false }
 }
 
+#[test]
+fn wrapper_summary_with_angle_bracket_is_not_truncated() {
+    // A summary like "rung 9.5 > 9.75" contains '>'; the opening tag must close
+    // at the real '>', not the one inside the quoted attribute, or the summary
+    // is lost and the rest of the attribute corrupts the body.
+    let content = "<teammate-message teammate_id=\"alice\" color=\"blue\" \
+        summary=\"rung 9.5 > 9.75\">the body</teammate-message>";
+    let w = extract_wrappers(content);
+    assert_eq!(w.len(), 1);
+    assert_eq!(w[0].summary.as_deref(), Some("rung 9.5 > 9.75"));
+    assert_eq!(w[0].body, "the body");
+}
+
 fn queued_attachment(prompt: &str, command_mode: &str, human: bool) -> Value {
     let mut att = serde_json::json!({
         "type": "queued_command",

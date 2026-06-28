@@ -419,6 +419,21 @@ impl Database {
 
     // ─── Ingestion progress + coverage ─────────────────────────────────
 
+    /// Drop all ingest-progress rows for a conversation. Used when the watcher
+    /// re-points to a new transcript tree (the lead session changed): the old
+    /// paths' rows would otherwise linger and make the coverage signal report
+    /// "capture live" off stale, already-caught-up files before the new
+    /// transcripts have been tailed.
+    pub fn clear_ingest_files(&self, conversation_id: &str) {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM ingest_files WHERE conversation_id = ?1",
+                params![conversation_id],
+            )
+            .ok();
+        });
+    }
+
     /// Persisted byte offset for a transcript file (0 if never read).
     pub fn get_ingest_offset(&self, path: &str) -> i64 {
         self.with_conn(|conn| {

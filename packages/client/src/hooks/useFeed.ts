@@ -75,7 +75,16 @@ export function useFeed(conversationId: string | null) {
         // The user may have switched conversations while this was in flight;
         // only apply if the feed is still showing the conversation we fetched.
         if (convRef.current !== startedFor) return;
-        setItems(all);
+        setItems(prev => {
+          // Merge: a live WebSocket row can arrive during the fetch and sit past
+          // the page the snapshot already read, so a blind replace would drop it.
+          // Union by id, then re-sort into (eventTime, id) order.
+          const byId = new Map(all.map(m => [m.id, m]));
+          for (const m of prev) {
+            if (m.type === 'message' && !byId.has(m.id)) byId.set(m.id, m);
+          }
+          return Array.from(byId.values()).sort(cmpItems);
+        });
         if (all.length > 0) setLastSeenId(all[all.length - 1]!.id);
       })
       .catch(() => { /* a failed resync leaves the current feed in place */ });
