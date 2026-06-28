@@ -192,10 +192,17 @@ fn discover_teams(
     let mut current: HashSet<String> = HashSet::new();
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
-        if !teams_dir.join(&name).join("config.json").exists() {
+        if !entry.path().is_dir() {
             continue;
         }
+        // A team whose directory still exists is NOT gone — keep it in `current`
+        // (out of the removal pass) even if config.json is momentarily absent
+        // mid-rewrite. Otherwise a transient missing config would archive the
+        // active conversation and split it into a new one when config returns.
         current.insert(name.clone());
+        if !teams_dir.join(&name).join("config.json").exists() {
+            continue; // can't ingest without config this tick; retry next tick
+        }
         // Refresh member roster every tick (cheap, idempotent) so a config
         // change that adds members re-syncs the session roster + counts.
         process_team(state, teams_dir, projects_dir, &name, ws);
@@ -328,14 +335,14 @@ fn process_team(
     }
     let conversation = conversation.unwrap();
 
-    // One-time upgrade recapture: drop this team's legacy inbox-era rows (NULL
-    // source_key), if any, so the transcript ingest below re-populates them
-    // without duplication. No-op for new teams and for teams already captured
-    // from transcripts — so teams whose transcripts are gone keep their history.
-    let cleared = state.db.clear_legacy_messages(&conversation.id);
-    if cleared > 0 {
-        info!(conversation_id = %conversation.id, cleared, "Cleared legacy inbox-era rows for transcript recapture");
-    }
+    // NOTE: we do NOT auto-delete legacy inbox-era rows (NULL source_key) here.
+    // The transcript ingest cannot be guaranteed to recreate every legacy
+    // message (a tail-gap message with no delivery record, or a member
+    // transcript that never appears), so deleting them up front risks losing
+    // history that can't be rebuilt. Upgraders who want a clean slate run
+    // `agent-chat --rebuild` (documented in the README), which deletes the DB
+    // and rebuilds entirely from transcripts. Until then, the worst case is a
+    // few duplicated rows for the overlap — never silent data loss.
 
     register_members(state, &conversation.id, &config);
 

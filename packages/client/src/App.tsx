@@ -102,6 +102,7 @@ export function App() {
   return (
     <div className="app">
       <UpdateBanner />
+      <div className="app__body">
       <ConversationList
         conversations={conversations}
         loading={loading}
@@ -139,6 +140,7 @@ export function App() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

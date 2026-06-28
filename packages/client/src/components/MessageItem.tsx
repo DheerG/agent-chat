@@ -97,7 +97,7 @@ export function MessageItem({ message, teamMemberCount }: Props) {
   if (jsonEvent?.type === 'idle_notification' || metaType === 'idle_notification') {
     const from = jsonEvent?.from ?? message.senderName;
     const summary = (jsonEvent?.summary ?? message.metadata?.summary) as string | undefined;
-    const ts = jsonEvent?.timestamp ?? message.createdAt;
+    const ts = jsonEvent?.timestamp ?? message.eventTime ?? message.createdAt;
     const reason = (jsonEvent?.idleReason ?? message.metadata?.idle_reason) as string | undefined;
 
     return (
@@ -137,7 +137,7 @@ export function MessageItem({ message, teamMemberCount }: Props) {
             {isCompleted ? `by ${actor}` : `from ${actor}`}
           </span>
           <span className="task-card__time">
-            {new Date(ev?.timestamp ?? message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            {new Date(ev?.timestamp ?? message.eventTime ?? message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </span>
         </div>
         {ev?.subject ? (
@@ -156,7 +156,7 @@ export function MessageItem({ message, teamMemberCount }: Props) {
   // ─── Generic JSON event fallback ──────────────────────────────
   if (jsonEvent) {
     const from = jsonEvent.from ?? message.senderName;
-    const ts = jsonEvent.timestamp ?? message.createdAt;
+    const ts = jsonEvent.timestamp ?? message.eventTime ?? message.createdAt;
     // Collect visible detail fields
     const details = Object.entries(jsonEvent)
       .filter(([k, v]) => !HIDDEN_FIELDS.has(k) && v != null && v !== '')

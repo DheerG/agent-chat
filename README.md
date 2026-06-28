@@ -46,6 +46,8 @@ curl -fsSL https://raw.githubusercontent.com/DheerG/agent-chat/main/install.sh |
 
 **Desktop app (macOS)** — quit AgentChat, download the latest `AgentChat-macos-*.app.tar.gz` from the [releases page](https://github.com/DheerG/agent-chat/releases/latest), extract it, and drag `AgentChat.app` into `/Applications`, replacing the old copy. On first launch, right-click the app → **Open** and confirm once (it isn't notarized yet).
 
+> **Upgrading from a pre-transcript build?** This version captures from Claude Code's session transcripts rather than the old team inboxes. Your existing conversations are kept as-is; if you see a few messages duplicated from the old capture, run `agent-chat --rebuild` once — it deletes the local database and rebuilds it cleanly from the transcripts. (Nothing is auto-deleted on upgrade, so no history is ever lost without you asking.)
+
 ## What you get
 
 - **Watch agents think in real time** -- Every message between agents streams to your browser over WebSocket. Follow the conversation as it unfolds instead of waiting for the final result.
