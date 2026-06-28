@@ -40,6 +40,9 @@ export function useFeed(conversationId: string | null) {
       messageType: msg.messageType,
       metadata: msg.metadata,
       createdAt: msg.createdAt,
+      // Carry the real send/delivery time so a live-appended row shows the
+      // correct time immediately, not ingestion-time-until-reload.
+      eventTime: msg.eventTime,
     };
     setItems(prev => [...prev, feedMsg]);
     setLastSeenId(msg.id);
