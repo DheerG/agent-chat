@@ -76,6 +76,10 @@ export function MessageItem({ message, teamMemberCount }: Props) {
   const isStatus = message.messageType === 'status';
   const isInputRequest = message.messageType === 'input_request';
   const isHuman = message.senderType === 'human';
+  // Lead narration (the lead's play-by-play to the user) is the majority of the
+  // feed; it's kept visible but visually de-emphasized so it doesn't bury the
+  // inter-agent discussion a watcher is actually following.
+  const isLead = message.messageType === 'lead';
 
   const jsonEvent = useMemo(
     () => tryParseJsonEvent(message.content),
@@ -185,7 +189,7 @@ export function MessageItem({ message, teamMemberCount }: Props) {
   }
 
   return (
-    <div className={`message-item ${isHuman ? 'message-item--human' : ''} ${isError ? 'message-item--error' : ''} ${isInputRequest ? 'message-item--attention' : ''} ${isStatus ? 'message-item--status' : ''}`}>
+    <div className={`message-item ${isHuman ? 'message-item--human' : ''} ${isLead ? 'message-item--lead' : ''} ${isError ? 'message-item--error' : ''} ${isInputRequest ? 'message-item--attention' : ''} ${isStatus ? 'message-item--status' : ''}`}>
       <div className="message-item__header">
         <span className={`message-item__avatar ${isHuman ? 'message-item__avatar--human' : ''}`}>
           {message.senderName.charAt(0).toUpperCase()}
@@ -197,14 +201,28 @@ export function MessageItem({ message, teamMemberCount }: Props) {
             <span className="message-item__routing">→ {recipientLabel}</span>
           ) : null;
         })()}
-        <span className="message-item__time">
-          {new Date(message.createdAt).toLocaleTimeString()}
-        </span>
+        {(() => {
+          // Show the real event time; mark it provisional when ordered on the
+          // transcript delivery time rather than an enriched send time, so the
+          // watcher knows the row may re-sort slightly.
+          const provisional = message.metadata?.timestampSource === 'delivery';
+          const when = message.eventTime ?? message.createdAt;
+          return (
+            <span
+              className="message-item__time"
+              title={provisional ? 'Approximate (delivery time)' : undefined}
+            >
+              {provisional ? '~' : ''}
+              {new Date(when).toLocaleTimeString()}
+            </span>
+          );
+        })()}
       </div>
       <div className="message-item__content">
         {isInputRequest && <span className="message-item__badge">Needs Input</span>}
         {isError && <span className="message-item__badge message-item__badge--error">Error</span>}
         {isStatus && <span className="message-item__badge message-item__badge--status">Status</span>}
+        {isLead && <span className="message-item__badge message-item__badge--lead">Lead</span>}
         <div className="message-item__text" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </div>

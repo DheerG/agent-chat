@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Message, WsServerMessage, Session, ConversationListItem } from '@agent-chat/shared';
+import type { Message, WsServerMessage, Session, ConversationListItem, MemberCoverage } from '@agent-chat/shared';
 import { ConversationList } from './components/ConversationList';
 import { ConversationHeader } from './components/ConversationHeader';
 import { MessageFeed } from './components/MessageFeed';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useConversations } from './hooks/useConversations';
 import { useFeed } from './hooks/useFeed';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -14,6 +15,8 @@ export function App() {
   const [tab, setTab] = useState<'active' | 'recent' | 'all'>('active');
   const [refreshKey, setRefreshKey] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [coverage, setCoverage] = useState<MemberCoverage[]>([]);
+  const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
   const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [refreshCountdown, setRefreshCountdown] = useState(60);
@@ -40,17 +43,19 @@ export function App() {
 
   // Load conversation details when selected
   useEffect(() => {
-    if (!selectedId) { setSessions([]); setSelectedConversation(null); return; }
+    if (!selectedId) { setSessions([]); setCoverage([]); setMessageCounts({}); setSelectedConversation(null); return; }
     // Clear unread count for selected conversation
     setUnreadCounts(prev => { const next = new Map(prev); next.delete(selectedId); return next; });
     fetchConversation(selectedId).then(data => {
       setSessions(data.sessions);
+      setCoverage(data.coverage ?? []);
+      setMessageCounts(data.messageCounts ?? {});
       setSelectedConversation({
         ...data.conversation,
         summary: data.summary,
       } as ConversationListItem);
     }).catch(() => {});
-  }, [selectedId]);
+  }, [selectedId, refreshKey, items.length]);
 
   // WebSocket handler
   const handleWsMessage = useCallback((msg: WsServerMessage) => {
@@ -96,6 +101,7 @@ export function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <ConversationList
         conversations={conversations}
         loading={loading}
@@ -114,6 +120,8 @@ export function App() {
             <ConversationHeader
               conversation={selectedConversation}
               sessions={sessions}
+              coverage={coverage}
+              messageCounts={messageCounts}
             />
             <MessageFeed
               items={items}

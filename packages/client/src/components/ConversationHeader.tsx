@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import type { ConversationListItem, Session } from '@agent-chat/shared';
+import type { ConversationListItem, Session, MemberCoverage } from '@agent-chat/shared';
 import { StatusIndicator } from './StatusIndicator';
 
 interface Props {
   conversation: ConversationListItem;
   sessions: Session[];
+  coverage?: MemberCoverage[];
+  messageCounts?: Record<string, number>;
 }
 
 function duration(startedAt: string | null): string {
@@ -16,12 +18,31 @@ function duration(startedAt: string | null): string {
   return `${m}m`;
 }
 
+/**
+ * Completeness signal: are all member transcripts caught up? A member whose
+ * captured byte offset trails its file size is still being read. This is the
+ * anti-false-trust indicator — completeness is observable, not assumed.
+ */
+function coverageState(coverage: MemberCoverage[]): { caughtUp: number; total: number; behind: string[] } {
+  const total = coverage.length;
+  const behind = coverage.filter(c => c.fileSize - c.byteOffset > 0).map(c => c.ownerName);
+  return { caughtUp: total - behind.length, total, behind };
+}
+
 const STATUS_ORDER: Record<string, number> = { active: 0, idle: 1, pending: 2, stopped: 3 };
 
-export function ConversationHeader({ conversation, sessions }: Props) {
+export function ConversationHeader({ conversation, sessions, coverage = [], messageCounts = {} }: Props) {
   const [compact, setCompact] = useState(false);
   const { summary } = conversation;
   const activeCount = sessions.filter(s => s.status === 'active' || s.status === 'idle').length;
+  const cov = coverageState(coverage);
+  // Class-separated counts so one conflated total (dominated by lead narration +
+  // status noise) can't manufacture false trust. "Discussion" = real
+  // inter-agent + human messages; the rest is shown separately, not blended in.
+  const discussion = (messageCounts['text'] ?? 0) + (messageCounts['human'] ?? 0);
+  const leadCount = messageCounts['lead'] ?? 0;
+  const statusCount = messageCounts['status'] ?? 0;
+  const hasCounts = Object.keys(messageCounts).length > 0;
 
   // Show all members, sorted: active → idle → pending → stopped
   const sortedSessions = [...sessions].sort(
@@ -66,9 +87,32 @@ export function ConversationHeader({ conversation, sessions }: Props) {
             Running {duration(summary.startedAt)}
           </span>
         )}
-        <span className="conversation-header__msgs">
-          {summary.totalMessages} messages
-        </span>
+        {hasCounts ? (
+          <span className="conversation-header__counts">
+            <span className="conversation-header__count"><strong>{discussion}</strong> discussion</span>
+            <span className="conversation-header__count"><strong>{leadCount}</strong> lead</span>
+            <span className="conversation-header__count"><strong>{statusCount}</strong> status</span>
+          </span>
+        ) : (
+          <span className="conversation-header__msgs">
+            {summary.totalMessages} messages
+          </span>
+        )}
+        {cov.total > 0 && (
+          <span
+            className={`conversation-header__coverage conversation-header__coverage--${cov.behind.length === 0 ? 'live' : 'lagging'}`}
+            title={
+              cov.behind.length === 0
+                ? `Capture is up to date across all ${cov.total} transcripts`
+                : `Catching up on: ${cov.behind.join(', ')}`
+            }
+          >
+            <StatusIndicator status={cov.behind.length === 0 ? 'active' : 'pending'} size={6} />
+            {cov.behind.length === 0
+              ? `capture live (${cov.total}/${cov.total})`
+              : `capturing ${cov.caughtUp}/${cov.total}`}
+          </span>
+        )}
       </div>
 
       {sortedSessions.length > 0 && (

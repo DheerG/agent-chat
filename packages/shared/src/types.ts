@@ -45,17 +45,29 @@ export interface Session {
 
 // ─── Message ────────────────────────────────────────────────────────
 
+export type SenderType = 'agent' | 'human' | 'system' | 'lead';
+export type MessageType =
+  | 'text'
+  | 'status'
+  | 'error'
+  | 'input_request'
+  | 'system'
+  | 'human'
+  | 'lead';
+
 export interface Message {
   id: string;
   conversationId: string;
   parentMessageId: string | null;
   senderId: string;
   senderName: string;
-  senderType: 'agent' | 'human' | 'system';
+  senderType: SenderType;
   content: string;
-  messageType: 'text' | 'status' | 'error' | 'input_request' | 'system';
+  messageType: MessageType;
   metadata: Record<string, unknown>;
   createdAt: string;
+  /** Real send/delivery time from the transcript; feed is ordered by this. */
+  eventTime?: string | null;
 }
 
 // ─── Feed Items ─────────────────────────────────────────────────────
@@ -67,14 +79,24 @@ export interface FeedMessage {
   parentMessageId: string | null;
   senderId: string;
   senderName: string;
-  senderType: 'agent' | 'human' | 'system';
+  senderType: SenderType;
   content: string;
-  messageType: 'text' | 'status' | 'error' | 'input_request' | 'system';
+  messageType: MessageType;
   metadata: Record<string, unknown>;
   createdAt: string;
+  eventTime?: string | null;
 }
 
 export type FeedItem = FeedMessage;
+
+/** Per-member capture coverage — the completeness signal. */
+export interface MemberCoverage {
+  ownerName: string;
+  byteOffset: number;
+  fileSize: number;
+  lastEventAt: string | null;
+  updatedAt: string;
+}
 
 // ─── WebSocket Protocol ─────────────────────────────────────────────
 

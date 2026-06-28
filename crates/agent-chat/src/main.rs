@@ -28,7 +28,7 @@ struct Cli {
     #[arg(long, env = "AGENT_CHAT_DB_PATH")]
     db_path: Option<PathBuf>,
 
-    /// Delete and rebuild the database from inbox files
+    /// Delete and rebuild the database from session transcripts
     #[arg(long)]
     rebuild: bool,
 }
@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
             std::fs::remove_file(&shm).ok();
             println!("  Deleted {}", db_path.display());
         }
-        println!("  Database will be rebuilt from inbox files on startup.\n");
+        println!("  Database will be rebuilt from session transcripts on startup.\n");
     }
 
     web::run(db_path, teams_dir, cli.port).await?;

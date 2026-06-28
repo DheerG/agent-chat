@@ -8,7 +8,7 @@
     "url": "https://github.com/DheerG/agent-chat.git"
   },
   "scripts": {
-    "dev": "pnpm build && concurrently -n server,client -c blue,green \"node packages/server/dist/index.js\" \"pnpm --filter @agent-chat/client dev\"",
+    "dev": "concurrently -n rust,client -c blue,green \"cargo run -p agent-chat\" \"pnpm --filter @agent-chat/client dev\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
@@ -16,12 +16,6 @@
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

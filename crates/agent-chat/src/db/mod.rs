@@ -64,10 +64,20 @@ const CREATE_TABLES_SQL: &str = r#"
     content TEXT NOT NULL,
     message_type TEXT NOT NULL DEFAULT 'text',
     metadata TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- event_time = the message's real send/delivery time from the transcript
+    -- (NOT the ingestion time). The feed orders on this so a transcript
+    -- backfill renders in true chronological order instead of read order.
+    event_time TEXT,
+    -- source_key = stable per-record identity (owner_session:line_uuid:ordinal).
+    -- A UNIQUE index makes ingestion idempotent and restart-safe: re-reading a
+    -- transcript can never double-insert, regardless of offset bookkeeping.
+    source_key TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
   CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(conversation_id, event_time, id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source_key ON messages(source_key) WHERE source_key IS NOT NULL;
 
   CREATE TABLE IF NOT EXISTS conversation_summaries (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
@@ -81,7 +91,30 @@ const CREATE_TABLES_SQL: &str = r#"
     status TEXT NOT NULL DEFAULT 'active',
     updated_at TEXT NOT NULL
   );
+
+  -- Per-transcript-file ingestion progress. Byte offset into an append-only
+  -- JSONL transcript, persisted so a server restart resumes instead of
+  -- re-emitting history. Correctness still rests on messages.source_key; this
+  -- is purely the efficiency cursor.
+  CREATE TABLE IF NOT EXISTS ingest_files (
+    path TEXT PRIMARY KEY,
+    conversation_id TEXT,
+    owner_name TEXT,
+    byte_offset INTEGER NOT NULL DEFAULT 0,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    last_event_at TEXT,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_ingest_files_conversation ON ingest_files(conversation_id);
 "#;
+
+/// Columns added after the initial release. Applied idempotently on open so
+/// existing user databases gain the new ordering/idempotency fields without a
+/// migration framework. (path, column, definition)
+const ADD_COLUMNS: &[(&str, &str, &str)] = &[
+    ("messages", "event_time", "TEXT"),
+    ("messages", "source_key", "TEXT"),
+];
 
 /// Thread-safe database handle wrapping a SQLite connection behind a Mutex.
 #[derive(Clone)]
@@ -99,19 +132,43 @@ impl Database {
         conn.pragma_update(None, "foreign_keys", "ON")?;
 
         conn.execute_batch(CREATE_TABLES_SQL)?;
+        Self::apply_column_migrations(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
     }
 
+    #[cfg(test)]
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(CREATE_TABLES_SQL)?;
+        Self::apply_column_migrations(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
+    }
+
+    /// Add post-release columns to pre-existing databases. Idempotent: skips any
+    /// column that already exists, so it is safe to run on every open.
+    fn apply_column_migrations(conn: &Connection) -> Result<()> {
+        for (table, column, def) in ADD_COLUMNS {
+            let exists: bool = conn
+                .prepare(&format!("PRAGMA table_info({table})"))?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .filter_map(|r| r.ok())
+                .any(|name| name == *column);
+            if !exists {
+                conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {def};"))?;
+            }
+        }
+        // Indexes that depend on the migrated columns (no-op if already present).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(conversation_id, event_time, id);
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source_key ON messages(source_key) WHERE source_key IS NOT NULL;",
+        )?;
+        Ok(())
     }
 
     /// Execute a closure with exclusive access to the connection.

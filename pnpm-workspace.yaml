@@ -1,2 +1,11 @@
 packages:
   - 'packages/*'
+
+# pnpm 11 build-script approval (it no longer reads the "pnpm" field in
+# package.json). esbuild's native binary is needed by the client (vite/vitest).
+# better-sqlite3 is a transitive native peer of drizzle-orm in packages/shared
+# but is never used at runtime (the Node server that used it was removed), so
+# its build is skipped.
+allowBuilds:
+  esbuild: true
+  better-sqlite3: false
