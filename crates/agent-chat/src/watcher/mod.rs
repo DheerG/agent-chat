@@ -461,23 +461,42 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
         }
     }
 
-    // ── 3. Emit pass: recognize → enrich event_time → emit; persist offset ─
-    for pf in &pending {
-        let mut last_event_at: Option<String> = None;
+    // ── 3. Recognize + enrich every new row ACROSS all files, then emit in
+    //       global event_time order. Emitting file-by-file would push a later
+    //       lead row before an earlier member row on a multi-file/backfill tick
+    //       (the live feed appends in emit order), and leave the summary preview
+    //       on a non-latest message.
+    let mut batch: Vec<(usize, Extracted)> = Vec::new();
+    for (i, pf) in pending.iter().enumerate() {
         for line in &pf.lines {
             for mut ex in recognize(line, &pf.owner) {
                 enrich_event_time(&mut ex, &conversation_id, ws);
-                last_event_at = Some(ex.event_time.clone());
-                emit(state, &conversation_id, &ex);
+                batch.push((i, ex));
             }
         }
+    }
+    // Stable sort by event_time (ISO8601 sorts lexically); preserves
+    // within-same-instant order, including the per-line wrapper ordinal.
+    batch.sort_by(|a, b| a.1.event_time.cmp(&b.1.event_time));
+
+    // Per-file latest event time, for the coverage signal's last_event_at.
+    let mut last_per_file: Vec<Option<String>> = vec![None; pending.len()];
+    for (i, ex) in &batch {
+        if last_per_file[*i].as_deref().is_none_or(|c| ex.event_time.as_str() > c) {
+            last_per_file[*i] = Some(ex.event_time.clone());
+        }
+        emit(state, &conversation_id, ex);
+    }
+
+    // ── 4. Persist each file's offset (independent of emit order) ──────────
+    for (i, pf) in pending.iter().enumerate() {
         state.db.set_ingest_offset(
             &pf.path_str,
             &conversation_id,
             &pf.owner.name,
             pf.new_offset as i64,
             pf.file_size as i64,
-            last_event_at.as_deref(),
+            last_per_file[i].as_deref(),
         );
     }
 }
@@ -586,18 +605,26 @@ fn enrich_event_time(ex: &mut Extracted, conversation_id: &str, ws: &Arc<Mutex<W
     }
     let body = normalize_body(&ex.content);
     let mut lock = ws.lock().unwrap();
-    for info in lock.send_index.values_mut() {
-        if info.conversation_id == conversation_id
-            && !info.matched
-            && info.sender == ex.sender_name
-            && info.to == ex.recipient
-            && normalize_body(&info.body) == body
-        {
-            info.matched = true;
-            ex.event_time = info.send_time.clone();
-            ex.timestamp_source = "send".into();
-            return;
-        }
+    // Among unmatched sends with the same sender/recipient/body, take the
+    // EARLIEST by send_time. If a sender sends the same body twice before either
+    // is enriched, this pairs first-sent with first-delivered instead of picking
+    // one in nondeterministic HashMap order (which could swap their send_times).
+    let best = lock
+        .send_index
+        .iter()
+        .filter(|(_, info)| {
+            info.conversation_id == conversation_id
+                && !info.matched
+                && info.sender == ex.sender_name
+                && info.to == ex.recipient
+                && normalize_body(&info.body) == body
+        })
+        .min_by(|a, b| a.1.send_time.cmp(&b.1.send_time))
+        .map(|(k, _)| k.clone());
+    if let Some(info) = best.and_then(|k| lock.send_index.get_mut(&k)) {
+        info.matched = true;
+        ex.event_time = info.send_time.clone();
+        ex.timestamp_source = "send".into();
     }
 }
 

@@ -373,11 +373,20 @@ impl Database {
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let truncated: String = preview.chars().take(120).collect();
         self.with_conn(|conn| {
+            // Only move the preview/sender forward when this message is at least
+            // as new as the current latest — otherwise an out-of-order ingest
+            // (a backfilled or send-time-enriched older row arriving after a
+            // newer one) would point the preview at an older message. SQLite
+            // evaluates every SET RHS against the pre-update row, so the CASE
+            // compares against the OLD last_message_at.
             conn.execute(
                 "UPDATE conversation_summaries
                  SET total_messages = total_messages + 1,
+                     last_message_preview = CASE WHEN ?1 >= COALESCE(last_message_at, '')
+                                                 THEN ?2 ELSE last_message_preview END,
+                     last_message_sender = CASE WHEN ?1 >= COALESCE(last_message_at, '')
+                                                 THEN ?3 ELSE last_message_sender END,
                      last_message_at = MAX(COALESCE(last_message_at, ''), ?1),
-                     last_message_preview = ?2, last_message_sender = ?3,
                      updated_at = MAX(COALESCE(updated_at, ''), ?1)
                  WHERE conversation_id = ?4",
                 params![ts, truncated, sender, conversation_id],
