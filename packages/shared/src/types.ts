@@ -109,7 +109,10 @@ export type WsClientMessage =
 // Server -> Client
 export type WsServerMessage =
   | { type: 'message'; conversationId: string; message: Message }
-  | { type: 'summary_update'; conversationId: string; summary: ConversationSummary };
+  | { type: 'summary_update'; conversationId: string; summary: ConversationSummary }
+  // Sent when the server dropped broadcast events under load (a large backfill):
+  // the client should refetch, since an open feed can't recover the gap live.
+  | { type: 'resync' };
 
 // ─── Pagination ─────────────────────────────────────────────────────
 

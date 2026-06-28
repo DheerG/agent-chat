@@ -14,6 +14,7 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<'active' | 'recent' | 'all'>('active');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [resyncKey, setResyncKey] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [coverage, setCoverage] = useState<MemberCoverage[]>([]);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
@@ -37,7 +38,7 @@ export function App() {
     }, 1_000);
     return () => clearInterval(id);
   }, []);
-  const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId);
+  const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId, resyncKey);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
@@ -78,6 +79,13 @@ export function App() {
         const upd = msg as { conversationId: string; summary: unknown };
         updateConversation(upd.conversationId, { summary: upd.summary } as Partial<ConversationListItem>);
         reSort();
+        break;
+      }
+      case 'resync': {
+        // The server dropped broadcast events under load (a large backfill).
+        // Refetch the open feed and the conversation list to recover the gap.
+        setResyncKey(k => k + 1);
+        setRefreshKey(k => k + 1);
         break;
       }
     }

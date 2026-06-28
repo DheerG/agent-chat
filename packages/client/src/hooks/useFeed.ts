@@ -30,7 +30,7 @@ function lowerBound(list: FeedItem[], target: FeedItem): number {
   return lo;
 }
 
-export function useFeed(conversationId: string | null) {
+export function useFeed(conversationId: string | null, resyncKey = 0) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,9 @@ export function useFeed(conversationId: string | null) {
       .catch(err => { if (!cancelled) setError(String(err)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [conversationId]);
+    // resyncKey bumps on a server "resync" (after a dropped-event backfill) to
+    // reload the open feed; it does not change on the routine list refresh.
+  }, [conversationId, resyncKey]);
 
   const addMessage = useCallback((msg: Message) => {
     const feedMsg: FeedItem = {

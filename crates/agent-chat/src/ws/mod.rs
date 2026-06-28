@@ -41,10 +41,16 @@ impl WebSocketHub {
                     // A large transcript backfill (first start / --rebuild) can
                     // outrun this consumer and overflow the broadcast buffer.
                     // Skip the dropped events and KEEP RUNNING — exiting here
-                    // would stop live updates for the rest of the process; the
-                    // skipped rows are already persisted and load over REST.
+                    // would stop live updates for the rest of the process. The
+                    // dropped rows are persisted, so tell connected clients to
+                    // refetch (an open feed can't otherwise recover them).
                     Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                        tracing::warn!(skipped, "WS broadcast lagged; dropped events (clients refetch)");
+                        tracing::warn!(skipped, "WS broadcast lagged; asking clients to resync");
+                        let payload = serde_json::json!({ "type": "resync" }).to_string();
+                        let clients_lock = clients.lock().await;
+                        for client in clients_lock.values() {
+                            let _ = client.tx.send(payload.clone());
+                        }
                         continue;
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
