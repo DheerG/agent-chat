@@ -161,11 +161,7 @@ fn put_send(ws: &Arc<Mutex<WatcherState>>, conv: &str, sender: &str, to: &str, b
             sender: sender.into(),
             to: to.into(),
             body: body.into(),
-            summary: None,
-            source_key: "s".into(),
             matched: false,
-            unmatched_ticks: 0,
-            emitted_undelivered: false,
         },
     );
 }

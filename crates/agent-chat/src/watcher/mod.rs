@@ -92,38 +92,26 @@ struct TeamState {
 struct WatcherState {
     teams: HashMap<String, TeamState>,
     skipped_teams: HashSet<String>,
-    /// Sender-side SendMessage events keyed by tool_use id. Used to (a) enrich a
-    /// delivered wrapper's event_time with the TRUE send time, and (b) surface a
-    /// send that never got a matching delivery as "delivery-unconfirmed" (the
-    /// tail-gap: a message to a teammate that never takes another turn).
+    /// Sender-side SendMessage events keyed by tool_use id, used to enrich a
+    /// delivered wrapper's event_time with the TRUE send time.
     send_index: HashMap<String, SendInfo>,
-    /// Latest transcript line timestamp seen per member name. A send is only
-    /// genuinely undelivered if its recipient has NO activity at/after the send
-    /// (their process ended before delivery) — this excludes body-match misses,
-    /// where the recipient IS active and did receive it.
-    member_last_ts: HashMap<String, String>,
 }
 
-/// A sender-side SendMessage tool_use, awaiting a matching delivered wrapper.
+/// A sender-side SendMessage tool_use, used to enrich the matching delivered
+/// wrapper's event_time. (An in-feed "undelivered" probe was tried and removed:
+/// in real time you cannot distinguish a slow-but-delivered message from a lost
+/// one — delivery latency is unbounded — so any such signal cries wolf. The
+/// tail-gap stays honestly disclosed in the README instead.)
 struct SendInfo {
     /// Scopes this send to its team — the watcher tracks many teams through one
-    /// shared state, so enrichment and the undelivered probe must never cross
-    /// conversation boundaries.
+    /// shared state, so enrichment must never cross conversation boundaries.
     conversation_id: String,
     send_time: String,
     sender: String,
     to: String,
     body: String,
-    summary: Option<String>,
-    source_key: String,
     matched: bool,
-    unmatched_ticks: u32,
-    emitted_undelivered: bool,
 }
-
-/// A send stays unmatched this many tail ticks (~seconds) before it surfaces as
-/// delivery-unconfirmed — long enough that a merely-busy recipient has delivered.
-const UNDELIVERED_TICKS: u32 = 30;
 
 impl WatcherState {
     fn new() -> Self {
@@ -131,7 +119,6 @@ impl WatcherState {
             teams: HashMap::new(),
             skipped_teams: HashSet::new(),
             send_index: HashMap::new(),
-            member_last_ts: HashMap::new(),
         }
     }
 }
@@ -452,31 +439,16 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
         }
     }
     if pending.is_empty() {
-        // Still age the send-index so genuinely-undelivered sends surface.
-        emit_undelivered(state, &conversation_id, ws);
         return;
     }
 
-    // ── 2. Sends pass: index every SendMessage (true send time) and track
-    //       each member's latest activity (for the undelivered discriminator) ─
+    // ── 2. Sends pass: index every SendMessage (true send time) so delivered
+    //       wrappers can be ordered on it before any of them are emitted ──────
     {
         let mut lock = ws.lock().unwrap();
         for pf in &pending {
             for line in &pf.lines {
                 scan_send(line, &conversation_id, &pf.owner, &mut lock.send_index);
-            }
-            // Latest line timestamp for this owner (ISO8601 sorts lexically).
-            let max_ts = pf
-                .lines
-                .iter()
-                .filter_map(|l| l.get("timestamp").and_then(|v| v.as_str()))
-                .max();
-            if let Some(ts) = max_ts {
-                let key = format!("{conversation_id}|{}", pf.owner.name);
-                let entry = lock.member_last_ts.entry(key).or_default();
-                if ts > entry.as_str() {
-                    *entry = ts.to_string();
-                }
             }
         }
     }
@@ -500,9 +472,6 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
             last_event_at.as_deref(),
         );
     }
-
-    // ── 4. Undelivered pass: long-unmatched sends → delivery-unconfirmed ──
-    emit_undelivered(state, &conversation_id, ws);
 }
 
 /// Read whole new lines from a transcript's persisted offset (no emit, no offset
@@ -561,7 +530,7 @@ fn scan_send(
         Some(a) => a,
         None => return,
     };
-    for (i, block) in blocks.iter().enumerate() {
+    for block in blocks {
         if block.get("type").and_then(|t| t.as_str()) != Some("tool_use")
             || block.get("name").and_then(|n| n.as_str()) != Some("SendMessage")
         {
@@ -586,21 +555,13 @@ fn scan_send(
         if to.is_empty() || body.is_empty() || to == "main" {
             continue;
         }
-        let summary = input
-            .and_then(|x| x.get("summary"))
-            .and_then(|v| v.as_str())
-            .map(String::from);
         index.entry(id).or_insert(SendInfo {
             conversation_id: conversation_id.to_string(),
             send_time: ts.to_string(),
             sender: owner.name.clone(),
             to,
             body,
-            summary,
-            source_key: format!("{}:{}:send{}", owner.session_token, uuid, i),
             matched: false,
-            unmatched_ticks: 0,
-            emitted_undelivered: false,
         });
     }
 }
@@ -628,80 +589,6 @@ fn enrich_event_time(ex: &mut Extracted, conversation_id: &str, ws: &Arc<Mutex<W
             ex.event_time = info.send_time.clone();
             ex.timestamp_source = "send".into();
             return;
-        }
-    }
-}
-
-/// Surface sends that never got a matching delivery (the tail-gap) once they've
-/// been unmatched long enough that a busy recipient would have delivered.
-fn emit_undelivered(state: &AppState, conversation_id: &str, ws: &Arc<Mutex<WatcherState>>) {
-    let due: Vec<(String, String, String, Option<String>, String, String)> = {
-        let mut lock = ws.lock().unwrap();
-        // Snapshot member activity to avoid a second mutable borrow of the guard
-        // while iterating send_index.
-        let last_ts = lock.member_last_ts.clone();
-        let mut out = Vec::new();
-        for info in lock.send_index.values_mut() {
-            if info.conversation_id != conversation_id || info.matched || info.emitted_undelivered {
-                continue;
-            }
-            info.unmatched_ticks += 1;
-            if info.unmatched_ticks < UNDELIVERED_TICKS {
-                continue;
-            }
-            // After the grace window: if the recipient was active at/after the
-            // send, it WAS delivered (a body-match miss) — resolve silently.
-            // Only a recipient with no activity since the send is a real
-            // tail-gap (their process ended before delivery).
-            let recipient_active = last_ts
-                .get(&format!("{conversation_id}|{}", info.to))
-                .is_some_and(|last| last.as_str() >= info.send_time.as_str());
-            if recipient_active {
-                info.matched = true; // delivered; stop tracking
-            } else {
-                info.emitted_undelivered = true;
-                out.push((
-                    info.sender.clone(),
-                    info.to.clone(),
-                    info.body.clone(),
-                    info.summary.clone(),
-                    info.send_time.clone(),
-                    info.source_key.clone(),
-                ));
-            }
-        }
-        out
-    };
-    for (sender, to, body, summary, send_time, source_key) in due {
-        let mut metadata = serde_json::Map::new();
-        metadata.insert("recipient".into(), Value::String(to.clone()));
-        metadata.insert("recipients".into(), serde_json::json!([to]));
-        if let Some(s) = summary {
-            metadata.insert("summary".into(), Value::String(s));
-        }
-        metadata.insert("source".into(), Value::String("transcript".into()));
-        metadata.insert("timestampSource".into(), Value::String("send".into()));
-        // The integrity signal: sent, but no delivery record was ever seen.
-        metadata.insert(
-            "deliveryStatus".into(),
-            Value::String("unconfirmed".into()),
-        );
-        let sender_id = format!("{sender}@{conversation_id}");
-        let inserted = state.ingest_message(
-            conversation_id,
-            &sender_id,
-            &sender,
-            "agent",
-            &body,
-            "text",
-            &Value::Object(metadata),
-            Some(&send_time),
-            &source_key,
-        );
-        if inserted.is_some() {
-            state
-                .db
-                .increment_summary_messages(conversation_id, &body, &sender, Some(&send_time));
         }
     }
 }

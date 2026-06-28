@@ -80,10 +80,6 @@ export function MessageItem({ message, teamMemberCount }: Props) {
   // feed; it's kept visible but visually de-emphasized so it doesn't bury the
   // inter-agent discussion a watcher is actually following.
   const isLead = message.messageType === 'lead';
-  // A message that was sent but for which no delivery record was ever seen (the
-  // recipient went dormant before receiving it) — surfaced so the watcher knows
-  // it may not have landed, rather than it vanishing silently.
-  const isUnconfirmed = message.metadata?.deliveryStatus === 'unconfirmed';
 
   const jsonEvent = useMemo(
     () => tryParseJsonEvent(message.content),
@@ -227,11 +223,6 @@ export function MessageItem({ message, teamMemberCount }: Props) {
         {isError && <span className="message-item__badge message-item__badge--error">Error</span>}
         {isStatus && <span className="message-item__badge message-item__badge--status">Status</span>}
         {isLead && <span className="message-item__badge message-item__badge--lead">Lead</span>}
-        {isUnconfirmed && (
-          <span className="message-item__badge message-item__badge--unconfirmed" title="Sent, but no delivery record was seen — the recipient may have stopped before receiving it">
-            ⚠ delivery unconfirmed
-          </span>
-        )}
         <div className="message-item__text" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </div>

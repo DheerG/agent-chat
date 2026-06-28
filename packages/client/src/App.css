@@ -801,9 +801,3 @@
   color: #9aa0a6;
 }
 .conversation-header__count strong { color: #cfd2d6; }
-
-/* Sent-but-delivery-unconfirmed integrity marker */
-.message-item__badge--unconfirmed {
-  background: #5a3a1a;
-  color: #e0b341;
-}
