@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FeedItem, Message } from '@agent-chat/shared';
 import { fetchFeed, fetchAllFeed } from '../lib/api';
 
@@ -32,6 +32,10 @@ function lowerBound(list: FeedItem[], target: FeedItem): number {
 
 export function useFeed(conversationId: string | null) {
   const [items, setItems] = useState<FeedItem[]>([]);
+  // Always reflects the currently-selected conversation, so an in-flight resync
+  // can tell whether the user switched away before it resolved.
+  const convRef = useRef(conversationId);
+  convRef.current = conversationId;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSeenId, setLastSeenId] = useState<string | null>(null);
@@ -60,8 +64,12 @@ export function useFeed(conversationId: string | null) {
   // discard live messages already shown and still miss the dropped ones.
   const resync = useCallback(() => {
     if (!conversationId) return;
+    const startedFor = conversationId;
     fetchAllFeed(conversationId)
       .then(all => {
+        // The user may have switched conversations while this was in flight;
+        // only apply if the feed is still showing the conversation we fetched.
+        if (convRef.current !== startedFor) return;
         setItems(all);
         if (all.length > 0) setLastSeenId(all[all.length - 1]!.id);
       })

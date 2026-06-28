@@ -864,12 +864,19 @@ fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extr
         }];
     }
 
-    // (3) Human typed input (the user's request + steers).
-    let is_human = line
+    // (3) Human typed input (the user's request + steers). Claude marks these
+    // as origin.kind=="human" and/or promptSource=="typed"; accept either, since
+    // the format has drifted across versions and missing the user's own messages
+    // is the worst capture failure. System-injected prompts (pulses, reminders)
+    // are promptSource=="system" — excluded — and the wrapper/tool_result paths
+    // above have already claimed agent deliveries and question answers.
+    let origin_human = line
         .get("origin")
         .and_then(|o| o.get("kind"))
         .and_then(|k| k.as_str())
         == Some("human");
+    let typed = line.get("promptSource").and_then(|v| v.as_str()) == Some("typed");
+    let is_human = origin_human || typed;
     if is_human && !content.trim().is_empty() && !is_pulse(&content) {
         return vec![Extracted {
             sender_name: "you".into(),

@@ -35,6 +35,36 @@ fn queued_attachment(prompt: &str, command_mode: &str, human: bool) -> Value {
 }
 
 #[test]
+fn captures_typed_human_row_without_origin() {
+    // A typed prompt can be marked promptSource=="typed" with no origin.kind
+    // (format drift across Claude versions). It must still be captured as human.
+    let line = serde_json::json!({
+        "type": "user",
+        "uuid": "t-1",
+        "timestamp": "2026-06-28T13:00:00.000Z",
+        "promptSource": "typed",
+        "message": { "content": "make it faster please" },
+    });
+    let ex = recognize(&line, &lead_owner());
+    assert_eq!(ex.len(), 1);
+    assert_eq!(ex[0].sender_type, "human");
+    assert_eq!(ex[0].content, "make it faster please");
+}
+
+#[test]
+fn system_promptsource_is_not_human() {
+    // System-injected prompts (pulses/reminders) are promptSource=="system".
+    let line = serde_json::json!({
+        "type": "user",
+        "uuid": "s-1",
+        "timestamp": "2026-06-28T13:00:00.000Z",
+        "promptSource": "system",
+        "message": { "content": "Pulse: check your state." },
+    });
+    assert!(recognize(&line, &lead_owner()).is_empty());
+}
+
+#[test]
 fn captures_queued_human_steer_attachment() {
     // A steer typed while the lead is busy is queued as an attachment with
     // origin.kind=="human" — not a type:"user" row. It must be captured.
