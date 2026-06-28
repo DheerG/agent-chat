@@ -76,8 +76,11 @@ const CREATE_TABLES_SQL: &str = r#"
   );
   CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
   CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
-  CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(conversation_id, event_time, id);
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source_key ON messages(source_key) WHERE source_key IS NOT NULL;
+  -- NOTE: indexes on event_time / source_key are created in
+  -- apply_column_migrations, NOT here. On an existing pre-release database the
+  -- CREATE TABLE above is a no-op (the table lacks those columns until the
+  -- migration ALTERs them in), so indexing them here would fail with "no such
+  -- column" and block startup after an upgrade.
 
   CREATE TABLE IF NOT EXISTS conversation_summaries (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
@@ -178,5 +181,55 @@ impl Database {
     {
         let conn = self.conn.lock().expect("db lock poisoned");
         f(&conn)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Opening a pre-release database (a `messages` table WITHOUT event_time /
+    /// source_key) must migrate cleanly. Regression guard: indexing those
+    /// columns before the migration ALTERs them in would fail with "no such
+    /// column" and block startup after an upgrade.
+    #[test]
+    fn opens_and_migrates_a_pre_release_database() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        // The old release's schema (no event_time / source_key, no new indexes).
+        conn.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                 workspace_path TEXT, workspace_name TEXT, type TEXT NOT NULL DEFAULT 'team',
+                 status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL, archived_at TEXT);
+             CREATE TABLE messages (id TEXT PRIMARY KEY,
+                 conversation_id TEXT NOT NULL REFERENCES conversations(id),
+                 parent_message_id TEXT, sender_id TEXT NOT NULL, sender_name TEXT NOT NULL,
+                 sender_type TEXT NOT NULL, content TEXT NOT NULL,
+                 message_type TEXT NOT NULL DEFAULT 'text', metadata TEXT NOT NULL DEFAULT '{}',
+                 created_at TEXT NOT NULL);
+             INSERT INTO conversations (id, name, type, status, created_at, updated_at)
+                 VALUES ('c1','t','team','active','t0','t0');
+             INSERT INTO messages (id, conversation_id, sender_id, sender_name, sender_type, content, created_at)
+                 VALUES ('m1','c1','s','s','agent','hi','t0');",
+        )
+        .unwrap();
+
+        // Simulate Database::open's upgrade path on this existing DB.
+        conn.execute_batch(CREATE_TABLES_SQL).expect("create-tables must not touch missing columns");
+        Database::apply_column_migrations(&conn).expect("migration must add columns then index");
+
+        let cols: Vec<String> = conn
+            .prepare("PRAGMA table_info(messages)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(cols.contains(&"event_time".to_string()));
+        assert!(cols.contains(&"source_key".to_string()));
+        // The pre-existing row survived the upgrade.
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
     }
 }

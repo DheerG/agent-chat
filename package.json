@@ -8,7 +8,7 @@
     "url": "https://github.com/DheerG/agent-chat.git"
   },
   "scripts": {
-    "dev": "pnpm --filter @agent-chat/shared build && concurrently -n rust,client -c blue,green \"cargo run -p agent-chat\" \"pnpm --filter @agent-chat/client dev\"",
+    "dev": "pnpm -r build && concurrently -n rust,client -c blue,green \"cargo run -p agent-chat\" \"pnpm --filter @agent-chat/client dev\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
