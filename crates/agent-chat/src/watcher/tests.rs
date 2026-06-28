@@ -136,6 +136,73 @@ fn captures_askuserquestion_answer_as_human_decision() {
     assert!(out[0].content.contains("Defaults"));
 }
 
+fn agent_wrapper(sender: &str, recipient: &str, content: &str, delivery_ts: &str) -> Extracted {
+    Extracted {
+        sender_name: sender.into(),
+        sender_type: "agent".into(),
+        message_type: "text".into(),
+        content: content.into(),
+        color: None,
+        summary: None,
+        status_type: None,
+        event_time: delivery_ts.into(),
+        recipient: recipient.into(),
+        source_key: "sk".into(),
+        timestamp_source: "delivery".into(),
+    }
+}
+
+fn put_send(ws: &Arc<Mutex<WatcherState>>, conv: &str, sender: &str, to: &str, body: &str, send_ts: &str) {
+    ws.lock().unwrap().send_index.insert(
+        format!("{conv}:{sender}:{to}:{body}"),
+        SendInfo {
+            conversation_id: conv.into(),
+            send_time: send_ts.into(),
+            sender: sender.into(),
+            to: to.into(),
+            body: body.into(),
+            summary: None,
+            source_key: "s".into(),
+            matched: false,
+            unmatched_ticks: 0,
+            emitted_undelivered: false,
+        },
+    );
+}
+
+#[test]
+fn send_enrichment_uses_true_send_time() {
+    let ws = Arc::new(Mutex::new(WatcherState::new()));
+    put_send(&ws, "c1", "alpha", "bravo", "hello", "2026-06-28T13:00:00.000Z");
+    // Delivered later than it was sent (the normal case).
+    let mut ex = agent_wrapper("alpha", "bravo", "hello", "2026-06-28T13:00:09.000Z");
+    enrich_event_time(&mut ex, "c1", &ws);
+    assert_eq!(ex.event_time, "2026-06-28T13:00:00.000Z");
+    assert_eq!(ex.timestamp_source, "send");
+}
+
+#[test]
+fn send_enrichment_is_conversation_scoped() {
+    // A send recorded in conversation c1 must NOT enrich a wrapper in c2, even
+    // with identical sender/recipient/body — the watcher tracks many teams.
+    let ws = Arc::new(Mutex::new(WatcherState::new()));
+    put_send(&ws, "c1", "alpha", "bravo", "hello", "2026-06-28T13:00:00.000Z");
+    let mut ex = agent_wrapper("alpha", "bravo", "hello", "2026-06-28T13:00:09.000Z");
+    enrich_event_time(&mut ex, "c2", &ws);
+    assert_eq!(ex.event_time, "2026-06-28T13:00:09.000Z", "must stay delivery-time across conversations");
+    assert_eq!(ex.timestamp_source, "delivery");
+}
+
+#[test]
+fn human_and_lead_rows_are_not_send_enriched() {
+    let ws = Arc::new(Mutex::new(WatcherState::new()));
+    put_send(&ws, "c1", "you", "team-lead", "the request", "2026-06-28T13:00:00.000Z");
+    let mut human = agent_wrapper("you", "team-lead", "the request", "2026-06-28T13:00:09.000Z");
+    human.sender_type = "human".into();
+    enrich_event_time(&mut human, "c1", &ws);
+    assert_eq!(human.timestamp_source, "delivery", "non-agent rows are not sender-side sends");
+}
+
 #[test]
 fn pulse_prompt_is_noise() {
     assert!(is_pulse("Pulse: check your state. If your last turn…"));

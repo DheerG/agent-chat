@@ -123,9 +123,10 @@ Rust (server + CLI binary), React + TypeScript (UI), SQLite, WebSocket, Tauri (d
 
 ## Known limitations
 
-- **Send-time ordering is approximate.** Messages are ordered by their transcript *delivery* time, which preserves the causal order of direct request→reply chains but can skew slightly across recipients. Rows ordered this way are marked provisional (`~`). True send-time enrichment is the planned next step.
+- **Ordering is mostly true send-time, with a provisional fallback.** Each delivered message is matched to the sender's `SendMessage` event and ordered by its true send time (~88% of agent messages). The rest fall back to transcript *delivery* time and are marked provisional (`~`); delivery time still preserves the causal order of direct request→reply chains but can skew slightly across recipients.
 - **Broadcasts render as separate rows.** A single message sent to several teammates appears once per recipient (each correctly attributed) rather than collapsed into one "to everyone" row.
-- **A message to a departing teammate may not appear.** Capture reads each teammate's transcript; a message sent to a member who never takes another turn (e.g. a final shutdown note) has no delivery record to read and may be omitted. This concentrates at the very end of a run.
+- **A message to a departing teammate is flagged, not hidden.** If a message is sent to a member who never takes another turn (e.g. a final shutdown note), there's no delivery record to read — it's surfaced with a **"⚠ delivery unconfirmed"** marker rather than vanishing silently.
+- **A declined/cancelled question isn't recorded.** If you dismiss a prompt instead of answering it, that non-answer isn't captured as a feed event (answered questions are).
 
 ## Contributing
 

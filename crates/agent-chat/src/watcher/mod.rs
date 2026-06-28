@@ -92,13 +92,46 @@ struct TeamState {
 struct WatcherState {
     teams: HashMap<String, TeamState>,
     skipped_teams: HashSet<String>,
+    /// Sender-side SendMessage events keyed by tool_use id. Used to (a) enrich a
+    /// delivered wrapper's event_time with the TRUE send time, and (b) surface a
+    /// send that never got a matching delivery as "delivery-unconfirmed" (the
+    /// tail-gap: a message to a teammate that never takes another turn).
+    send_index: HashMap<String, SendInfo>,
+    /// Latest transcript line timestamp seen per member name. A send is only
+    /// genuinely undelivered if its recipient has NO activity at/after the send
+    /// (their process ended before delivery) — this excludes body-match misses,
+    /// where the recipient IS active and did receive it.
+    member_last_ts: HashMap<String, String>,
 }
+
+/// A sender-side SendMessage tool_use, awaiting a matching delivered wrapper.
+struct SendInfo {
+    /// Scopes this send to its team — the watcher tracks many teams through one
+    /// shared state, so enrichment and the undelivered probe must never cross
+    /// conversation boundaries.
+    conversation_id: String,
+    send_time: String,
+    sender: String,
+    to: String,
+    body: String,
+    summary: Option<String>,
+    source_key: String,
+    matched: bool,
+    unmatched_ticks: u32,
+    emitted_undelivered: bool,
+}
+
+/// A send stays unmatched this many tail ticks (~seconds) before it surfaces as
+/// delivery-unconfirmed — long enough that a merely-busy recipient has delivered.
+const UNDELIVERED_TICKS: u32 = 30;
 
 impl WatcherState {
     fn new() -> Self {
         Self {
             teams: HashMap::new(),
             skipped_teams: HashSet::new(),
+            send_index: HashMap::new(),
+            member_last_ts: HashMap::new(),
         }
     }
 }
@@ -366,6 +399,16 @@ struct Owner {
     is_lead: bool,
 }
 
+/// New, whole lines read from one transcript this tick — gathered before any
+/// emission so the send-index is complete before delivered wrappers are ordered.
+struct PendingFile {
+    path_str: String,
+    owner: Owner,
+    lines: Vec<Value>,
+    new_offset: u64,
+    file_size: u64,
+}
+
 fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>) {
     let (conversation_id, project_dir, lead_session_id, lead_name) = {
         let lock = ws.lock().unwrap();
@@ -380,7 +423,8 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
         }
     };
 
-    // Lead transcript.
+    // ── 1. Gather new lines from every transcript (no emit yet) ──────────
+    let mut pending: Vec<PendingFile> = Vec::new();
     let lead_file = project_dir.join(format!("{lead_session_id}.jsonl"));
     if lead_file.exists() {
         let owner = Owner {
@@ -388,10 +432,10 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
             session_token: lead_session_id.clone(),
             is_lead: true,
         };
-        ingest_file(state, &conversation_id, &lead_file, &owner);
+        if let Some(pf) = read_new_lines(state, &lead_file, owner) {
+            pending.push(pf);
+        }
     }
-
-    // Member transcripts (subagents/), filtered to real teammates.
     let subagents = project_dir.join(&lead_session_id).join("subagents");
     if let Ok(entries) = fs::read_dir(&subagents) {
         for entry in entries.flatten() {
@@ -399,9 +443,265 @@ fn ingest_team(state: &AppState, team_name: &str, ws: &Arc<Mutex<WatcherState>>)
             if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
                 continue;
             }
-            if let Some(owner) = member_owner(&path) {
-                ingest_file(state, &conversation_id, &path, &owner);
+            let Some(owner) = member_owner(&path) else {
+                continue;
+            };
+            if let Some(pf) = read_new_lines(state, &path, owner) {
+                pending.push(pf);
             }
+        }
+    }
+    if pending.is_empty() {
+        // Still age the send-index so genuinely-undelivered sends surface.
+        emit_undelivered(state, &conversation_id, ws);
+        return;
+    }
+
+    // ── 2. Sends pass: index every SendMessage (true send time) and track
+    //       each member's latest activity (for the undelivered discriminator) ─
+    {
+        let mut lock = ws.lock().unwrap();
+        for pf in &pending {
+            for line in &pf.lines {
+                scan_send(line, &conversation_id, &pf.owner, &mut lock.send_index);
+            }
+            // Latest line timestamp for this owner (ISO8601 sorts lexically).
+            let max_ts = pf
+                .lines
+                .iter()
+                .filter_map(|l| l.get("timestamp").and_then(|v| v.as_str()))
+                .max();
+            if let Some(ts) = max_ts {
+                let key = format!("{conversation_id}|{}", pf.owner.name);
+                let entry = lock.member_last_ts.entry(key).or_default();
+                if ts > entry.as_str() {
+                    *entry = ts.to_string();
+                }
+            }
+        }
+    }
+
+    // ── 3. Emit pass: recognize → enrich event_time → emit; persist offset ─
+    for pf in &pending {
+        let mut last_event_at: Option<String> = None;
+        for line in &pf.lines {
+            for mut ex in recognize(line, &pf.owner) {
+                enrich_event_time(&mut ex, &conversation_id, ws);
+                last_event_at = Some(ex.event_time.clone());
+                emit(state, &conversation_id, &ex);
+            }
+        }
+        state.db.set_ingest_offset(
+            &pf.path_str,
+            &conversation_id,
+            &pf.owner.name,
+            pf.new_offset as i64,
+            pf.file_size as i64,
+            last_event_at.as_deref(),
+        );
+    }
+
+    // ── 4. Undelivered pass: long-unmatched sends → delivery-unconfirmed ──
+    emit_undelivered(state, &conversation_id, ws);
+}
+
+/// Read whole new lines from a transcript's persisted offset (no emit, no offset
+/// advance — the caller persists the offset after emitting).
+fn read_new_lines(state: &AppState, path: &Path, owner: Owner) -> Option<PendingFile> {
+    let path_str = path.to_string_lossy().to_string();
+    let start_offset = state.db.get_ingest_offset(&path_str).max(0) as u64;
+    let mut file = fs::File::open(path).ok()?;
+    let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+    // File shrank (rotated/truncated) → re-read from 0; source_key idempotency
+    // prevents any double-posting.
+    let read_from = if file_size < start_offset { 0 } else { start_offset };
+    if file_size == read_from {
+        return None; // nothing new
+    }
+    file.seek(SeekFrom::Start(read_from)).ok()?;
+    let mut buf = String::new();
+    file.read_to_string(&mut buf).ok()?;
+    // Only consume up to the last newline; a trailing partial line waits.
+    let last_nl = buf.rfind('\n')?;
+    let lines: Vec<Value> = buf[..=last_nl]
+        .split('\n')
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    Some(PendingFile {
+        path_str,
+        owner,
+        lines,
+        new_offset: read_from + last_nl as u64 + 1,
+        file_size,
+    })
+}
+
+/// Index a line's SendMessage tool_use(s) as pending sends (keyed by tool_use id).
+fn scan_send(
+    line: &Value,
+    conversation_id: &str,
+    owner: &Owner,
+    index: &mut HashMap<String, SendInfo>,
+) {
+    if line.get("type").and_then(|v| v.as_str()) != Some("assistant") {
+        return;
+    }
+    let ts = line.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
+    let uuid = line.get("uuid").and_then(|v| v.as_str()).unwrap_or("");
+    if ts.is_empty() || uuid.is_empty() {
+        return;
+    }
+    let blocks = match line
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_array())
+    {
+        Some(a) => a,
+        None => return,
+    };
+    for (i, block) in blocks.iter().enumerate() {
+        if block.get("type").and_then(|t| t.as_str()) != Some("tool_use")
+            || block.get("name").and_then(|n| n.as_str()) != Some("SendMessage")
+        {
+            continue;
+        }
+        let id = match block.get("id").and_then(|v| v.as_str()) {
+            Some(s) if !s.is_empty() => s.to_string(),
+            _ => continue,
+        };
+        let input = block.get("input");
+        let to = input
+            .and_then(|x| x.get("to"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let body = input
+            .and_then(|x| x.get("message"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        // Skip non-teammate targets (e.g. "main") and empty bodies.
+        if to.is_empty() || body.is_empty() || to == "main" {
+            continue;
+        }
+        let summary = input
+            .and_then(|x| x.get("summary"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        index.entry(id).or_insert(SendInfo {
+            conversation_id: conversation_id.to_string(),
+            send_time: ts.to_string(),
+            sender: owner.name.clone(),
+            to,
+            body,
+            summary,
+            source_key: format!("{}:{}:send{}", owner.session_token, uuid, i),
+            matched: false,
+            unmatched_ticks: 0,
+            emitted_undelivered: false,
+        });
+    }
+}
+
+fn normalize_body(s: &str) -> String {
+    s.trim().to_string()
+}
+
+/// Enrich a delivered agent↔agent wrapper's event_time with the matching send's
+/// true send time (and mark that send delivered). Falls back to delivery time.
+fn enrich_event_time(ex: &mut Extracted, conversation_id: &str, ws: &Arc<Mutex<WatcherState>>) {
+    if ex.sender_type != "agent" {
+        return; // human/lead rows are not sender-side sends
+    }
+    let body = normalize_body(&ex.content);
+    let mut lock = ws.lock().unwrap();
+    for info in lock.send_index.values_mut() {
+        if info.conversation_id == conversation_id
+            && !info.matched
+            && info.sender == ex.sender_name
+            && info.to == ex.recipient
+            && normalize_body(&info.body) == body
+        {
+            info.matched = true;
+            ex.event_time = info.send_time.clone();
+            ex.timestamp_source = "send".into();
+            return;
+        }
+    }
+}
+
+/// Surface sends that never got a matching delivery (the tail-gap) once they've
+/// been unmatched long enough that a busy recipient would have delivered.
+fn emit_undelivered(state: &AppState, conversation_id: &str, ws: &Arc<Mutex<WatcherState>>) {
+    let due: Vec<(String, String, String, Option<String>, String, String)> = {
+        let mut lock = ws.lock().unwrap();
+        // Snapshot member activity to avoid a second mutable borrow of the guard
+        // while iterating send_index.
+        let last_ts = lock.member_last_ts.clone();
+        let mut out = Vec::new();
+        for info in lock.send_index.values_mut() {
+            if info.conversation_id != conversation_id || info.matched || info.emitted_undelivered {
+                continue;
+            }
+            info.unmatched_ticks += 1;
+            if info.unmatched_ticks < UNDELIVERED_TICKS {
+                continue;
+            }
+            // After the grace window: if the recipient was active at/after the
+            // send, it WAS delivered (a body-match miss) — resolve silently.
+            // Only a recipient with no activity since the send is a real
+            // tail-gap (their process ended before delivery).
+            let recipient_active = last_ts
+                .get(&format!("{conversation_id}|{}", info.to))
+                .is_some_and(|last| last.as_str() >= info.send_time.as_str());
+            if recipient_active {
+                info.matched = true; // delivered; stop tracking
+            } else {
+                info.emitted_undelivered = true;
+                out.push((
+                    info.sender.clone(),
+                    info.to.clone(),
+                    info.body.clone(),
+                    info.summary.clone(),
+                    info.send_time.clone(),
+                    info.source_key.clone(),
+                ));
+            }
+        }
+        out
+    };
+    for (sender, to, body, summary, send_time, source_key) in due {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("recipient".into(), Value::String(to.clone()));
+        metadata.insert("recipients".into(), serde_json::json!([to]));
+        if let Some(s) = summary {
+            metadata.insert("summary".into(), Value::String(s));
+        }
+        metadata.insert("source".into(), Value::String("transcript".into()));
+        metadata.insert("timestampSource".into(), Value::String("send".into()));
+        // The integrity signal: sent, but no delivery record was ever seen.
+        metadata.insert(
+            "deliveryStatus".into(),
+            Value::String("unconfirmed".into()),
+        );
+        let sender_id = format!("{sender}@{conversation_id}");
+        let inserted = state.ingest_message(
+            conversation_id,
+            &sender_id,
+            &sender,
+            "agent",
+            &body,
+            "text",
+            &Value::Object(metadata),
+            Some(&send_time),
+            &source_key,
+        );
+        if inserted.is_some() {
+            state
+                .db
+                .increment_summary_messages(conversation_id, &body, &sender, Some(&send_time));
         }
     }
 }
@@ -425,68 +725,6 @@ fn member_owner(transcript: &Path) -> Option<Owner> {
     })
 }
 
-/// Tail one transcript from its persisted byte offset, ingesting whole new lines.
-fn ingest_file(state: &AppState, conversation_id: &str, path: &Path, owner: &Owner) {
-    let path_str = path.to_string_lossy().to_string();
-    let start_offset = state.db.get_ingest_offset(&path_str).max(0) as u64;
-
-    let mut file = match fs::File::open(path) {
-        Ok(f) => f,
-        Err(_) => return,
-    };
-    let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
-    if file_size < start_offset {
-        // File shrank (rotated/truncated) — re-read from the top. source_key
-        // idempotency prevents any double-posting.
-        // (fall through with start_offset reset below)
-    }
-    let read_from = if file_size < start_offset { 0 } else { start_offset };
-    if file_size == read_from {
-        return; // nothing new
-    }
-    if file.seek(SeekFrom::Start(read_from)).is_err() {
-        return;
-    }
-    let mut buf = String::new();
-    if file.read_to_string(&mut buf).is_err() {
-        return;
-    }
-
-    // Only consume up to the last newline; a trailing partial line is left for
-    // the next tick so we never parse a half-written record.
-    let last_nl = match buf.rfind('\n') {
-        Some(i) => i,
-        None => return, // no complete line yet
-    };
-    let complete = &buf[..=last_nl];
-
-    let mut last_event_at: Option<String> = None;
-    for raw_line in complete.split('\n') {
-        let line = raw_line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let value: Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(_) => continue, // complete-but-unparseable line: skip, advance
-        };
-        let extracted = recognize(&value, owner);
-        for ex in extracted {
-            last_event_at = Some(ex.event_time.clone());
-            emit(state, conversation_id, &ex);
-        }
-    }
-
-    let new_offset = read_from + last_nl as u64 + 1;
-    state.db.set_ingest_offset(
-        &path_str,
-        conversation_id,
-        &owner.name,
-        new_offset as i64,
-        file_size as i64,
-        last_event_at.as_deref(),
-    );
-}
 
 /// A message recognized out of one transcript record.
 struct Extracted {
@@ -500,6 +738,9 @@ struct Extracted {
     event_time: String,
     recipient: String,
     source_key: String,
+    /// "delivery" (transcript delivery time, approximate) or "send" (enriched
+    /// with the true sender-side send time). Drives the UI's provisional marker.
+    timestamp_source: String,
 }
 
 fn emit(state: &AppState, conversation_id: &str, ex: &Extracted) {
@@ -526,12 +767,14 @@ fn emit(state: &AppState, conversation_id: &str, ex: &Extracted) {
         metadata.insert("original_type".into(), Value::String(t.clone()));
     }
     metadata.insert("source".into(), Value::String("transcript".into()));
-    // Ordering provenance for the UI's provisional marker. v1 orders on the
-    // transcript DELIVERY time: approximate ordering that preserves causal order
-    // for message-mediated direct chains (a member must receive before it
-    // replies); cross-recipient skew is possible and not bounded. Send-time
-    // enrichment is the named #1 fast-follow.
-    metadata.insert("timestampSource".into(), Value::String("delivery".into()));
+    // Ordering provenance for the UI's provisional marker. "send" = enriched
+    // with the true sender-side time (settled); "delivery" = transcript delivery
+    // time (approximate — preserves causal order for direct chains, may skew
+    // cross-recipient; shown provisional).
+    metadata.insert(
+        "timestampSource".into(),
+        Value::String(ex.timestamp_source.clone()),
+    );
 
     let sender_id = format!("{}@{}", ex.sender_name, conversation_id);
     let inserted = state.ingest_message(
@@ -611,6 +854,7 @@ fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extr
                     event_time: ts.to_string(),
                     recipient: owner.name.clone(),
                     source_key: format!("{}:{}:w{}", owner.session_token, uuid, w.ordinal),
+                    timestamp_source: "delivery".into(),
                 }
             })
             .collect();
@@ -634,6 +878,7 @@ fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extr
             event_time: ts.to_string(),
             recipient: owner.name.clone(),
             source_key: format!("{}:{}:human", owner.session_token, uuid),
+            timestamp_source: "delivery".into(),
         }];
     }
 
@@ -655,6 +900,7 @@ fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extr
             event_time: ts.to_string(),
             recipient: owner.name.clone(),
             source_key: format!("{}:{}:human", owner.session_token, uuid),
+            timestamp_source: "delivery".into(),
         }];
     }
 
@@ -680,6 +926,7 @@ fn recognize_lead_output(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> V
         event_time: ts.to_string(),
         recipient: "you".into(),
         source_key: format!("{}:{}:lead", owner.session_token, uuid),
+        timestamp_source: "delivery".into(),
     }]
 }
 
