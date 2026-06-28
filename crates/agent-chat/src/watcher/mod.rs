@@ -757,8 +757,46 @@ fn recognize(line: &Value, owner: &Owner) -> Vec<Extracted> {
     match line_type {
         "user" => recognize_user(line, owner, uuid, &ts),
         "assistant" if owner.is_lead => recognize_lead_output(line, owner, uuid, &ts),
-        _ => vec![], // system/mode/attachment/etc. — noise, collapsed
+        "attachment" if owner.is_lead => recognize_attachment(line, owner, uuid, &ts),
+        _ => vec![], // system/mode/other attachments — noise, collapsed
     }
+}
+
+/// A user steer typed while the lead was busy is queued by Claude Code as a
+/// `type:"attachment"` row with `attachment.type:"queued_command"` and
+/// `attachment.origin.kind:"human"` — NOT a `type:"user"` row. Capture those
+/// (lead transcript only) so mid-run human instructions aren't dropped. Queued
+/// `task-notification`s carry no human origin, so machine notifications are
+/// never mistaken for the user's voice.
+fn recognize_attachment(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extracted> {
+    let Some(att) = line.get("attachment") else {
+        return vec![];
+    };
+    let is_human_queued = att.get("type").and_then(|v| v.as_str()) == Some("queued_command")
+        && att.get("origin").and_then(|o| o.get("kind")).and_then(|k| k.as_str()) == Some("human");
+    if !is_human_queued {
+        return vec![];
+    }
+    let prompt = att.get("prompt").and_then(|v| v.as_str()).unwrap_or("").trim();
+    if prompt.is_empty() || is_pulse(prompt) {
+        return vec![];
+    }
+    // The attachment timestamp is when the user actually typed the steer (queue
+    // time), which orders it more truthfully than the delivery row's timestamp.
+    let event_time = att.get("timestamp").and_then(|v| v.as_str()).unwrap_or(ts);
+    vec![Extracted {
+        sender_name: "you".into(),
+        sender_type: "human".into(),
+        message_type: "human".into(),
+        content: prompt.to_string(),
+        color: None,
+        summary: None,
+        status_type: None,
+        event_time: event_time.to_string(),
+        recipient: owner.name.clone(),
+        source_key: format!("{}:{}:queued", owner.session_token, uuid),
+        timestamp_source: "delivery".into(),
+    }]
 }
 
 fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extracted> {

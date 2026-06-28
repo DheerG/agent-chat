@@ -35,7 +35,20 @@ impl WebSocketHub {
     pub fn start_broadcasting(&self, mut events: broadcast::Receiver<AppEvent>, db: crate::db::Database) {
         let clients = self.clients.clone();
         tokio::spawn(async move {
-            while let Ok(event) = events.recv().await {
+            loop {
+                let event = match events.recv().await {
+                    Ok(event) => event,
+                    // A large transcript backfill (first start / --rebuild) can
+                    // outrun this consumer and overflow the broadcast buffer.
+                    // Skip the dropped events and KEEP RUNNING — exiting here
+                    // would stop live updates for the rest of the process; the
+                    // skipped rows are already persisted and load over REST.
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(skipped, "WS broadcast lagged; dropped events (clients refetch)");
+                        continue;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                };
                 match event {
                     AppEvent::MessageCreated(msg) => {
                         let conversation_id = msg.conversation_id.clone();

@@ -16,6 +16,52 @@ fn member_owner_named(name: &str) -> Owner {
     Owner { name: name.into(), session_token: "sub".into(), is_lead: false }
 }
 
+fn queued_attachment(prompt: &str, command_mode: &str, human: bool) -> Value {
+    let mut att = serde_json::json!({
+        "type": "queued_command",
+        "commandMode": command_mode,
+        "prompt": prompt,
+        "timestamp": "2026-06-28T15:51:14.179Z",
+    });
+    if human {
+        att["origin"] = serde_json::json!({ "kind": "human" });
+    }
+    serde_json::json!({
+        "type": "attachment",
+        "uuid": "q-1",
+        "timestamp": "2026-06-28T15:51:20.000Z",
+        "attachment": att,
+    })
+}
+
+#[test]
+fn captures_queued_human_steer_attachment() {
+    // A steer typed while the lead is busy is queued as an attachment with
+    // origin.kind=="human" — not a type:"user" row. It must be captured.
+    let line = queued_attachment("Kindly follow the process.", "prompt", true);
+    let ex = recognize(&line, &lead_owner());
+    assert_eq!(ex.len(), 1, "human queued steer must be captured");
+    assert_eq!(ex[0].sender_type, "human");
+    assert_eq!(ex[0].content, "Kindly follow the process.");
+    // event_time comes from the attachment's own (type-time) timestamp.
+    assert_eq!(ex[0].event_time, "2026-06-28T15:51:14.179Z");
+}
+
+#[test]
+fn ignores_queued_task_notification_attachment() {
+    // task-notification queued_commands carry no human origin and must NOT be
+    // captured as the user's voice (the phantom-human class of bug).
+    let line = queued_attachment("<task-notification>\n<task-id>x</task-id>\n", "task-notification", false);
+    assert!(recognize(&line, &lead_owner()).is_empty(), "machine notification is not human");
+}
+
+#[test]
+fn queued_human_steer_only_on_lead_transcript() {
+    // The operator channel lives only in the lead transcript.
+    let line = queued_attachment("a steer", "prompt", true);
+    assert!(recognize(&line, &member_owner_named("alice")).is_empty());
+}
+
 #[test]
 fn strips_lead_inbound_prefix_and_suffix() {
     // The lead receives wrappers prefixed by "Another Claude session sent a
