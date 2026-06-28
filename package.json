@@ -15,8 +15,9 @@
   },
   "engines": {
     "node": ">=20",
-    "pnpm": ">=9"
+    "pnpm": ">=11"
   },
+  "packageManager": "pnpm@11.5.2",
   "devDependencies": {
     "concurrently": "^9.2.1"
   }

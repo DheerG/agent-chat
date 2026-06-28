@@ -22,7 +22,10 @@ jobs:
           node-version: '20'
 
       - name: Install pnpm
-        run: npm install -g pnpm
+        # Pin to match packageManager so the release pipeline can't silently
+        # break on a pnpm major bump (the build-script allowlist lives in
+        # pnpm-workspace.yaml's pnpm-11 `allowBuilds`).
+        run: npm install -g pnpm@11.5.2
 
       - name: Install and build
         run: pnpm install --frozen-lockfile && pnpm build
