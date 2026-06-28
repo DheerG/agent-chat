@@ -328,6 +328,15 @@ fn process_team(
     }
     let conversation = conversation.unwrap();
 
+    // One-time upgrade recapture: drop this team's legacy inbox-era rows (NULL
+    // source_key), if any, so the transcript ingest below re-populates them
+    // without duplication. No-op for new teams and for teams already captured
+    // from transcripts — so teams whose transcripts are gone keep their history.
+    let cleared = state.db.clear_legacy_messages(&conversation.id);
+    if cleared > 0 {
+        info!(conversation_id = %conversation.id, cleared, "Cleared legacy inbox-era rows for transcript recapture");
+    }
+
     register_members(state, &conversation.id, &config);
 
     ws.lock().unwrap().teams.insert(

@@ -1,5 +1,5 @@
 use super::Database;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -417,6 +417,36 @@ impl Database {
         });
     }
 
+    /// Remove a conversation's legacy inbox-watcher rows (NULL source_key) so
+    /// the transcript watcher can recapture it without duplicating them (the
+    /// unique source_key index cannot dedup against NULLs). Returns the number
+    /// deleted. A no-op — returns 0 — once a conversation holds only
+    /// transcript-sourced rows, so it is safe to call on every team discovery.
+    pub fn clear_legacy_messages(&self, conversation_id: &str) -> usize {
+        self.with_conn(|conn| {
+            let deleted = conn
+                .execute(
+                    "DELETE FROM messages WHERE conversation_id = ?1 AND source_key IS NULL",
+                    params![conversation_id],
+                )
+                .unwrap_or(0);
+            if deleted > 0 {
+                // Recompute the summary from the surviving rows; the transcript
+                // recapture that follows rebuilds the preview via increment.
+                conn.execute(
+                    "UPDATE conversation_summaries SET
+                        total_messages = (SELECT COUNT(*) FROM messages WHERE conversation_id = ?1),
+                        last_message_at = (SELECT MAX(COALESCE(event_time, created_at)) FROM messages WHERE conversation_id = ?1),
+                        last_message_preview = NULL, last_message_sender = NULL
+                     WHERE conversation_id = ?1",
+                    params![conversation_id],
+                )
+                .ok();
+            }
+            deleted
+        })
+    }
+
     // ─── Ingestion progress + coverage ─────────────────────────────────
 
     /// Persisted byte offset for a transcript file (0 if never read).
@@ -591,7 +621,7 @@ impl Database {
                 vec![Box::new(conversation_id.to_string())];
 
             if let Some(cursor) = after {
-                let (sk, id) = split_cursor(cursor);
+                let (sk, id) = resolve_cursor(conn, conversation_id, cursor);
                 let i = param_values.len();
                 sql.push_str(&format!(
                     " AND ({SORT} > ?{} OR ({SORT} = ?{} AND id > ?{}))",
@@ -603,7 +633,7 @@ impl Database {
                 param_values.push(Box::new(id));
             }
             if let Some(cursor) = before {
-                let (sk, id) = split_cursor(cursor);
+                let (sk, id) = resolve_cursor(conn, conversation_id, cursor);
                 let i = param_values.len();
                 sql.push_str(&format!(
                     " AND ({SORT} < ?{} OR ({SORT} = ?{} AND id < ?{}))",
@@ -755,11 +785,28 @@ fn message_cursor(m: &Message) -> String {
     format!("{sort_key}{CURSOR_SEP}{}", m.id)
 }
 
-/// Split a composite cursor into (sort_key, id). Tolerates a legacy id-only
-/// cursor left over from before event-time ordering by treating it as both.
-fn split_cursor(cursor: &str) -> (String, String) {
-    match cursor.split_once(CURSOR_SEP) {
-        Some((sk, id)) => (sk.to_string(), id.to_string()),
+/// Resolve a cursor to (sort_key, id). A new composite cursor splits directly.
+/// A legacy id-only cursor (from before event-time ordering — e.g. a WebSocket
+/// `lastSeenId`) is resolved against the DB so the sort_key is the row's real
+/// COALESCE(event_time, created_at). Without this, the bare ULID would be
+/// compared as a sort key against ISO timestamps and exceed every row, so
+/// pagination/catch-up would replay the entire conversation.
+fn resolve_cursor(conn: &Connection, conversation_id: &str, cursor: &str) -> (String, String) {
+    if let Some((sk, id)) = cursor.split_once(CURSOR_SEP) {
+        return (sk.to_string(), id.to_string());
+    }
+    let sort_key: Option<String> = conn
+        .query_row(
+            "SELECT COALESCE(event_time, created_at) FROM messages
+             WHERE id = ?1 AND conversation_id = ?2",
+            params![cursor, conversation_id],
+            |r| r.get(0),
+        )
+        .ok();
+    match sort_key {
+        Some(sk) => (sk, cursor.to_string()),
+        // Unknown id (e.g. a message cleared on upgrade): fall back to id-as-both
+        // — rare, and no worse than the pre-resolution behavior.
         None => (cursor.to_string(), cursor.to_string()),
     }
 }
@@ -908,6 +955,38 @@ mod tests {
             .map(|m| m.content.as_str())
             .collect();
         assert_eq!(seen, vec!["m0", "m1", "m2", "m3"]);
+    }
+
+    #[test]
+    fn legacy_id_only_cursor_pages_after_the_row_not_replay_all() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        let m0 = ingest(&db, &conv.id, "m0", "2026-06-28T13:00:00.000Z", "k0").unwrap();
+        ingest(&db, &conv.id, "m1", "2026-06-28T13:00:01.000Z", "k1");
+        ingest(&db, &conv.id, "m2", "2026-06-28T13:00:02.000Z", "k2");
+        // A bare-id cursor (a WS lastSeenId) must resolve to m0's event_time and
+        // return only later rows — not the whole conversation. A ULID compared
+        // as an ISO sort key would exceed every row and replay all three.
+        let after = db.get_messages(&conv.id, 100, Some(&m0.id), None);
+        let got: Vec<&str> = after.iter().map(|m| m.content.as_str()).collect();
+        assert_eq!(got, vec!["m1", "m2"], "id-only cursor must page after, not replay");
+    }
+
+    #[test]
+    fn clear_legacy_messages_drops_only_null_source_key_rows() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        // A legacy inbox row (no source_key) and a transcript row (with one).
+        db.insert_message_full(&conv.id, "s", "s", "agent", "legacy", "text", None,
+            &serde_json::json!({}), Some("2026-06-28T13:00:00.000Z"), None);
+        ingest(&db, &conv.id, "transcript", "2026-06-28T13:00:01.000Z", "k1");
+        let cleared = db.clear_legacy_messages(&conv.id);
+        assert_eq!(cleared, 1, "only the NULL-source_key legacy row is removed");
+        let left: Vec<String> = db.list_messages(&conv.id, 50, None).messages
+            .iter().map(|m| m.content.clone()).collect();
+        assert_eq!(left, vec!["transcript".to_string()], "transcript row survives");
+        // Idempotent: a second call removes nothing.
+        assert_eq!(db.clear_legacy_messages(&conv.id), 0);
     }
 
     #[test]

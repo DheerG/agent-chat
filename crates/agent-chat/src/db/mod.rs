@@ -156,7 +156,6 @@ impl Database {
     /// Add post-release columns to pre-existing databases. Idempotent: skips any
     /// column that already exists, so it is safe to run on every open.
     fn apply_column_migrations(conn: &Connection) -> Result<()> {
-        let mut added_source_key = false;
         for (table, column, def) in ADD_COLUMNS {
             let exists: bool = conn
                 .prepare(&format!("PRAGMA table_info({table})"))?
@@ -165,9 +164,6 @@ impl Database {
                 .any(|name| name == *column);
             if !exists {
                 conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {def};"))?;
-                if *column == "source_key" {
-                    added_source_key = true;
-                }
             }
         }
         // Indexes that depend on the migrated columns (no-op if already present).
@@ -175,20 +171,13 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(conversation_id, event_time, id);
              CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source_key ON messages(source_key) WHERE source_key IS NOT NULL;",
         )?;
-        // One-time upgrade rebuild. A database that predates source_key holds
-        // only legacy inbox-watcher rows (partial, NULL source_key). The
-        // transcript watcher re-ingests every team completely from offset 0
-        // (ingest_files starts empty), so the legacy rows must be cleared —
-        // otherwise they duplicate the freshly captured ones, since the unique
-        // source_key index cannot dedup against NULLs.
-        if added_source_key {
-            conn.execute_batch(
-                "DELETE FROM messages;
-                 UPDATE conversation_summaries
-                    SET total_messages = 0, last_message_at = NULL,
-                        last_message_preview = NULL, last_message_sender = NULL;",
-            )?;
-        }
+        // NOTE: legacy inbox-watcher rows (NULL source_key) are deliberately NOT
+        // wiped here. A global delete would also empty completed/archived teams
+        // whose transcripts are gone and can never be reingested. Instead the
+        // watcher clears a team's legacy rows per-conversation at the moment it
+        // (re)ingests that team from its transcript (clear_legacy_messages), so
+        // only conversations that are actually being recaptured lose their old
+        // partial rows.
         Ok(())
     }
 
@@ -246,12 +235,11 @@ mod tests {
             .collect();
         assert!(cols.contains(&"event_time".to_string()));
         assert!(cols.contains(&"source_key".to_string()));
-        // Legacy inbox-watcher rows are cleared on the upgrade so the transcript
-        // watcher can re-populate them without duplicating; the conversation row
-        // itself survives (only its messages are reset).
+        // The migration must NOT wipe legacy rows: a team whose transcript is
+        // gone could never be reingested. The row is preserved here; per-team
+        // clearing happens in the watcher only when a team is actually
+        // recaptured (see clear_legacy_messages).
         let msgs: i64 = conn.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0)).unwrap();
-        assert_eq!(msgs, 0, "legacy messages should be cleared for re-capture");
-        let convs: i64 = conn.query_row("SELECT COUNT(*) FROM conversations", [], |r| r.get(0)).unwrap();
-        assert_eq!(convs, 1, "conversations are preserved");
+        assert_eq!(msgs, 1, "legacy messages are preserved by the migration itself");
     }
 }
