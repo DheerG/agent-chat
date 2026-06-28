@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FeedItem, Message } from '@agent-chat/shared';
-import { fetchFeed } from '../lib/api';
+import { fetchFeed, fetchAllFeed } from '../lib/api';
 
 /** Sort key for a feed item: the real event time, falling back to ingestion
  * time, then id — identical to the server's ORDER BY COALESCE(event_time,
@@ -30,7 +30,7 @@ function lowerBound(list: FeedItem[], target: FeedItem): number {
   return lo;
 }
 
-export function useFeed(conversationId: string | null, resyncKey = 0) {
+export function useFeed(conversationId: string | null) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +53,20 @@ export function useFeed(conversationId: string | null, resyncKey = 0) {
       .catch(err => { if (!cancelled) setError(String(err)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // resyncKey bumps on a server "resync" (after a dropped-event backfill) to
-    // reload the open feed; it does not change on the routine list refresh.
-  }, [conversationId, resyncKey]);
+  }, [conversationId]);
+
+  // Recover from a server "resync" (broadcast events dropped under a backfill
+  // load) by re-pulling the WHOLE feed, not just the first page — otherwise we'd
+  // discard live messages already shown and still miss the dropped ones.
+  const resync = useCallback(() => {
+    if (!conversationId) return;
+    fetchAllFeed(conversationId)
+      .then(all => {
+        setItems(all);
+        if (all.length > 0) setLastSeenId(all[all.length - 1]!.id);
+      })
+      .catch(() => { /* a failed resync leaves the current feed in place */ });
+  }, [conversationId]);
 
   const addMessage = useCallback((msg: Message) => {
     const feedMsg: FeedItem = {
@@ -89,5 +100,5 @@ export function useFeed(conversationId: string | null, resyncKey = 0) {
     setLastSeenId(msg.id);
   }, []);
 
-  return { items, loading, error, addMessage, lastSeenId };
+  return { items, loading, error, addMessage, resync, lastSeenId };
 }

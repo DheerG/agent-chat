@@ -278,8 +278,14 @@ fn process_team(
             if ts.lead_session_id != lead_session_id || ts.project_dir != project_dir {
                 ts.lead_session_id = lead_session_id.clone();
                 ts.project_dir = project_dir.clone();
-                ts.lead_name = lead_name.clone();
                 info!(team_name, "Lead session changed — re-pointed transcript tree");
+            }
+            // Refresh the cached lead name too: if the team was first discovered
+            // before config.members was populated, lead_name was the fallback
+            // "team-lead"; a later config rewrite fills in the real name, and
+            // lead rows/enrichment must use it even when the session is unchanged.
+            if ts.lead_name != lead_name {
+                ts.lead_name = lead_name.clone();
             }
             drop(lock);
             register_members(state, &conv_id, &config);

@@ -67,3 +67,18 @@ export async function fetchFeed(conversationId: string, opts?: { limit?: number;
   const qs = params.toString();
   return fetchJson(`${BASE_URL}/conversations/${conversationId}/feed${qs ? `?${qs}` : ''}`);
 }
+
+/** Fetch the ENTIRE feed by paging forward. Used by resync after a dropped-event
+ *  backfill, where replacing with just the first page would lose live messages
+ *  already shown and still miss the dropped ones. Bounded defensively. */
+export async function fetchAllFeed(conversationId: string): Promise<FeedItem[]> {
+  const all: FeedItem[] = [];
+  let after: string | undefined;
+  for (let i = 0; i < 1000; i++) {
+    const page = await fetchFeed(conversationId, { limit: 200, after });
+    all.push(...page.items);
+    if (!page.pagination.hasMore || !page.pagination.nextCursor) break;
+    after = page.pagination.nextCursor;
+  }
+  return all;
+}
