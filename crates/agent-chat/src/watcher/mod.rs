@@ -261,11 +261,19 @@ fn process_team(
         }
     };
 
-    // Already tracked: just refresh the member roster and move on.
+    // Already tracked: refresh the member roster, and re-point the transcript
+    // tree if Claude rewrote config.json with a new leadSessionId (otherwise we
+    // would keep tailing the old transcripts and miss every new message).
     {
-        let lock = ws.lock().unwrap();
-        if let Some(ts) = lock.teams.get(team_name) {
+        let mut lock = ws.lock().unwrap();
+        if let Some(ts) = lock.teams.get_mut(team_name) {
             let conv_id = ts.conversation_id.clone();
+            if ts.lead_session_id != lead_session_id || ts.project_dir != project_dir {
+                ts.lead_session_id = lead_session_id.clone();
+                ts.project_dir = project_dir.clone();
+                ts.lead_name = lead_name.clone();
+                info!(team_name, "Lead session changed — re-pointed transcript tree");
+            }
             drop(lock);
             register_members(state, &conv_id, &config);
             return;
