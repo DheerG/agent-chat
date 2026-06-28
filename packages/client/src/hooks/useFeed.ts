@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FeedItem, Message } from '@agent-chat/shared';
-import { fetchFeed, fetchAllFeed } from '../lib/api';
+import { fetchAllFeed } from '../lib/api';
 
 /** Sort key for a feed item: the real event time, falling back to ingestion
  * time, then id — identical to the server's ORDER BY COALESCE(event_time,
@@ -44,13 +44,18 @@ export function useFeed(conversationId: string | null) {
     if (!conversationId) { setItems([]); return; }
     let cancelled = false;
     setLoading(true);
-    fetchFeed(conversationId, { limit: 50 })
-      .then(data => {
+    // Load the WHOLE captured feed, not just the first 50 — there is no
+    // scroll-up pagination, so a 50-row cap would leave most of a backfilled
+    // conversation (startup / --rebuild / a team selected after its backfill)
+    // captured-but-not-displayable, defeating the "all messages displayable"
+    // goal. The feed auto-scrolls to the newest, so history stays above.
+    fetchAllFeed(conversationId)
+      .then(all => {
         if (!cancelled) {
-          setItems(data.items);
+          setItems(all);
           setError(null);
-          if (data.items.length > 0) {
-            setLastSeenId(data.items[data.items.length - 1]!.id);
+          if (all.length > 0) {
+            setLastSeenId(all[all.length - 1]!.id);
           }
         }
       })
