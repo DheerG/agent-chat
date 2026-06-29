@@ -1,17 +1,112 @@
 name: Release
 
+# Releases are cut AUTOMATICALLY on every push to main (each merged PR), and on
+# demand via "Run workflow". Modeled on the swarms version-bump flow:
+#
+#   • Default bump is PATCH (0.2.0 -> 0.2.1).
+#   • Add a `minor` label to the PR for a MINOR bump (0.2.0 -> 0.3.0),
+#     or a `major` label for a MAJOR bump (0.2.0 -> 1.0.0).
+#   • Add a `no-release` label to skip cutting a release.
+#   • Manual runs (workflow_dispatch) can force a bump, and recover a missed
+#     release by passing the merge commit SHA.
+#
+# The new version is read from the latest v* tag; the build stamps it into the
+# binaries, and the release job creates the GitHub release AND its tag with
+# auto-generated notes. Docs-only / workflow-only / install-script changes do
+# not trigger a release (see paths-ignore).
+
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'install.sh'
+      - 'LICENSE'
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Bump (auto = use the PR label, default patch)'
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      pr_sha:
+        description: 'Merge commit SHA to read the label from (recovery)'
+        required: false
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      tag: ${{ steps.compute.outputs.tag }}
+      skip: ${{ steps.compute.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags
+
+      - name: Compute next version
+        id: compute
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force >/dev/null 2>&1 || true
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          latest=${latest:-v0.0.0}
+          ver=${latest#v}
+          MAJOR=${ver%%.*}; rest=${ver#*.}; MINOR=${rest%%.*}; PATCH=${rest#*.}
+          MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+
+          BUMP_INPUT="${{ github.event.inputs.bump }}"
+          if [ -n "$BUMP_INPUT" ] && [ "$BUMP_INPUT" != "auto" ]; then
+            BUMP="$BUMP_INPUT"
+          else
+            # Read the bump from the merged PR's labels (default patch).
+            LOOKUP_SHA="${{ github.event.inputs.pr_sha }}"
+            LOOKUP_SHA="${LOOKUP_SHA:-${{ github.sha }}}"
+            PR_NUMBER=$(gh pr list --state merged --base main --json number,mergeCommit \
+              --jq ".[] | select(.mergeCommit.oid == \"$LOOKUP_SHA\") | .number" | head -n1 || true)
+            BUMP=patch
+            if [ -n "${PR_NUMBER:-}" ]; then
+              LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' || true)
+              if echo "$LABELS" | grep -qx "no-release"; then
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+                echo "Release skipped via 'no-release' label on PR #$PR_NUMBER."
+                exit 0
+              elif echo "$LABELS" | grep -qx "major"; then BUMP=major
+              elif echo "$LABELS" | grep -qx "minor"; then BUMP=minor
+              fi
+            fi
+            echo "PR #${PR_NUMBER:-none} -> bump $BUMP"
+          fi
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0;;
+            minor) MINOR=$((MINOR+1)); PATCH=0;;
+            patch|*) PATCH=$((PATCH+1));;
+          esac
+          NEWVER="$MAJOR.$MINOR.$PATCH"
+          echo "version=$NEWVER" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEWVER" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Computed $BUMP bump: $latest -> v$NEWVER"
+
   prepare:
     name: Build React Client
+    needs: version
+    if: needs.version.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +114,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # pnpm 11 uses node:sqlite, which needs Node 22+. Node 20 fails the
+          # install with ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite.
+          node-version: '24'
 
       - name: Install pnpm
         # Pin to match packageManager so the release pipeline can't silently
@@ -39,7 +136,8 @@ jobs:
 
   build-cli:
     name: Build CLI (${{ matrix.target }})
-    needs: prepare
+    needs: [version, prepare]
+    if: needs.version.outputs.skip != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -74,13 +172,12 @@ jobs:
         with:
           key: cli-${{ matrix.target }}
 
-      # Stamp the release tag into the build so /api/version (and the update
-      # banner) report the real version instead of the hardcoded 0.1.0.
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/')
+      # Stamp the computed version into the build so /api/version (and the update
+      # banner) report the real version instead of the hardcoded dev placeholder.
+      - name: Set version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ needs.version.outputs.version }}"
           echo "Building version $VERSION"
           sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat/Cargo.toml
           sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat-desktop/Cargo.toml
@@ -146,7 +243,8 @@ jobs:
 
   build-tauri:
     name: Build Tauri (macOS ${{ matrix.target }})
-    needs: prepare
+    needs: [version, prepare]
+    if: needs.version.outputs.skip != 'true'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -179,11 +277,10 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Set version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ needs.version.outputs.version }}"
           echo "Building version $VERSION"
           sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat/Cargo.toml
           sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat-desktop/Cargo.toml
@@ -215,9 +312,9 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build-cli, build-universal-macos, build-tauri]
+    needs: [version, build-cli, build-universal-macos, build-tauri]
+    if: needs.version.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
 
@@ -246,9 +343,12 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          # Publish immediately (not a draft). GitHub's /releases/latest — which
-          # install.sh and the in-app update banner both query — EXCLUDES drafts,
-          # so a draft release is invisible to every update path.
+          # Create the release AND its tag at this commit. Publish immediately
+          # (not a draft): GitHub's /releases/latest — which install.sh and the
+          # in-app update banner both query — EXCLUDES drafts.
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           draft: false
           generate_release_notes: true
           files: release-files/*
