@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import type { ConversationListItem, Session, MemberCoverage } from '@agent-chat/shared';
 import { StatusIndicator } from './StatusIndicator';
+import { FEED_CATEGORIES, type FeedCategory } from '../hooks/useFeedFilters';
 
 interface Props {
   conversation: ConversationListItem;
   sessions: Session[];
   coverage?: MemberCoverage[];
   messageCounts?: Record<string, number>;
+  hiddenCategories?: Set<FeedCategory>;
+  onToggleCategory?: (cat: FeedCategory) => void;
 }
 
 function duration(startedAt: string | null): string {
@@ -35,17 +38,15 @@ function coverageState(coverage: MemberCoverage[], memberCount: number): { caugh
 
 const STATUS_ORDER: Record<string, number> = { active: 0, idle: 1, pending: 2, stopped: 3 };
 
-export function ConversationHeader({ conversation, sessions, coverage = [], messageCounts = {} }: Props) {
+export function ConversationHeader({ conversation, sessions, coverage = [], messageCounts = {}, hiddenCategories, onToggleCategory }: Props) {
   const [compact, setCompact] = useState(false);
   const { summary } = conversation;
   const activeCount = sessions.filter(s => s.status === 'active' || s.status === 'idle').length;
   const cov = coverageState(coverage, sessions.length);
-  // Class-separated counts so one conflated total (dominated by lead narration +
-  // status noise) can't manufacture false trust. "Discussion" = real
-  // inter-agent + human messages; the rest is shown separately, not blended in.
-  const discussion = (messageCounts['text'] ?? 0) + (messageCounts['human'] ?? 0);
-  const leadCount = messageCounts['lead'] ?? 0;
-  const statusCount = messageCounts['status'] ?? 0;
+  // Class-separated counts, each a click-to-toggle filter — lead narration alone
+  // is the bulk of a feed, so hiding it (or status / your own input) cuts the
+  // noise without losing the inter-agent discussion. Filtering is purely
+  // presentational; the counts remain the full totals.
   const hasCounts = Object.keys(messageCounts).length > 0;
 
   // Show all members, sorted: active → idle → pending → stopped
@@ -92,10 +93,24 @@ export function ConversationHeader({ conversation, sessions, coverage = [], mess
           </span>
         )}
         {hasCounts ? (
-          <span className="conversation-header__counts">
-            <span className="conversation-header__count"><strong>{discussion}</strong> discussion</span>
-            <span className="conversation-header__count"><strong>{leadCount}</strong> lead</span>
-            <span className="conversation-header__count"><strong>{statusCount}</strong> status</span>
+          <span className="conversation-header__counts" role="group" aria-label="Filter messages by type">
+            {FEED_CATEGORIES.map(c => {
+              const count = messageCounts[c.type] ?? 0;
+              const isHidden = hiddenCategories?.has(c.key) ?? false;
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  className={`conversation-header__count conversation-header__count--toggle${isHidden ? ' conversation-header__count--off' : ''}`}
+                  onClick={() => onToggleCategory?.(c.key)}
+                  disabled={!onToggleCategory}
+                  aria-pressed={!isHidden}
+                  title={isHidden ? `Show ${c.label} messages` : `Hide ${c.label} messages`}
+                >
+                  <strong>{count}</strong> {c.label}
+                </button>
+              );
+            })}
           </span>
         ) : (
           <span className="conversation-header__msgs">

@@ -6,6 +6,7 @@ import { MessageFeed } from './components/MessageFeed';
 import { UpdateBanner } from './components/UpdateBanner';
 import { useConversations } from './hooks/useConversations';
 import { useFeed } from './hooks/useFeed';
+import { useFeedFilters } from './hooks/useFeedFilters';
 import { useWebSocket } from './hooks/useWebSocket';
 import { fetchConversation } from './lib/api';
 import './App.css';
@@ -38,6 +39,7 @@ export function App() {
     return () => clearInterval(id);
   }, []);
   const { items, loading: feedLoading, error: feedError, addMessage, resync: resyncFeed } = useFeed(selectedId);
+  const { hidden: hiddenCategories, toggle: toggleCategory, visibleItems } = useFeedFilters(items);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
@@ -133,9 +135,11 @@ export function App() {
               sessions={sessions}
               coverage={coverage}
               messageCounts={messageCounts}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategory}
             />
             <MessageFeed
-              items={items}
+              items={visibleItems}
               loading={feedLoading}
               error={feedError}
               teamMemberCount={sessions.length}

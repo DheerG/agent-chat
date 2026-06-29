@@ -803,11 +803,33 @@
   color: #b8b8b8;
 }
 
-/* ─── Class-separated header counts (anti false-trust) ────────────── */
+/* ─── Class-separated header counts, click-to-toggle filters ──────── */
 .conversation-header__counts {
   display: inline-flex;
-  gap: 0.6rem;
+  gap: 0.4rem;
   font-size: 0.8rem;
   color: #9aa0a6;
 }
 .conversation-header__count strong { color: #cfd2d6; }
+
+/* Each count is a toggle button: click to hide/show that message class. */
+.conversation-header__count--toggle {
+  font: inherit;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  cursor: pointer;
+  transition: background 0.12s, opacity 0.12s;
+}
+.conversation-header__count--toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+.conversation-header__count--toggle:disabled { cursor: default; }
+/* Hidden class: dimmed + struck through so it reads as "filtered out". */
+.conversation-header__count--off {
+  opacity: 0.4;
+  text-decoration: line-through;
+  background: transparent;
+}
