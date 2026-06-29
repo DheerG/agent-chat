@@ -7,9 +7,11 @@ interface Props {
   loading: boolean;
   error: string | null;
   teamMemberCount?: number;
+  /** True when the conversation has messages but the active filter hides them all. */
+  allFilteredOut?: boolean;
 }
 
-export function MessageFeed({ items, loading, error, teamMemberCount }: Props) {
+export function MessageFeed({ items, loading, error, teamMemberCount, allFilteredOut }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -49,6 +51,11 @@ export function MessageFeed({ items, loading, error, teamMemberCount }: Props) {
       >
         {loading && <div className="message-feed__loading">Loading messages...</div>}
         {error && <div className="message-feed__error">{error}</div>}
+        {allFilteredOut && (
+          <div className="message-feed__filtered">
+            All message types are hidden. Use <strong>Filter</strong> in the header to show some.
+          </div>
+        )}
 
         {items.map((item, idx) => {
           const elements: React.ReactNode[] = [];

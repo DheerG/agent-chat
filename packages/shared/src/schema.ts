@@ -65,14 +65,36 @@ export const messages = sqliteTable('messages', {
   parentMessageId: text('parent_message_id'),
   senderId: text('sender_id').notNull(),
   senderName: text('sender_name').notNull(),
-  senderType: text('sender_type', { enum: ['agent', 'human', 'system'] }).notNull(),
+  senderType: text('sender_type', { enum: ['agent', 'human', 'system', 'lead'] }).notNull(),
   content: text('content').notNull(),
-  messageType: text('message_type', { enum: ['text', 'status', 'error', 'input_request', 'system'] }).notNull().default('text'),
+  messageType: text('message_type', { enum: ['text', 'status', 'error', 'input_request', 'system', 'human', 'lead'] }).notNull().default('text'),
   metadata: text('metadata').notNull().default('{}'),
   createdAt: text('created_at').notNull(),
+  // Real send/delivery time from the transcript; the feed orders on this.
+  eventTime: text('event_time'),
+  // Stable per-record identity; a unique index makes ingestion idempotent.
+  sourceKey: text('source_key'),
 }, (t) => [
   index('idx_messages_conversation').on(t.conversationId, t.id),
   index('idx_messages_thread').on(t.parentMessageId),
+  index('idx_messages_event').on(t.conversationId, t.eventTime, t.id),
+]);
+
+// ─── Ingestion progress (transcript tailing) ────────────────────────
+// Persisted byte offset per transcript file so restarts resume instead of
+// re-emitting. Also carries the file size + last event time for the
+// per-member capture-coverage signal.
+
+export const ingestFiles = sqliteTable('ingest_files', {
+  path: text('path').primaryKey(),
+  conversationId: text('conversation_id'),
+  ownerName: text('owner_name'),
+  byteOffset: integer('byte_offset').notNull().default(0),
+  fileSize: integer('file_size').notNull().default(0),
+  lastEventAt: text('last_event_at'),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  index('idx_ingest_files_conversation').on(t.conversationId),
 ]);
 
 // ─── Conversation Summaries ─────────────────────────────────────────
@@ -98,5 +120,7 @@ export type SessionRow = typeof sessions.$inferSelect;
 export type SessionInsert = typeof sessions.$inferInsert;
 export type MessageRow = typeof messages.$inferSelect;
 export type MessageInsert = typeof messages.$inferInsert;
+export type IngestFileRow = typeof ingestFiles.$inferSelect;
+export type IngestFileInsert = typeof ingestFiles.$inferInsert;
 export type ConversationSummaryRow = typeof conversationSummaries.$inferSelect;
 export type ConversationSummaryInsert = typeof conversationSummaries.$inferInsert;

@@ -1,7 +1,25 @@
 use super::Database;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
+
+/// Monotonic message-id source. `Ulid::new()` is not ordered within a single
+/// millisecond, but the feed breaks event_time ties by id — so two wrappers
+/// from the SAME transcript line (same event_time) could otherwise display out
+/// of transcript order. Forcing each new id strictly greater than the last
+/// makes the id tiebreak preserve insertion (transcript ordinal) order.
+static LAST_MESSAGE_ID: Mutex<Option<ulid::Ulid>> = Mutex::new(None);
+
+fn next_message_id() -> String {
+    let mut guard = LAST_MESSAGE_ID.lock().unwrap();
+    let mut id = ulid::Ulid::new();
+    if let Some(prev) = (*guard).filter(|&p| id <= p) {
+        id = prev.increment().unwrap_or(id);
+    }
+    *guard = Some(id);
+    id.to_string()
+}
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -86,6 +104,22 @@ pub struct Message {
     pub message_type: String,
     pub metadata: serde_json::Value,
     pub created_at: String,
+    /// Real send/delivery time from the transcript. The feed orders on this.
+    /// Falls back to created_at (ingestion time) for legacy rows.
+    pub event_time: Option<String>,
+}
+
+/// Per-member capture coverage for a conversation. Powers the watcher's
+/// completeness signal: a watcher can see every member's transcript is being
+/// tailed and how far behind capture is, instead of trusting a raw total.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberCoverage {
+    pub owner_name: String,
+    pub byte_offset: i64,
+    pub file_size: i64,
+    pub last_event_at: Option<String>,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,11 +190,17 @@ impl Database {
         })
     }
 
+    /// Find a conversation by exact name, INCLUDING archived ones (an active
+    /// match is preferred). The watcher needs the archived row so a team whose
+    /// directory reappears can be restored in place — re-ingesting its
+    /// transcripts onto a fresh conversation would otherwise collide on the
+    /// global unique source_key and leave the team's history missing.
     pub fn find_conversation_by_name(&self, name: &str) -> Option<Conversation> {
         self.with_conn(|conn| {
             conn.query_row(
                 "SELECT id, name, workspace_path, workspace_name, type, status, created_at, updated_at, archived_at
-                 FROM conversations WHERE name = ?1 AND archived_at IS NULL",
+                 FROM conversations WHERE name = ?1
+                 ORDER BY (archived_at IS NULL) DESC, created_at DESC LIMIT 1",
                 params![name],
                 |row| Ok(row_to_conversation(row)),
             )
@@ -357,11 +397,20 @@ impl Database {
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let truncated: String = preview.chars().take(120).collect();
         self.with_conn(|conn| {
+            // Only move the preview/sender forward when this message is at least
+            // as new as the current latest — otherwise an out-of-order ingest
+            // (a backfilled or send-time-enriched older row arriving after a
+            // newer one) would point the preview at an older message. SQLite
+            // evaluates every SET RHS against the pre-update row, so the CASE
+            // compares against the OLD last_message_at.
             conn.execute(
                 "UPDATE conversation_summaries
                  SET total_messages = total_messages + 1,
+                     last_message_preview = CASE WHEN ?1 >= COALESCE(last_message_at, '')
+                                                 THEN ?2 ELSE last_message_preview END,
+                     last_message_sender = CASE WHEN ?1 >= COALESCE(last_message_at, '')
+                                                 THEN ?3 ELSE last_message_sender END,
                      last_message_at = MAX(COALESCE(last_message_at, ''), ?1),
-                     last_message_preview = ?2, last_message_sender = ?3,
                      updated_at = MAX(COALESCE(updated_at, ''), ?1)
                  WHERE conversation_id = ?4",
                 params![ts, truncated, sender, conversation_id],
@@ -370,23 +419,137 @@ impl Database {
         });
     }
 
-    pub fn increment_session_count(&self, conversation_id: &str) {
+    /// Recompute session counts from the sessions table instead of blindly
+    /// incrementing. The old increment fired only on conversation creation and
+    /// double-counted on re-runs, so every multi-member team showed "1 session".
+    /// Deriving from COUNT(sessions) stays correct as members are added on each
+    /// config change.
+    pub fn resync_session_counts(&self, conversation_id: &str) {
         let now = chrono::Utc::now().to_rfc3339();
         self.with_conn(|conn| {
             conn.execute(
                 "UPDATE conversation_summaries
-                 SET active_session_count = active_session_count + 1,
-                     total_session_count = total_session_count + 1, updated_at = ?1
+                 SET total_session_count =
+                        (SELECT COUNT(*) FROM sessions WHERE conversation_id = ?2),
+                     active_session_count =
+                        (SELECT COUNT(*) FROM sessions WHERE conversation_id = ?2 AND status = 'active'),
+                     updated_at = ?1
                  WHERE conversation_id = ?2",
                 params![now, conversation_id],
             )
-            .expect("increment sessions");
+            .expect("resync sessions");
         });
+    }
+
+    // ─── Ingestion progress + coverage ─────────────────────────────────
+
+    /// Drop all ingest-progress rows for a conversation. Used when the watcher
+    /// re-points to a new transcript tree (the lead session changed): the old
+    /// paths' rows would otherwise linger and make the coverage signal report
+    /// "capture live" off stale, already-caught-up files before the new
+    /// transcripts have been tailed.
+    pub fn clear_ingest_files(&self, conversation_id: &str) {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM ingest_files WHERE conversation_id = ?1",
+                params![conversation_id],
+            )
+            .ok();
+        });
+    }
+
+    /// Persisted byte offset for a transcript file (0 if never read).
+    pub fn get_ingest_offset(&self, path: &str) -> i64 {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT byte_offset FROM ingest_files WHERE path = ?1",
+                params![path],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+        })
+    }
+
+    /// Record progress for a transcript file: how far we've read, the file's
+    /// current size (for lag), and the latest event time ingested from it.
+    pub fn set_ingest_offset(
+        &self,
+        path: &str,
+        conversation_id: &str,
+        owner_name: &str,
+        byte_offset: i64,
+        file_size: i64,
+        last_event_at: Option<&str>,
+    ) {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO ingest_files (path, conversation_id, owner_name, byte_offset, file_size, last_event_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(path) DO UPDATE SET
+                    conversation_id = ?2, owner_name = ?3, byte_offset = ?4, file_size = ?5,
+                    last_event_at = COALESCE(?6, last_event_at), updated_at = ?7",
+                params![path, conversation_id, owner_name, byte_offset, file_size, last_event_at, now],
+            )
+            .expect("set ingest offset");
+        });
+    }
+
+    /// Message counts grouped by message_type. Powers the class-separated
+    /// header count so a single conflated total (dominated by lead narration +
+    /// status noise) can't manufacture false trust about completeness.
+    pub fn get_message_class_counts(&self, conversation_id: &str) -> HashMap<String, i64> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT message_type, COUNT(*) FROM messages
+                     WHERE conversation_id = ?1 GROUP BY message_type",
+                )
+                .expect("prepare");
+            stmt.query_map(params![conversation_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .expect("query")
+            .filter_map(|r| r.ok())
+            .collect()
+        })
+    }
+
+    /// Per-member capture coverage for a conversation (the completeness signal).
+    pub fn get_member_coverage(&self, conversation_id: &str) -> Vec<MemberCoverage> {
+        self.with_conn(|conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT owner_name, byte_offset, file_size, last_event_at, updated_at
+                     FROM ingest_files WHERE conversation_id = ?1 ORDER BY owner_name",
+                )
+                .expect("prepare");
+            stmt.query_map(params![conversation_id], |row| {
+                Ok(MemberCoverage {
+                    owner_name: row.get(0).unwrap_or_default(),
+                    byte_offset: row.get(1).unwrap_or(0),
+                    file_size: row.get(2).unwrap_or(0),
+                    last_event_at: row.get(3).unwrap_or(None),
+                    updated_at: row.get(4).unwrap_or_default(),
+                })
+            })
+            .expect("query")
+            .filter_map(|r| r.ok())
+            .collect()
+        })
     }
 
     // ─── Message Queries ───────────────────────────────────────────────
 
-    pub fn insert_message(
+    /// Insert a message with an explicit event_time and a stable source_key.
+    ///
+    /// When `source_key` is provided the insert is idempotent — a second insert
+    /// of the same key returns `None` (the row already exists), giving
+    /// exactly-once ingestion that survives restarts and full re-scans without
+    /// the fragile 5-second time window. `event_time` is the transcript's real
+    /// send/delivery time and drives feed ordering.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_message_full(
         &self,
         conversation_id: &str,
         sender_id: &str,
@@ -396,16 +559,18 @@ impl Database {
         message_type: &str,
         parent_message_id: Option<&str>,
         metadata: &serde_json::Value,
-    ) -> Message {
-        let id = ulid::Ulid::new().to_string();
+        event_time: Option<&str>,
+        source_key: Option<&str>,
+    ) -> Option<Message> {
+        let id = next_message_id();
         let created_at = chrono::Utc::now().to_rfc3339();
         let metadata_str = serde_json::to_string(metadata).unwrap_or_else(|_| "{}".into());
 
-        self.with_conn(|conn| {
+        let inserted = self.with_conn(|conn| {
             conn.execute(
-                "INSERT INTO messages (id, conversation_id, parent_message_id, sender_id, sender_name,
-                                       sender_type, content, message_type, metadata, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT OR IGNORE INTO messages (id, conversation_id, parent_message_id, sender_id, sender_name,
+                                       sender_type, content, message_type, metadata, created_at, event_time, source_key)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     id,
                     conversation_id,
@@ -416,13 +581,20 @@ impl Database {
                     content,
                     message_type,
                     metadata_str,
-                    created_at
+                    created_at,
+                    event_time,
+                    source_key,
                 ],
             )
-            .expect("insert message");
+            .expect("insert message")
         });
 
-        Message {
+        if inserted == 0 {
+            // Duplicate source_key — already ingested.
+            return None;
+        }
+
+        Some(Message {
             id,
             conversation_id: conversation_id.to_string(),
             parent_message_id: parent_message_id.map(String::from),
@@ -433,7 +605,8 @@ impl Database {
             message_type: message_type.to_string(),
             metadata: metadata.clone(),
             created_at,
-        }
+            event_time: event_time.map(String::from),
+        })
     }
 
     pub fn get_messages(
@@ -443,24 +616,47 @@ impl Database {
         after: Option<&str>,
         before: Option<&str>,
     ) -> Vec<Message> {
+        // Order by the real event time (transcript send/delivery time), falling
+        // back to ingestion time for legacy rows, with id as the deterministic
+        // tiebreaker. The cursor is the composite "<sortKey>\u{1}<id>".
+        const SORT: &str = "COALESCE(event_time, created_at)";
         self.with_conn(|conn| {
             let mut sql = String::from(
                 "SELECT id, conversation_id, parent_message_id, sender_id, sender_name,
-                        sender_type, content, message_type, metadata, created_at
+                        sender_type, content, message_type, metadata, created_at, event_time
                  FROM messages WHERE conversation_id = ?1",
             );
             let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> =
                 vec![Box::new(conversation_id.to_string())];
 
-            if let Some(after_id) = after {
-                sql.push_str(&format!(" AND id > ?{}", param_values.len() + 1));
-                param_values.push(Box::new(after_id.to_string()));
+            if let Some(cursor) = after {
+                let (sk, id) = resolve_cursor(conn, conversation_id, cursor);
+                let i = param_values.len();
+                sql.push_str(&format!(
+                    " AND ({SORT} > ?{} OR ({SORT} = ?{} AND id > ?{}))",
+                    i + 1,
+                    i + 1,
+                    i + 2
+                ));
+                param_values.push(Box::new(sk));
+                param_values.push(Box::new(id));
             }
-            if let Some(before_id) = before {
-                sql.push_str(&format!(" AND id < ?{}", param_values.len() + 1));
-                param_values.push(Box::new(before_id.to_string()));
+            if let Some(cursor) = before {
+                let (sk, id) = resolve_cursor(conn, conversation_id, cursor);
+                let i = param_values.len();
+                sql.push_str(&format!(
+                    " AND ({SORT} < ?{} OR ({SORT} = ?{} AND id < ?{}))",
+                    i + 1,
+                    i + 1,
+                    i + 2
+                ));
+                param_values.push(Box::new(sk));
+                param_values.push(Box::new(id));
             }
-            sql.push_str(&format!(" ORDER BY id ASC LIMIT ?{}", param_values.len() + 1));
+            sql.push_str(&format!(
+                " ORDER BY {SORT} ASC, id ASC LIMIT ?{}",
+                param_values.len() + 1
+            ));
             param_values.push(Box::new(limit));
 
             let mut stmt = conn.prepare(&sql).expect("prepare");
@@ -486,7 +682,7 @@ impl Database {
             messages.pop();
         }
         let next_cursor = if has_more {
-            messages.last().map(|m| m.id.clone())
+            messages.last().map(message_cursor)
         } else {
             None
         };
@@ -497,43 +693,6 @@ impl Database {
                 next_cursor,
             },
         }
-    }
-
-    /// Append a recipient to an existing message's metadata.recipients array.
-    pub fn append_message_recipient(&self, message_id: &str, recipient: &str) {
-        self.with_conn(|conn| {
-            let metadata_str: String = match conn.query_row(
-                "SELECT metadata FROM messages WHERE id = ?1",
-                params![message_id],
-                |row| row.get(0),
-            ) {
-                Ok(s) => s,
-                Err(_) => return,
-            };
-
-            let mut metadata: serde_json::Value =
-                serde_json::from_str(&metadata_str).unwrap_or(serde_json::json!({}));
-
-            let recipients = metadata
-                .as_object_mut()
-                .unwrap()
-                .entry("recipients")
-                .or_insert_with(|| serde_json::json!([]));
-
-            if let Some(arr) = recipients.as_array_mut() {
-                let recipient_val = serde_json::Value::String(recipient.to_string());
-                if !arr.contains(&recipient_val) {
-                    arr.push(recipient_val);
-                }
-            }
-
-            let updated = serde_json::to_string(&metadata).unwrap();
-            conn.execute(
-                "UPDATE messages SET metadata = ?1 WHERE id = ?2",
-                params![updated, message_id],
-            )
-            .ok();
-        });
     }
 
     // ─── Session Queries ───────────────────────────────────────────────
@@ -623,6 +782,44 @@ impl Database {
     }
 }
 
+// ─── Cursor helpers ────────────────────────────────────────────────
+//
+// The feed orders by (COALESCE(event_time, created_at), id). A cursor encodes
+// both parts joined by U+0001 so pagination is stable under event-time order.
+
+const CURSOR_SEP: char = '\u{1}';
+
+fn message_cursor(m: &Message) -> String {
+    let sort_key = m.event_time.as_deref().unwrap_or(&m.created_at);
+    format!("{sort_key}{CURSOR_SEP}{}", m.id)
+}
+
+/// Resolve a cursor to (sort_key, id). A new composite cursor splits directly.
+/// A legacy id-only cursor (from before event-time ordering — e.g. a WebSocket
+/// `lastSeenId`) is resolved against the DB so the sort_key is the row's real
+/// COALESCE(event_time, created_at). Without this, the bare ULID would be
+/// compared as a sort key against ISO timestamps and exceed every row, so
+/// pagination/catch-up would replay the entire conversation.
+fn resolve_cursor(conn: &Connection, conversation_id: &str, cursor: &str) -> (String, String) {
+    if let Some((sk, id)) = cursor.split_once(CURSOR_SEP) {
+        return (sk.to_string(), id.to_string());
+    }
+    let sort_key: Option<String> = conn
+        .query_row(
+            "SELECT COALESCE(event_time, created_at) FROM messages
+             WHERE id = ?1 AND conversation_id = ?2",
+            params![cursor, conversation_id],
+            |r| r.get(0),
+        )
+        .ok();
+    match sort_key {
+        Some(sk) => (sk, cursor.to_string()),
+        // Unknown id (e.g. a message cleared on upgrade): fall back to id-as-both
+        // — rare, and no worse than the pre-resolution behavior.
+        None => (cursor.to_string(), cursor.to_string()),
+    }
+}
+
 // ─── Row mappers ───────────────────────────────────────────────────
 
 fn row_to_conversation(row: &rusqlite::Row) -> Conversation {
@@ -666,6 +863,7 @@ fn row_to_message(row: &rusqlite::Row) -> Message {
         message_type: row.get(7).unwrap(),
         metadata: serde_json::from_str(&metadata_str).unwrap_or(serde_json::Value::Object(Default::default())),
         created_at: row.get(9).unwrap(),
+        event_time: row.get(10).unwrap(),
     }
 }
 
@@ -704,5 +902,110 @@ mod tests {
         let json = serde_json::to_string(&conv).unwrap();
         assert!(json.contains("\"type\":\"team\""), "Expected 'type' field, got: {json}");
         assert!(!json.contains("convType"), "Should not have 'convType', got: {json}");
+    }
+
+    fn mem_db() -> Database {
+        Database::open_in_memory().unwrap()
+    }
+
+    fn ingest(db: &Database, conv: &str, content: &str, event_time: &str, key: &str) -> Option<Message> {
+        db.insert_message_full(
+            conv, "s@c", "sender", "agent", content, "text", None,
+            &serde_json::json!({}), Some(event_time), Some(key),
+        )
+    }
+
+    #[test]
+    fn source_key_makes_ingestion_idempotent() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        let first = ingest(&db, &conv.id, "hello", "2026-06-28T13:00:00.000Z", "k1");
+        let dup = ingest(&db, &conv.id, "hello", "2026-06-28T13:00:00.000Z", "k1");
+        assert!(first.is_some(), "first insert should land");
+        assert!(dup.is_none(), "duplicate source_key must be ignored");
+        assert_eq!(db.list_messages(&conv.id, 50, None).messages.len(), 1);
+    }
+
+    #[test]
+    fn feed_orders_by_event_time_not_insertion() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        // Insert out of chronological order; feed must come back sorted by event_time.
+        ingest(&db, &conv.id, "third", "2026-06-28T13:00:03.000Z", "k3");
+        ingest(&db, &conv.id, "first", "2026-06-28T13:00:01.000Z", "k1");
+        ingest(&db, &conv.id, "second", "2026-06-28T13:00:02.000Z", "k2");
+        let msgs = db.list_messages(&conv.id, 50, None).messages;
+        let order: Vec<&str> = msgs.iter().map(|m| m.content.as_str()).collect();
+        assert_eq!(order, vec!["first", "second", "third"]);
+    }
+
+    #[test]
+    fn event_time_cursor_paginates_without_dropping_rows() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        for i in 0..5 {
+            ingest(
+                &db,
+                &conv.id,
+                &format!("m{i}"),
+                &format!("2026-06-28T13:00:0{i}.000Z"),
+                &format!("k{i}"),
+            );
+        }
+        let page1 = db.list_messages(&conv.id, 2, None);
+        assert_eq!(page1.messages.len(), 2);
+        assert!(page1.pagination.has_more);
+        let cursor = page1.pagination.next_cursor.clone();
+        let page2 = db.list_messages(&conv.id, 2, cursor.as_deref());
+        let seen: Vec<&str> = page1
+            .messages
+            .iter()
+            .chain(page2.messages.iter())
+            .map(|m| m.content.as_str())
+            .collect();
+        assert_eq!(seen, vec!["m0", "m1", "m2", "m3"]);
+    }
+
+    #[test]
+    fn same_event_time_rows_keep_insertion_order() {
+        // Two wrappers from one transcript line share an event_time; the feed
+        // breaks ties by id, so ids must increase in insertion order.
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        let ts = "2026-06-28T13:00:00.000Z";
+        let a = ingest(&db, &conv.id, "first", ts, "ka").unwrap();
+        let b = ingest(&db, &conv.id, "second", ts, "kb").unwrap();
+        assert!(a.id < b.id, "monotonic ids preserve insertion order within a ms");
+        let got: Vec<String> = db.get_messages(&conv.id, 50, None, None)
+            .iter().map(|m| m.content.clone()).collect();
+        assert_eq!(got, vec!["first".to_string(), "second".to_string()]);
+    }
+
+    #[test]
+    fn legacy_id_only_cursor_pages_after_the_row_not_replay_all() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        let m0 = ingest(&db, &conv.id, "m0", "2026-06-28T13:00:00.000Z", "k0").unwrap();
+        ingest(&db, &conv.id, "m1", "2026-06-28T13:00:01.000Z", "k1");
+        ingest(&db, &conv.id, "m2", "2026-06-28T13:00:02.000Z", "k2");
+        // A bare-id cursor (a WS lastSeenId) must resolve to m0's event_time and
+        // return only later rows — not the whole conversation. A ULID compared
+        // as an ISO sort key would exceed every row and replay all three.
+        let after = db.get_messages(&conv.id, 100, Some(&m0.id), None);
+        let got: Vec<&str> = after.iter().map(|m| m.content.as_str()).collect();
+        assert_eq!(got, vec!["m1", "m2"], "id-only cursor must page after, not replay");
+    }
+
+    #[test]
+    fn resync_session_counts_reflects_real_roster() {
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        for i in 0..6 {
+            db.upsert_session(&format!("a{i}@c"), Some(&conv.id), Some("n"), None, None, None);
+        }
+        db.resync_session_counts(&conv.id);
+        let summary = db.get_summary(&conv.id);
+        assert_eq!(summary.total_session_count, 6, "every member counted, not just 1");
+        assert_eq!(summary.active_session_count, 6);
     }
 }

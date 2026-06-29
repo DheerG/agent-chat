@@ -64,10 +64,23 @@ const CREATE_TABLES_SQL: &str = r#"
     content TEXT NOT NULL,
     message_type TEXT NOT NULL DEFAULT 'text',
     metadata TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    -- event_time = the message's real send/delivery time from the transcript
+    -- (NOT the ingestion time). The feed orders on this so a transcript
+    -- backfill renders in true chronological order instead of read order.
+    event_time TEXT,
+    -- source_key = stable per-record identity (owner_session:line_uuid:ordinal).
+    -- A UNIQUE index makes ingestion idempotent and restart-safe: re-reading a
+    -- transcript can never double-insert, regardless of offset bookkeeping.
+    source_key TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
   CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
+  -- NOTE: indexes on event_time / source_key are created in
+  -- apply_column_migrations, NOT here. On an existing pre-release database the
+  -- CREATE TABLE above is a no-op (the table lacks those columns until the
+  -- migration ALTERs them in), so indexing them here would fail with "no such
+  -- column" and block startup after an upgrade.
 
   CREATE TABLE IF NOT EXISTS conversation_summaries (
     conversation_id TEXT PRIMARY KEY REFERENCES conversations(id),
@@ -81,7 +94,30 @@ const CREATE_TABLES_SQL: &str = r#"
     status TEXT NOT NULL DEFAULT 'active',
     updated_at TEXT NOT NULL
   );
+
+  -- Per-transcript-file ingestion progress. Byte offset into an append-only
+  -- JSONL transcript, persisted so a server restart resumes instead of
+  -- re-emitting history. Correctness still rests on messages.source_key; this
+  -- is purely the efficiency cursor.
+  CREATE TABLE IF NOT EXISTS ingest_files (
+    path TEXT PRIMARY KEY,
+    conversation_id TEXT,
+    owner_name TEXT,
+    byte_offset INTEGER NOT NULL DEFAULT 0,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    last_event_at TEXT,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_ingest_files_conversation ON ingest_files(conversation_id);
 "#;
+
+/// Columns added after the initial release. Applied idempotently on open so
+/// existing user databases gain the new ordering/idempotency fields without a
+/// migration framework. (path, column, definition)
+const ADD_COLUMNS: &[(&str, &str, &str)] = &[
+    ("messages", "event_time", "TEXT"),
+    ("messages", "source_key", "TEXT"),
+];
 
 /// Thread-safe database handle wrapping a SQLite connection behind a Mutex.
 #[derive(Clone)]
@@ -99,19 +135,50 @@ impl Database {
         conn.pragma_update(None, "foreign_keys", "ON")?;
 
         conn.execute_batch(CREATE_TABLES_SQL)?;
+        Self::apply_column_migrations(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
     }
 
+    #[cfg(test)]
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.execute_batch(CREATE_TABLES_SQL)?;
+        Self::apply_column_migrations(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
+    }
+
+    /// Add post-release columns to pre-existing databases. Idempotent: skips any
+    /// column that already exists, so it is safe to run on every open.
+    fn apply_column_migrations(conn: &Connection) -> Result<()> {
+        for (table, column, def) in ADD_COLUMNS {
+            let exists: bool = conn
+                .prepare(&format!("PRAGMA table_info({table})"))?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .filter_map(|r| r.ok())
+                .any(|name| name == *column);
+            if !exists {
+                conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {def};"))?;
+            }
+        }
+        // Indexes that depend on the migrated columns (no-op if already present).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_event ON messages(conversation_id, event_time, id);
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source_key ON messages(source_key) WHERE source_key IS NOT NULL;",
+        )?;
+        // NOTE: legacy inbox-watcher rows (NULL source_key) are deliberately NOT
+        // wiped here. A global delete would also empty completed/archived teams
+        // whose transcripts are gone and can never be reingested. Instead the
+        // watcher clears a team's legacy rows per-conversation at the moment it
+        // (re)ingests that team from its transcript (clear_legacy_messages), so
+        // only conversations that are actually being recaptured lose their old
+        // partial rows.
+        Ok(())
     }
 
     /// Execute a closure with exclusive access to the connection.
@@ -121,5 +188,58 @@ impl Database {
     {
         let conn = self.conn.lock().expect("db lock poisoned");
         f(&conn)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Opening a pre-release database (a `messages` table WITHOUT event_time /
+    /// source_key) must migrate cleanly. Regression guard: indexing those
+    /// columns before the migration ALTERs them in would fail with "no such
+    /// column" and block startup after an upgrade.
+    #[test]
+    fn opens_and_migrates_a_pre_release_database() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        // The old release's schema (no event_time / source_key, no new indexes).
+        conn.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                 workspace_path TEXT, workspace_name TEXT, type TEXT NOT NULL DEFAULT 'team',
+                 status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL, archived_at TEXT);
+             CREATE TABLE messages (id TEXT PRIMARY KEY,
+                 conversation_id TEXT NOT NULL REFERENCES conversations(id),
+                 parent_message_id TEXT, sender_id TEXT NOT NULL, sender_name TEXT NOT NULL,
+                 sender_type TEXT NOT NULL, content TEXT NOT NULL,
+                 message_type TEXT NOT NULL DEFAULT 'text', metadata TEXT NOT NULL DEFAULT '{}',
+                 created_at TEXT NOT NULL);
+             INSERT INTO conversations (id, name, type, status, created_at, updated_at)
+                 VALUES ('c1','t','team','active','t0','t0');
+             INSERT INTO messages (id, conversation_id, sender_id, sender_name, sender_type, content, created_at)
+                 VALUES ('m1','c1','s','s','agent','hi','t0');",
+        )
+        .unwrap();
+
+        // Simulate Database::open's upgrade path on this existing DB.
+        conn.execute_batch(CREATE_TABLES_SQL).expect("create-tables must not touch missing columns");
+        Database::apply_column_migrations(&conn).expect("migration must add columns then index");
+
+        let cols: Vec<String> = conn
+            .prepare("PRAGMA table_info(messages)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(cols.contains(&"event_time".to_string()));
+        assert!(cols.contains(&"source_key".to_string()));
+        // The migration must NOT wipe legacy rows: a team whose transcript is
+        // gone could never be reingested. The row is preserved here; per-team
+        // clearing happens in the watcher only when a team is actually
+        // recaptured (see clear_legacy_messages).
+        let msgs: i64 = conn.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0)).unwrap();
+        assert_eq!(msgs, 1, "legacy messages are preserved by the migration itself");
     }
 }

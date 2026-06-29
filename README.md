@@ -34,6 +34,20 @@ The web UI opens at **http://localhost:5555**. A SQLite database is created auto
 
 Any active Claude Code team sessions in `~/.claude/teams/` will appear automatically. No setup scripts, no per-project wiring.
 
+## Updating
+
+AgentChat shows an **"update available"** banner in the UI when a newer release is published. To update:
+
+**CLI** — quit AgentChat, then re-run the installer. It always installs the latest release; no uninstall needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DheerG/agent-chat/main/install.sh | sh
+```
+
+**Desktop app (macOS)** — quit AgentChat, download the latest `AgentChat-macos-*.app.tar.gz` from the [releases page](https://github.com/DheerG/agent-chat/releases/latest), extract it, and drag `AgentChat.app` into `/Applications`, replacing the old copy. On first launch, right-click the app → **Open** and confirm once (it isn't notarized yet).
+
+> **Upgrading from a pre-transcript build?** This version captures from Claude Code's session transcripts rather than the old team inboxes. Your existing conversations are kept as-is; if you see a few messages duplicated from the old capture, run `agent-chat --rebuild` once — it deletes the local database and rebuilds it cleanly from the transcripts. (Nothing is auto-deleted on upgrade, so no history is ever lost without you asking.)
+
 ## What you get
 
 - **Watch agents think in real time** -- Every message between agents streams to your browser over WebSocket. Follow the conversation as it unfolds instead of waiting for the final result.
@@ -58,20 +72,23 @@ Built for Claude Code agent teams. The file-watching architecture means extendin
 
 ```
 agent-chat/
+├── crates/
+│   ├── agent-chat/          Rust server + CLI: HTTP API, SQLite, WebSocket hub,
+│   │                        transcript watcher (the production binary)
+│   └── agent-chat-desktop/  Tauri desktop wrapper
 ├── packages/
-│   ├── server/     HTTP API, SQLite, WebSocket hub, team inbox watcher
-│   ├── client/     React UI
-│   └── shared/     Types and schema shared across packages
+│   ├── client/              React UI (embedded into the Rust binary)
+│   └── shared/              Shared TypeScript types
 └── pnpm-workspace.yaml
 ```
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `5555` | HTTP server port |
-| `AGENT_CHAT_DB_PATH` | `~/.agent-chat/v2.db` | SQLite database path |
-| `TEAMS_DIR` | `~/.claude/teams/` | Directory to watch for team conversations |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `--port` flag | `5555` | HTTP server port |
+| `AGENT_CHAT_DB_PATH` env | `~/.agent-chat/v2.db` | SQLite database path |
+| `TEAMS_DIR` env | `~/.claude/teams/` | Directory to watch for team conversations |
 
 ## Manual install
 
@@ -90,19 +107,28 @@ xattr -d com.apple.quarantine agent-chat
 
 ## Development
 
+The server is the Rust crate `agent-chat` (built with `cargo`); the UI is the React client (built with `pnpm`) and embedded into the Rust binary for release.
+
 ```bash
 git clone https://github.com/DheerG/agent-chat.git
 cd agent-chat
 pnpm install
-pnpm dev            # Server + client with hot reload
-pnpm build          # Production build
-pnpm test           # Run all tests
-pnpm typecheck      # Type checking only
+pnpm dev            # cargo run (Rust server) + client vite dev with hot reload
+cargo build -p agent-chat   # build the server/CLI binary
+cargo test -p agent-chat    # Rust tests
+pnpm build          # build the React client + shared types
 ```
 
 ## Tech stack
 
 Rust (server + CLI binary), React + TypeScript (UI), SQLite, WebSocket, Tauri (desktop app). The Rust binary embeds the React client via `rust-embed` for single-file distribution.
+
+## Known limitations
+
+- **Ordering is mostly true send-time, with a provisional fallback.** Each delivered message is matched to the sender's `SendMessage` event and ordered by its true send time (~88% of agent messages). The rest fall back to transcript *delivery* time and are marked provisional (`~`); delivery time still preserves the causal order of direct request→reply chains but can skew slightly across recipients.
+- **Broadcasts render as separate rows.** A single message sent to several teammates appears once per recipient (each correctly attributed) rather than collapsed into one "to everyone" row.
+- **A message to a departing teammate may not appear.** Capture reads each teammate's transcript; a message sent to a member who never takes another turn (e.g. a final shutdown note) has no delivery record to read and may be omitted. This concentrates at the very end of a run. (An in-feed "delivery unconfirmed" signal was prototyped and removed: in real time a slow-but-delivered message is indistinguishable from a lost one, so the signal produced false positives.)
+- **A declined/cancelled question isn't recorded.** If you dismiss a prompt instead of answering it, that non-answer isn't captured as a feed event (answered questions are).
 
 ## Contributing
 

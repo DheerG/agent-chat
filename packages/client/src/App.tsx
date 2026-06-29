@@ -1,10 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { Message, WsServerMessage, Session, ConversationListItem } from '@agent-chat/shared';
+import type { Message, WsServerMessage, Session, ConversationListItem, MemberCoverage } from '@agent-chat/shared';
 import { ConversationList } from './components/ConversationList';
 import { ConversationHeader } from './components/ConversationHeader';
 import { MessageFeed } from './components/MessageFeed';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useConversations } from './hooks/useConversations';
 import { useFeed } from './hooks/useFeed';
+import { useFeedFilters } from './hooks/useFeedFilters';
 import { useWebSocket } from './hooks/useWebSocket';
 import { fetchConversation } from './lib/api';
 import './App.css';
@@ -14,6 +16,8 @@ export function App() {
   const [tab, setTab] = useState<'active' | 'recent' | 'all'>('active');
   const [refreshKey, setRefreshKey] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [coverage, setCoverage] = useState<MemberCoverage[]>([]);
+  const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
   const [selectedConversation, setSelectedConversation] = useState<ConversationListItem | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [refreshCountdown, setRefreshCountdown] = useState(60);
@@ -34,23 +38,29 @@ export function App() {
     }, 1_000);
     return () => clearInterval(id);
   }, []);
-  const { items, loading: feedLoading, error: feedError, addMessage } = useFeed(selectedId);
+  const { items, loading: feedLoading, error: feedError, addMessage, resync: resyncFeed } = useFeed(selectedId);
+  const { hidden: hiddenCategories, toggle: toggleCategory, visibleItems } = useFeedFilters(items);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
   // Load conversation details when selected
   useEffect(() => {
-    if (!selectedId) { setSessions([]); setSelectedConversation(null); return; }
+    if (!selectedId) { setSessions([]); setCoverage([]); setMessageCounts({}); setSelectedConversation(null); return; }
     // Clear unread count for selected conversation
     setUnreadCounts(prev => { const next = new Map(prev); next.delete(selectedId); return next; });
     fetchConversation(selectedId).then(data => {
       setSessions(data.sessions);
+      setCoverage(data.coverage ?? []);
+      setMessageCounts(data.messageCounts ?? {});
       setSelectedConversation({
         ...data.conversation,
         summary: data.summary,
       } as ConversationListItem);
     }).catch(() => {});
-  }, [selectedId]);
+    // NOT keyed on items.length: during a transcript backfill that adds hundreds
+    // of rows, refetching detail/coverage/counts per message would storm the
+    // server. The periodic refreshKey (and a resync) refresh these instead.
+  }, [selectedId, refreshKey]);
 
   // WebSocket handler
   const handleWsMessage = useCallback((msg: WsServerMessage) => {
@@ -75,8 +85,15 @@ export function App() {
         reSort();
         break;
       }
+      case 'resync': {
+        // The server dropped broadcast events under load (a large backfill).
+        // Re-pull the whole open feed and the conversation list to close the gap.
+        resyncFeed();
+        setRefreshKey(k => k + 1);
+        break;
+      }
     }
-  }, [addMessage, updateConversation, reSort]);
+  }, [addMessage, updateConversation, reSort, resyncFeed]);
 
   useWebSocket(handleWsMessage);
 
@@ -96,6 +113,8 @@ export function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
+      <div className="app__body">
       <ConversationList
         conversations={conversations}
         loading={loading}
@@ -114,12 +133,17 @@ export function App() {
             <ConversationHeader
               conversation={selectedConversation}
               sessions={sessions}
+              coverage={coverage}
+              messageCounts={messageCounts}
+              hiddenCategories={hiddenCategories}
+              onToggleCategory={toggleCategory}
             />
             <MessageFeed
-              items={items}
+              items={visibleItems}
               loading={feedLoading}
               error={feedError}
               teamMemberCount={sessions.length}
+              allFilteredOut={!feedLoading && items.length > 0 && visibleItems.length === 0}
             />
           </>
         ) : (
@@ -131,6 +155,7 @@ export function App() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

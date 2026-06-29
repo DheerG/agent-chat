@@ -22,7 +22,10 @@ jobs:
           node-version: '20'
 
       - name: Install pnpm
-        run: npm install -g pnpm
+        # Pin to match packageManager so the release pipeline can't silently
+        # break on a pnpm major bump (the build-script allowlist lives in
+        # pnpm-workspace.yaml's pnpm-11 `allowBuilds`).
+        run: npm install -g pnpm@11.5.2
 
       - name: Install and build
         run: pnpm install --frozen-lockfile && pnpm build
@@ -70,6 +73,19 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: cli-${{ matrix.target }}
+
+      # Stamp the release tag into the build so /api/version (and the update
+      # banner) report the real version instead of the hardcoded 0.1.0.
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Building version $VERSION"
+          sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat/Cargo.toml
+          sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat-desktop/Cargo.toml
+          sed -i.bak -E 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' crates/agent-chat-desktop/tauri.conf.json
+          find crates -name '*.bak' -delete
 
       - name: Build CLI binary
         run: cargo build --release --target ${{ matrix.target }} -p agent-chat
@@ -163,6 +179,17 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Building version $VERSION"
+          sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat/Cargo.toml
+          sed -i.bak -E 's/^version = "[^"]*"/version = "'"$VERSION"'"/' crates/agent-chat-desktop/Cargo.toml
+          sed -i.bak -E 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' crates/agent-chat-desktop/tauri.conf.json
+          find crates -name '*.bak' -delete
+
       - name: Build Tauri app
         run: cargo tauri build --target ${{ matrix.target }}
         working-directory: crates/agent-chat-desktop
@@ -219,10 +246,28 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          # Publish immediately (not a draft). GitHub's /releases/latest — which
+          # install.sh and the in-app update banner both query — EXCLUDES drafts,
+          # so a draft release is invisible to every update path.
+          draft: false
           generate_release_notes: true
           files: release-files/*
           body: |
+            ## Updating from an earlier version
+
+            **CLI:** quit AgentChat, then re-run the one-line installer — it always
+            fetches the latest release, no uninstall needed:
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/DheerG/agent-chat/main/install.sh | sh
+            ```
+
+            **Desktop app (macOS):** quit AgentChat, download the latest
+            `AgentChat-macos-*.app.tar.gz` below, extract it, and drag `AgentChat.app`
+            into `/Applications`, replacing the old copy. On first launch, right-click
+            the app → **Open** and confirm once (it isn't notarized yet).
+
+            The app shows an **"update available"** banner when a newer release exists.
+
             ## Install
 
             **macOS — recommended (one-line install):**

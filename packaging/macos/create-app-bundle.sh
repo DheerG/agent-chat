@@ -8,7 +8,11 @@ BINARY="${1:?Usage: $0 <path-to-agent-chat-binary> [output-dir]}"
 OUTPUT_DIR="${2:-.}"
 APP_NAME="AgentChat"
 BUNDLE_ID="com.agentchat.app"
-VERSION="0.1.0"
+# Derive the version from the crate manifest (override with VERSION=...) so the
+# bundle isn't pinned to a stale hardcoded value.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="${VERSION:-$(grep -m1 '^version = ' "${SCRIPT_DIR}/../../crates/agent-chat/Cargo.toml" | sed -E 's/version = "([^"]*)"/\1/')}"
+VERSION="${VERSION:-0.0.0}"
 
 APP_DIR="${OUTPUT_DIR}/${APP_NAME}.app"
 CONTENTS="${APP_DIR}/Contents"

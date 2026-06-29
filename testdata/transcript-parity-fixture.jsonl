@@ -1,0 +1,10 @@
+{"type": "user", "uuid": "u1", "timestamp": "2026-06-28T13:00:01.000Z", "message": {"content": "Another Claude session sent a message:\n<teammate-message teammate_id=\"alpha\" color=\"blue\" summary=\"hi\">\nhello lead\n</teammate-message>\n\nThis came from another Claude session."}}
+{"type": "user", "uuid": "u2", "timestamp": "2026-06-28T13:00:02.000Z", "message": {"content": "<teammate-message teammate_id=\"bravo\" summary=\"s\">one</teammate-message>\n<teammate-message teammate_id=\"charlie\" summary=\"s\">two</teammate-message>"}}
+{"type": "user", "uuid": "u3", "timestamp": "2026-06-28T13:00:03.000Z", "message": {"content": "<teammate-message teammate_id=\"delta\">discussing <\\/teammate-message> escaping</teammate-message>"}}
+{"type": "user", "uuid": "u4", "timestamp": "2026-06-28T13:00:04.000Z", "message": {"content": "<teammate-message teammate_id=\"echo\" color=\"green\">\n{\"type\":\"idle_notification\",\"from\":\"echo\",\"idleReason\":\"available\"}\n</teammate-message>"}}
+{"type": "user", "uuid": "u5", "timestamp": "2026-06-28T13:00:05.000Z", "origin": {"kind": "human"}, "promptSource": "typed", "message": {"content": "the user's request"}}
+{"type": "user", "uuid": "u6", "timestamp": "2026-06-28T13:00:06.000Z", "message": {"content": [{"type": "tool_result", "content": "Your questions have been answered: \"Setup?\"=\"Defaults\"."}]}}
+{"type": "assistant", "uuid": "u7", "timestamp": "2026-06-28T13:00:07.000Z", "message": {"content": [{"type": "text", "text": "lead speaking to user"}]}}
+{"type": "system", "uuid": "u8", "timestamp": "2026-06-28T13:00:08.000Z", "message": {"content": "noise"}}
+{"type": "user", "uuid": "u9", "timestamp": "2026-06-28T13:00:09.000Z", "message": {"content": "a parser anchored to `<teammate-message` at line-start drops these"}}
+{"type": "user", "uuid": "u10", "timestamp": "2026-06-28T13:00:10.000Z", "message": {"content": [{"type": "tool_result", "content": "diagnostic: tool_result rows w/ 'Your questions have been answered': 4"}]}}

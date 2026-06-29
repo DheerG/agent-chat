@@ -1,0 +1,59 @@
+{
+  "asLead": {
+    "text": 4,
+    "status": 1,
+    "human": 2,
+    "lead": 1,
+    "total": 8
+  },
+  "messages": [
+    {
+      "senderName": "alpha",
+      "messageType": "text",
+      "content": "hello lead",
+      "sourceKey": "sess:u1:w0"
+    },
+    {
+      "senderName": "bravo",
+      "messageType": "text",
+      "content": "one",
+      "sourceKey": "sess:u2:w0"
+    },
+    {
+      "senderName": "charlie",
+      "messageType": "text",
+      "content": "two",
+      "sourceKey": "sess:u2:w1"
+    },
+    {
+      "senderName": "delta",
+      "messageType": "text",
+      "content": "discussing </teammate-message> escaping",
+      "sourceKey": "sess:u3:w0"
+    },
+    {
+      "senderName": "echo",
+      "messageType": "status",
+      "content": "{\"type\":\"idle_notification\",\"from\":\"echo\",\"idleReason\":\"available\"}",
+      "sourceKey": "sess:u4:w0"
+    },
+    {
+      "senderName": "you",
+      "messageType": "human",
+      "content": "the user's request",
+      "sourceKey": "sess:u5:human"
+    },
+    {
+      "senderName": "you",
+      "messageType": "human",
+      "content": "Your questions have been answered: \"Setup?\"=\"Defaults\".",
+      "sourceKey": "sess:u6:human"
+    },
+    {
+      "senderName": "team-lead",
+      "messageType": "lead",
+      "content": "lead speaking to user",
+      "sourceKey": "sess:u7:lead"
+    }
+  ]
+}

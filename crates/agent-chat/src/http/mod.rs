@@ -29,11 +29,21 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/conversations/{id}/feed", get(get_feed))
         .route("/api/conversations/{id}/archive", patch(archive_conversation))
         .route("/api/conversations/{id}/restore", patch(restore_conversation))
+        .route("/api/version", get(get_version))
         .route("/health", get(health))
 }
 
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// The running build version, for the client's update-available banner. The
+/// client compares this against the latest GitHub release tag.
+async fn get_version() -> impl IntoResponse {
+    Json(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "repo": "DheerG/agent-chat",
+    }))
 }
 
 async fn list_conversations(
@@ -54,8 +64,19 @@ async fn get_conversation(
         Some(conversation) => {
             let summary = state.db.get_summary(&id);
             let sessions = state.db.get_sessions_by_conversation(&id);
-            Json(serde_json::json!({ "conversation": conversation, "summary": summary, "sessions": sessions }))
-                .into_response()
+            // Per-member capture coverage powers the completeness signal: the
+            // watcher can see every member's transcript is tailed and how far
+            // behind capture is, instead of trusting a single conflated total.
+            let coverage = state.db.get_member_coverage(&id);
+            let message_counts = state.db.get_message_class_counts(&id);
+            Json(serde_json::json!({
+                "conversation": conversation,
+                "summary": summary,
+                "sessions": sessions,
+                "coverage": coverage,
+                "messageCounts": message_counts,
+            }))
+            .into_response()
         }
         None => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Not found" }))).into_response(),
     }
