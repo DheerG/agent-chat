@@ -55,7 +55,10 @@ export function App() {
         summary: data.summary,
       } as ConversationListItem);
     }).catch(() => {});
-  }, [selectedId, refreshKey, items.length]);
+    // NOT keyed on items.length: during a transcript backfill that adds hundreds
+    // of rows, refetching detail/coverage/counts per message would storm the
+    // server. The periodic refreshKey (and a resync) refresh these instead.
+  }, [selectedId, refreshKey]);
 
   // WebSocket handler
   const handleWsMessage = useCallback((msg: WsServerMessage) => {

@@ -2,6 +2,24 @@ use super::Database;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
+
+/// Monotonic message-id source. `Ulid::new()` is not ordered within a single
+/// millisecond, but the feed breaks event_time ties by id — so two wrappers
+/// from the SAME transcript line (same event_time) could otherwise display out
+/// of transcript order. Forcing each new id strictly greater than the last
+/// makes the id tiebreak preserve insertion (transcript ordinal) order.
+static LAST_MESSAGE_ID: Mutex<Option<ulid::Ulid>> = Mutex::new(None);
+
+fn next_message_id() -> String {
+    let mut guard = LAST_MESSAGE_ID.lock().unwrap();
+    let mut id = ulid::Ulid::new();
+    if let Some(prev) = (*guard).filter(|&p| id <= p) {
+        id = prev.increment().unwrap_or(id);
+    }
+    *guard = Some(id);
+    id.to_string()
+}
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -544,7 +562,7 @@ impl Database {
         event_time: Option<&str>,
         source_key: Option<&str>,
     ) -> Option<Message> {
-        let id = ulid::Ulid::new().to_string();
+        let id = next_message_id();
         let created_at = chrono::Utc::now().to_rfc3339();
         let metadata_str = serde_json::to_string(metadata).unwrap_or_else(|_| "{}".into());
 
@@ -946,6 +964,21 @@ mod tests {
             .map(|m| m.content.as_str())
             .collect();
         assert_eq!(seen, vec!["m0", "m1", "m2", "m3"]);
+    }
+
+    #[test]
+    fn same_event_time_rows_keep_insertion_order() {
+        // Two wrappers from one transcript line share an event_time; the feed
+        // breaks ties by id, so ids must increase in insertion order.
+        let db = mem_db();
+        let conv = db.create_conversation("t", None, None, "team");
+        let ts = "2026-06-28T13:00:00.000Z";
+        let a = ingest(&db, &conv.id, "first", ts, "ka").unwrap();
+        let b = ingest(&db, &conv.id, "second", ts, "kb").unwrap();
+        assert!(a.id < b.id, "monotonic ids preserve insertion order within a ms");
+        let got: Vec<String> = db.get_messages(&conv.id, 50, None, None)
+            .iter().map(|m| m.content.clone()).collect();
+        assert_eq!(got, vec!["first".to_string(), "second".to_string()]);
     }
 
     #[test]
