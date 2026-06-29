@@ -17,6 +17,20 @@ fn member_owner_named(name: &str) -> Owner {
 }
 
 #[test]
+fn compaction_summary_quoting_a_wrapper_is_not_a_message() {
+    // A continuation summary (isCompactSummary) can quote the wrapper format as
+    // prose; it must never be parsed into phantom agent messages.
+    let line = serde_json::json!({
+        "type": "user",
+        "uuid": "cs-1",
+        "timestamp": "2026-06-28T13:00:00.000Z",
+        "isCompactSummary": true,
+        "message": { "content": "Format: <teammate-message teammate_id=\"x\" color=\"blue\">BODY</teammate-message>" },
+    });
+    assert!(recognize(&line, &lead_owner()).is_empty(), "compaction summary is not a delivery");
+}
+
+#[test]
 fn wrapper_summary_with_angle_bracket_is_not_truncated() {
     // A summary like "rung 9.5 > 9.75" contains '>'; the opening tag must close
     // at the real '>', not the one inside the quoted attribute, or the summary

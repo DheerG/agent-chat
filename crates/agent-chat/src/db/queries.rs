@@ -172,11 +172,17 @@ impl Database {
         })
     }
 
+    /// Find a conversation by exact name, INCLUDING archived ones (an active
+    /// match is preferred). The watcher needs the archived row so a team whose
+    /// directory reappears can be restored in place — re-ingesting its
+    /// transcripts onto a fresh conversation would otherwise collide on the
+    /// global unique source_key and leave the team's history missing.
     pub fn find_conversation_by_name(&self, name: &str) -> Option<Conversation> {
         self.with_conn(|conn| {
             conn.query_row(
                 "SELECT id, name, workspace_path, workspace_name, type, status, created_at, updated_at, archived_at
-                 FROM conversations WHERE name = ?1 AND archived_at IS NULL",
+                 FROM conversations WHERE name = ?1
+                 ORDER BY (archived_at IS NULL) DESC, created_at DESC LIMIT 1",
                 params![name],
                 |row| Ok(row_to_conversation(row)),
             )

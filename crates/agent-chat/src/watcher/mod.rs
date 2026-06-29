@@ -813,6 +813,14 @@ fn recognize_attachment(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Ve
 }
 
 fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extracted> {
+    // A compaction continuation summary is meta prose that quotes the wrapper
+    // format (e.g. when summarizing the transcript shape); it is NOT a real
+    // delivery, so never parse it — otherwise the quoted examples become phantom
+    // agent messages in continued sessions.
+    if line.get("isCompactSummary").and_then(|v| v.as_bool()) == Some(true) {
+        return vec![];
+    }
+
     let content = message_content_text(line);
 
     // (0) A human-typed row on the lead transcript takes precedence over wrapper
