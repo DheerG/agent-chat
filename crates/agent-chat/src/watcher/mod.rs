@@ -815,6 +815,38 @@ fn recognize_attachment(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Ve
 fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extracted> {
     let content = message_content_text(line);
 
+    // (0) A human-typed row on the lead transcript takes precedence over wrapper
+    // extraction: the user may quote a literal <teammate-message …> tag in a
+    // steer (e.g. documenting the format), which must stay the user's own
+    // message rather than be parsed as an agent delivery. Delivered wrappers
+    // carry no human origin, so they fall through to (1). Claude marks human
+    // input as origin.kind=="human" and/or promptSource=="typed"; accept either,
+    // since the format has drifted across versions and missing the user's own
+    // messages is the worst capture failure (pulses/reminders are "system").
+    if owner.is_lead {
+        let origin_human = line
+            .get("origin")
+            .and_then(|o| o.get("kind"))
+            .and_then(|k| k.as_str())
+            == Some("human");
+        let typed = line.get("promptSource").and_then(|v| v.as_str()) == Some("typed");
+        if (origin_human || typed) && !content.trim().is_empty() && !is_pulse(&content) {
+            return vec![Extracted {
+                sender_name: "you".into(),
+                sender_type: "human".into(),
+                message_type: "human".into(),
+                content: content.trim().to_string(),
+                color: None,
+                summary: None,
+                status_type: None,
+                event_time: ts.to_string(),
+                recipient: owner.name.clone(),
+                source_key: format!("{}:{}:human", owner.session_token, uuid),
+                timestamp_source: "delivery".into(),
+            }];
+        }
+    }
+
     // (1) Inbound teammate-message wrappers — the primary agent↔agent record.
     let wrappers = extract_wrappers(&content);
     if !wrappers.is_empty() {
@@ -871,35 +903,7 @@ fn recognize_user(line: &Value, owner: &Owner, uuid: &str, ts: &str) -> Vec<Extr
         }];
     }
 
-    // (3) Human typed input (the user's request + steers). Claude marks these
-    // as origin.kind=="human" and/or promptSource=="typed"; accept either, since
-    // the format has drifted across versions and missing the user's own messages
-    // is the worst capture failure. System-injected prompts (pulses, reminders)
-    // are promptSource=="system" — excluded — and the wrapper/tool_result paths
-    // above have already claimed agent deliveries and question answers.
-    let origin_human = line
-        .get("origin")
-        .and_then(|o| o.get("kind"))
-        .and_then(|k| k.as_str())
-        == Some("human");
-    let typed = line.get("promptSource").and_then(|v| v.as_str()) == Some("typed");
-    let is_human = origin_human || typed;
-    if is_human && !content.trim().is_empty() && !is_pulse(&content) {
-        return vec![Extracted {
-            sender_name: "you".into(),
-            sender_type: "human".into(),
-            message_type: "human".into(),
-            content: content.trim().to_string(),
-            color: None,
-            summary: None,
-            status_type: None,
-            event_time: ts.to_string(),
-            recipient: owner.name.clone(),
-            source_key: format!("{}:{}:human", owner.session_token, uuid),
-            timestamp_source: "delivery".into(),
-        }];
-    }
-
+    // Human typed input is handled in (0) above, before wrapper extraction.
     vec![]
 }
 

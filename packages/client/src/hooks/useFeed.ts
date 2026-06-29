@@ -17,6 +17,20 @@ function cmpItems(a: FeedItem, b: FeedItem): number {
   return 0;
 }
 
+/** Merge a freshly-fetched snapshot with the rows currently shown, so a live
+ * WebSocket row that arrived mid-fetch (and may sort past where the paged fetch
+ * already read) isn't dropped. Only keeps current rows for `conversationId`
+ * (drops a previously-selected conversation's leftovers), unions by id, re-sorts. */
+function mergeFeed(snapshot: FeedItem[], prev: FeedItem[], conversationId: string): FeedItem[] {
+  const byId = new Map(snapshot.map(m => [m.id, m]));
+  for (const m of prev) {
+    if (m.type === 'message' && m.conversationId === conversationId && !byId.has(m.id)) {
+      byId.set(m.id, m);
+    }
+  }
+  return Array.from(byId.values()).sort(cmpItems);
+}
+
 /** First index in the sorted list whose item sorts after `target` (where it
  * should be inserted to keep order). Assumes `list` is already sorted. */
 function lowerBound(list: FeedItem[], target: FeedItem): number {
@@ -52,7 +66,9 @@ export function useFeed(conversationId: string | null) {
     fetchAllFeed(conversationId)
       .then(all => {
         if (!cancelled) {
-          setItems(all);
+          // Merge rather than replace: a live row can arrive during the (paged)
+          // fetch and would otherwise be dropped from the open feed.
+          setItems(prev => mergeFeed(all, prev, conversationId));
           setError(null);
           if (all.length > 0) {
             setLastSeenId(all[all.length - 1]!.id);
@@ -75,16 +91,7 @@ export function useFeed(conversationId: string | null) {
         // The user may have switched conversations while this was in flight;
         // only apply if the feed is still showing the conversation we fetched.
         if (convRef.current !== startedFor) return;
-        setItems(prev => {
-          // Merge: a live WebSocket row can arrive during the fetch and sit past
-          // the page the snapshot already read, so a blind replace would drop it.
-          // Union by id, then re-sort into (eventTime, id) order.
-          const byId = new Map(all.map(m => [m.id, m]));
-          for (const m of prev) {
-            if (m.type === 'message' && !byId.has(m.id)) byId.set(m.id, m);
-          }
-          return Array.from(byId.values()).sort(cmpItems);
-        });
+        setItems(prev => mergeFeed(all, prev, startedFor));
         if (all.length > 0) setLastSeenId(all[all.length - 1]!.id);
       })
       .catch(() => { /* a failed resync leaves the current feed in place */ });

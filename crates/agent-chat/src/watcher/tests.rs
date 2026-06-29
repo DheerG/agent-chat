@@ -48,6 +48,34 @@ fn queued_attachment(prompt: &str, command_mode: &str, human: bool) -> Value {
 }
 
 #[test]
+fn human_steer_quoting_a_wrapper_tag_stays_human() {
+    // The user documents the wrapper format in a steer. It must be captured as
+    // the user's own (human) message, not parsed as an agent delivery.
+    let line = serde_json::json!({
+        "type": "user",
+        "uuid": "h-1",
+        "timestamp": "2026-06-28T13:00:00.000Z",
+        "origin": { "kind": "human" },
+        "message": { "content": "Capture rows like <teammate-message teammate_id=\"x\">hi</teammate-message> please" },
+    });
+    let ex = recognize(&line, &lead_owner());
+    assert_eq!(ex.len(), 1);
+    assert_eq!(ex[0].sender_type, "human");
+    assert!(ex[0].content.contains("Capture rows like"));
+}
+
+#[test]
+fn delivered_wrapper_without_human_origin_still_parses() {
+    // A delivered wrapper (no human origin/promptSource) must still be extracted
+    // as an agent message even on the lead transcript.
+    let line = user_line("<teammate-message teammate_id=\"alice\" color=\"blue\">hello lead</teammate-message>");
+    let ex = recognize(&line, &lead_owner());
+    assert_eq!(ex.len(), 1);
+    assert_eq!(ex[0].sender_type, "agent");
+    assert_eq!(ex[0].sender_name, "alice");
+}
+
+#[test]
 fn captures_typed_human_row_without_origin() {
     // A typed prompt can be marked promptSource=="typed" with no origin.kind
     // (format drift across Claude versions). It must still be captured as human.
