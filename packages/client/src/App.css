@@ -367,12 +367,14 @@
 }
 
 .message-feed__loading,
-.message-feed__error {
+.message-feed__error,
+.message-feed__filtered {
   text-align: center;
   padding: 20px;
   color: var(--color-text-muted);
   font-size: 0.85rem;
 }
+.message-feed__filtered strong { color: var(--color-text-primary); }
 
 /* ─── Message Item ───────────────────────────────────────────────── */
 
@@ -803,33 +805,100 @@
   color: #b8b8b8;
 }
 
-/* ─── Class-separated header counts, click-to-toggle filters ──────── */
-.conversation-header__counts {
+/* ─── Message-type filter (funnel menu + filtered-out chips) ──────── */
+.feed-filter {
+  position: relative;
   display: inline-flex;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: #9aa0a6;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
 }
-.conversation-header__count strong { color: #cfd2d6; }
 
-/* Each count is a toggle button: click to hide/show that message class. */
-.conversation-header__count--toggle {
+.feed-filter__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font: inherit;
-  color: inherit;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid transparent;
-  border-radius: 0.4rem;
-  padding: 0.1rem 0.45rem;
+  color: #b8bcc2;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.45rem;
+  padding: 0.18rem 0.5rem;
   cursor: pointer;
-  transition: background 0.12s, opacity 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
-.conversation-header__count--toggle:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
+.feed-filter__button:hover { background: rgba(255, 255, 255, 0.12); color: #e6e8eb; }
+.feed-filter__button--active { border-color: #3d6fb4; color: #cfe0ff; }
+.feed-filter__badge {
+  min-width: 1.05rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #cfe0ff;
+  background: #2f4a73;
+  border-radius: 0.6rem;
+  padding: 0 0.3rem;
 }
-.conversation-header__count--toggle:disabled { cursor: default; }
-/* Hidden class: dimmed + struck through so it reads as "filtered out". */
-.conversation-header__count--off {
-  opacity: 0.4;
-  text-decoration: line-through;
+
+/* Removable "filtered out" chips. */
+.feed-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font: inherit;
+  color: #9aa0a6;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 0.45rem;
+  padding: 0.14rem 0.4rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.feed-filter__chip:hover { background: rgba(255, 255, 255, 0.1); color: #e6e8eb; }
+.feed-filter__chip-x { opacity: 0.7; }
+.feed-filter__chip:hover .feed-filter__chip-x { opacity: 1; }
+
+/* Dropdown menu. */
+.feed-filter__menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 50;
+  min-width: 13rem;
+  background: #1f2226;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 0.3rem;
+}
+.feed-filter__menu-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #80868e;
+  padding: 0.25rem 0.45rem 0.35rem;
+}
+.feed-filter__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  font: inherit;
+  color: #d4d7db;
   background: transparent;
+  border: none;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.feed-filter__row:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.feed-filter__row:disabled { cursor: default; }
+.feed-filter__row--off { color: #80868e; }
+.feed-filter__row-label { flex: 1; }
+.feed-filter__row-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  color: #80868e;
 }

@@ -143,6 +143,7 @@ export function App() {
               loading={feedLoading}
               error={feedError}
               teamMemberCount={sessions.length}
+              allFilteredOut={!feedLoading && items.length > 0 && visibleItems.length === 0}
             />
           </>
         ) : (

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ConversationListItem, Session, MemberCoverage } from '@agent-chat/shared';
 import { StatusIndicator } from './StatusIndicator';
-import { FEED_CATEGORIES, type FeedCategory } from '../hooks/useFeedFilters';
+import { FeedFilter } from './FeedFilter';
+import { type FeedCategory } from '../hooks/useFeedFilters';
 
 interface Props {
   conversation: ConversationListItem;
@@ -92,26 +93,12 @@ export function ConversationHeader({ conversation, sessions, coverage = [], mess
             Running {duration(summary.startedAt)}
           </span>
         )}
-        {hasCounts ? (
-          <span className="conversation-header__counts" role="group" aria-label="Filter messages by type">
-            {FEED_CATEGORIES.map(c => {
-              const count = messageCounts[c.type] ?? 0;
-              const isHidden = hiddenCategories?.has(c.key) ?? false;
-              return (
-                <button
-                  key={c.key}
-                  type="button"
-                  className={`conversation-header__count conversation-header__count--toggle${isHidden ? ' conversation-header__count--off' : ''}`}
-                  onClick={() => onToggleCategory?.(c.key)}
-                  disabled={!onToggleCategory}
-                  aria-pressed={!isHidden}
-                  title={isHidden ? `Show ${c.label} messages` : `Hide ${c.label} messages`}
-                >
-                  <strong>{count}</strong> {c.label}
-                </button>
-              );
-            })}
-          </span>
+        {hasCounts && onToggleCategory ? (
+          <FeedFilter
+            counts={messageCounts}
+            hidden={hiddenCategories ?? new Set<FeedCategory>()}
+            onToggle={onToggleCategory}
+          />
         ) : (
           <span className="conversation-header__msgs">
             {summary.totalMessages} messages

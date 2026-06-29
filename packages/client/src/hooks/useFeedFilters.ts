@@ -21,14 +21,20 @@ const TYPE_TO_CATEGORY: Record<string, FeedCategory> = {
   status: 'status',
 };
 
-const STORAGE_KEY = 'agentchat.hiddenFeedCategories';
+const STORAGE_KEY = 'agentchat.feedFilter.hidden';
+
+/** Classes hidden on a first run — lead narration and status notices are the
+ *  bulk of the noise, so the feed opens on the actual inter-agent discussion. */
+const DEFAULT_HIDDEN: FeedCategory[] = ['lead', 'status'];
 
 function loadHidden(): Set<FeedCategory> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return new Set(JSON.parse(raw) as FeedCategory[]);
+    // A stored value (even "[]" = "show all") is the user's explicit choice and
+    // wins; only a first-ever run with no stored preference gets the default.
+    if (raw !== null) return new Set(JSON.parse(raw) as FeedCategory[]);
   } catch { /* ignore malformed storage */ }
-  return new Set();
+  return new Set(DEFAULT_HIDDEN);
 }
 
 /**
