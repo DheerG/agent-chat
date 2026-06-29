@@ -273,20 +273,33 @@ fn process_team(
     // would keep tailing the old transcripts and miss every new message).
     {
         let mut lock = ws.lock().unwrap();
-        if let Some(ts) = lock.teams.get_mut(team_name) {
-            let conv_id = ts.conversation_id.clone();
-            let repointed = ts.lead_session_id != lead_session_id || ts.project_dir != project_dir;
+        if lock.teams.contains_key(team_name) {
+            let (conv_id, repointed) = {
+                let ts = lock.teams.get_mut(team_name).unwrap();
+                let conv_id = ts.conversation_id.clone();
+                let repointed =
+                    ts.lead_session_id != lead_session_id || ts.project_dir != project_dir;
+                if repointed {
+                    ts.lead_session_id = lead_session_id.clone();
+                    ts.project_dir = project_dir.clone();
+                    info!(team_name, "Lead session changed — re-pointed transcript tree");
+                }
+                // Refresh the cached lead name too: if the team was first
+                // discovered before config.members was populated, lead_name was
+                // the fallback "team-lead"; a later config rewrite fills in the
+                // real name, and lead rows/enrichment must use it even when the
+                // session is unchanged.
+                if ts.lead_name != lead_name {
+                    ts.lead_name = lead_name.clone();
+                }
+                (conv_id, repointed)
+            };
             if repointed {
-                ts.lead_session_id = lead_session_id.clone();
-                ts.project_dir = project_dir.clone();
-                info!(team_name, "Lead session changed — re-pointed transcript tree");
-            }
-            // Refresh the cached lead name too: if the team was first discovered
-            // before config.members was populated, lead_name was the fallback
-            // "team-lead"; a later config rewrite fills in the real name, and
-            // lead rows/enrichment must use it even when the session is unchanged.
-            if ts.lead_name != lead_name {
-                ts.lead_name = lead_name.clone();
+                // Drop this conversation's unmatched send-index entries: an old
+                // session's undelivered send must not enrich a new session's
+                // delivery of the same sender/recipient/body with a stale
+                // send time (which would sort the new message into the old run).
+                lock.send_index.retain(|_, info| info.conversation_id != conv_id);
             }
             drop(lock);
             // Drop the old tree's ingest-progress rows so the coverage signal
